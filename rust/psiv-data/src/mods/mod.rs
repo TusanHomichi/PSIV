@@ -16,6 +16,9 @@
 //! the offending mod, file, and place.
 
 mod diff;
+#[cfg(test)]
+mod guide_tests;
+mod map_art;
 mod patch;
 mod profile;
 #[cfg(test)]
@@ -482,9 +485,9 @@ pub fn apply_mods(
 
     let mut provenance: BTreeMap<String, String> = BTreeMap::new();
     let mut patched_set: BTreeMap<String, ()> = BTreeMap::new();
-    let mut asset_set: BTreeMap<String, ()> = BTreeMap::new();
+    let mut asset_layer: BTreeMap<String, usize> = BTreeMap::new();
 
-    for m in mods {
+    for (mod_idx, m) in mods.iter().enumerate() {
         let mod_id = &m.manifest.id;
         let patches_root = m.root.join(MOD_PATCHES_DIR);
         if patches_root.is_dir() {
@@ -601,10 +604,12 @@ pub fn apply_mods(
                     )
                 })?;
                 provenance.insert(rel_str.clone(), mod_id.clone());
-                asset_set.insert(rel_str, ());
+                asset_layer.insert(rel_str, mod_idx);
             }
         }
     }
+
+    map_art::reconcile_replaced_map_update_images(out_dir, &asset_layer)?;
 
     // Validate the resulting pack through the exact same schema loaders as retail.
     if let Err(error) = GameData::load(out_dir) {
@@ -620,7 +625,7 @@ pub fn apply_mods(
         effective_pack: out_dir.to_path_buf(),
         active: mods.iter().map(|m| m.manifest.clone()).collect(),
         patched_files: patched_set.into_keys().collect(),
-        replaced_assets: asset_set.into_keys().collect(),
+        replaced_assets: asset_layer.into_keys().collect(),
     })
 }
 

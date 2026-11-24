@@ -3,7 +3,8 @@
 
 use super::{
     MOD_ASSETS_DIR, MOD_MANIFEST_FILE, MOD_PATCHES_DIR, ModError, ModManifest,
-    collect_relative_files, normalize_rel, patch::diff_json, reject_overlapping_output,
+    collect_relative_files, map_art::strip_reconciled_map_update_removals, normalize_rel,
+    patch::diff_json, reject_overlapping_output,
 };
 use std::fs;
 use std::path::Path;
@@ -53,7 +54,13 @@ pub fn diff_packs(
     let base_files = collect_relative_files(base_pack, &manifest.id, "base-pack")?;
     let edited_files = collect_relative_files(edited_pack, &manifest.id, "edited-pack")?;
     let mut edited_set = std::collections::BTreeSet::new();
-    let mut staged_patches: Vec<(std::path::PathBuf, String, String)> = Vec::new();
+    let mut changed_assets = std::collections::BTreeSet::new();
+    let mut raw_patches: Vec<(
+        std::path::PathBuf,
+        String,
+        serde_json::Value,
+        serde_json::Value,
+    )> = Vec::new();
     let mut staged_assets: Vec<(std::path::PathBuf, String, Vec<u8>)> = Vec::new();
 
     for rel in edited_files {
@@ -94,17 +101,32 @@ pub fn diff_packs(
                 let patch_opt = diff_json(&base_json, &edited_json, &rel_str)
                     .map_err(|detail| ModError::new(&manifest.id, &rel_str, detail))?;
                 if let Some(patch_val) = patch_opt {
-                    let mut pretty = serde_json::to_string_pretty(&patch_val).map_err(|error| {
-                        ModError::new(&manifest.id, &rel_str, format!("encode failed: {error}"))
-                    })?;
-                    pretty.push('\n');
-                    staged_patches.push((rel, rel_str, pretty));
+                    raw_patches.push((rel, rel_str, base_json, patch_val));
                 }
                 continue;
             }
         }
 
+        changed_assets.insert(rel_str.clone());
         staged_assets.push((rel, rel_str, edited_bytes));
+    }
+
+    let mut staged_patches: Vec<(std::path::PathBuf, String, String)> =
+        Vec::with_capacity(raw_patches.len());
+    for (rel, rel_str, base_json, mut patch_val) in raw_patches {
+        if !strip_reconciled_map_update_removals(
+            &rel_str,
+            &base_json,
+            &mut patch_val,
+            &changed_assets,
+        ) {
+            continue;
+        }
+        let mut pretty = serde_json::to_string_pretty(&patch_val).map_err(|error| {
+            ModError::new(&manifest.id, &rel_str, format!("encode failed: {error}"))
+        })?;
+        pretty.push('\n');
+        staged_patches.push((rel, rel_str, pretty));
     }
 
     for rel in base_files {

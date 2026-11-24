@@ -40,6 +40,19 @@ pub fn cram_word([r, g, b]: [u8; 3]) -> Option<u16> {
 const SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
 const COLOR_TYPE_INDEXED: u8 = 3;
 
+/// Whether `data` is a PNG whose `IHDR` declares a non-indexed colour type
+/// (grayscale or truecolour, with or without alpha) rather than palette-indexed.
+///
+/// Mod replacement PNGs saved as ordinary RGB/RGBA files match this predicate
+/// and fall back to their baked colours instead of being treated as corrupt
+/// indexed art.
+#[must_use]
+pub fn is_baked_png(data: &[u8]) -> bool {
+    data.starts_with(SIGNATURE)
+        && data.get(12..16) == Some(b"IHDR")
+        && matches!(data.get(25), Some(0 | 2 | 4 | 6))
+}
+
 /// The CRC-32 a PNG chunk carries over its type and payload.
 fn crc32(parts: &[&[u8]]) -> u32 {
     let mut crc = !0u32;
@@ -238,6 +251,12 @@ mod tests {
         let mut rgb = original.clone();
         rgb[8 + 8 + 9] = 2;
         assert!(index_png(&rgb).unwrap_err().contains("indexed"));
+        assert!(is_baked_png(&rgb));
+        assert!(!is_baked_png(&original));
+        assert!(!is_baked_png(b"not a png"));
+        let mut rgba = original;
+        rgba[25] = 6;
+        assert!(is_baked_png(&rgba));
     }
 
     #[test]

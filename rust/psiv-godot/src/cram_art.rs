@@ -22,7 +22,7 @@ use godot::classes::image::Format;
 use godot::classes::{FileAccess, Image, ImageTexture};
 use godot::prelude::*;
 
-use psiv_data::color::{IndexLayout, index_png, recolor};
+use psiv_data::color::{IndexLayout, index_png, is_baked_png, recolor};
 
 /// The palette the field draws with this frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,12 +50,16 @@ impl Default for CramState {
 pub(crate) type SharedCram = Rc<RefCell<CramState>>;
 
 /// `path`, an indexed PNG, decoded with each pixel's palette index in red
-/// and its transparency in alpha ([`index_png`]). `None` (reported) for a
-/// file that is missing, not indexed or does not decode.
+/// and its transparency in alpha ([`index_png`]). Returns `None` quietly for
+/// valid non-indexed (RGB/RGBA/grayscale) PNGs so mod art falls back cleanly
+/// to baked colours, and logs an error for missing, truncated, or unreadable files.
 pub(crate) fn load_index_image(path: &str) -> Option<Gd<Image>> {
     let bytes = FileAccess::get_file_as_bytes(path);
     if bytes.is_empty() {
         godot_error!("indexed art {path} could not be read");
+        return None;
+    }
+    if is_baked_png(bytes.as_slice()) {
         return None;
     }
     let indexed = match index_png(bytes.as_slice()) {

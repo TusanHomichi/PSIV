@@ -132,8 +132,8 @@ that key (`[{"id": 10, "hp": 99}]`).
 ## Example 1: change an enemy's stats
 
 The first random battle of the game, in the Academy basement, is two Zoran
-Bults (enemy `10`, formation `$8A`) with 25 HP each. Create
-`mods/tough-zoran/patches/battle/enemies.json`:
+Bults (enemy `10`, formation `$8A`) with 25 HP each. Scaffold a mod folder with
+`psiv-pack mod init` and create `patches/battle/enemies.json` inside it:
 
 ```json
 {
@@ -145,14 +145,22 @@ Bults (enemy `10`, formation `$8A`) with 25 HP each. Create
 }
 ```
 
-Validate and test it against the base pack without modifying `runtime-pack/`:
+Validate the mod against your base pack and launch the game (example paths below
+use Linux's `~/.local/share/PSIV`; substitute your platform's
+[user data folder](PLAYING.md#where-your-pack-and-saves-live) on Windows or
+macOS):
 
 ```bash
-psiv-pack mod check runtime-pack mods/tough-zoran
-PSIV_MODS="$PWD/mods/tough-zoran" PSIV_SAVE_DIR="$PWD/saves" \
-  PSIV_DEBUG_BATTLE=0x8a PSIV_DEBUG_STATE="$PWD/state.json" PSIV_DEBUG_SHOT_FRAME=200 \
-  python3 tools/godot.py run -- --quit-after 400
+./psiv-pack mod init ~/.local/share/PSIV/mods/tough-zoran --id tough-zoran --name "Tough Zoran"
+# ... write ~/.local/share/PSIV/mods/tough-zoran/patches/battle/enemies.json ...
+./psiv-pack mod check ~/.local/share/PSIV/runtime-pack ~/.local/share/PSIV/mods/tough-zoran
+./psiv.x86_64
 ```
+
+Any enabled mod inside your `mods/` folder loads automatically on launch, or you
+can test a single folder anywhere on disk with
+`PSIV_MODS=/path/to/tough-zoran ./psiv.x86_64`. Leave `PSIV_SAVE_DIR` unset so
+automatic per-mod save isolation keeps your vanilla saves untouched.
 
 ## Example 2: change a line of dialogue
 
@@ -186,6 +194,27 @@ that update `segments`, `pages`, and `text` in lockstep automatically:
 Dialogue is checked for lines that fit the window (at most 32 characters, two
 lines a window) and characters present in `dialogue/font.json`.
 
+## Replacing map and sprite art
+
+Place replacement PNGs under `assets/` at the same pack-relative path (for
+example `assets/maps/010_Piata.png`, `assets/maps/010_Piata_over.png`, or
+`assets/sprites/<sheet>.png`):
+
+- **Baked RGB/RGBA PNGs (easiest):** Ordinary RGB or RGBA PNGs work everywhere,
+  including on live-palette maps such as `010_Piata.png`. When a mod replaces a
+  map `.png` without also supplying its `_indices.png`, the loader drops the
+  base pack's `_indices.png` redirect so the renderer draws your PNG directly.
+  Baked PNGs keep their exact colors and do not shift during cartridge palette
+  cycles, flashes, or fades.
+- **Live-palette indexed PNGs (full CRAM effects):** To keep cartridge palette
+  animations, flashes, and fades active on a modded map or sprite, save an 8-bit
+  indexed PNG (PNG color type 3) whose palette indices match the cartridge's
+  CRAM slots (0–31 for map lines 0–1; 0–15 for a sprite sheet's CRAM line). On
+  maps that ship a `<name>_indices.png` file, you can either supply an indexed
+  `assets/maps/<name>.png` (which is rewritten to indices at load) or supply
+  `assets/maps/<name>_indices.png` explicitly (where each pixel's red channel
+  holds the CRAM slot 0–31 and alpha holds transparency).
+
 ## When an edit does not fit
 
 The loader refuses any mod that violates the schema and names **the mod, the
@@ -216,6 +245,24 @@ patches for edited JSON tables, and copies only modified or new assets — so th
 resulting `mods/my-mod/` folder contains zero ROM-derived base files and is
 safe to zip and share in
 [Discussions, "Show and tell"](https://github.com/TusanHomichi/PSIV/discussions/categories/show-and-tell).
+
+## Testing in a source checkout
+
+In a repository checkout (see [build, run and verify](DEVELOPMENT.md)), you can
+run `psiv-pack` through Cargo and jump directly to a specific battle or event
+with the debug environment variables:
+
+```bash
+cargo run --release --manifest-path rust/Cargo.toml -p psiv-pack -- mod check runtime-pack mods/tough-zoran
+python3 tools/godot.py prepare
+PSIV_MODS="$PWD/mods/tough-zoran" \
+  PSIV_DEBUG_BATTLE=0x8a PSIV_DEBUG_STATE="$PWD/state.json" PSIV_DEBUG_SHOT_FRAME=200 \
+  python3 tools/godot.py run -- --quit-after 400
+```
+
+Leaving `PSIV_SAVE_DIR` unset keeps automatic per-mod save isolation active;
+set `PSIV_SAVE_DIR` to a scratch directory if you want a disposable save folder
+for automated runs.
 
 ## Where the game looks for the pack
 

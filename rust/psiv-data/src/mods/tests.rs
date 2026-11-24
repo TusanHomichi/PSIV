@@ -553,3 +553,228 @@ fn symlinks_inside_mod_folders_are_rejected_without_recursing() {
 
     let _ = fs::remove_dir_all(&scratch);
 }
+
+#[test]
+fn reconcile_map_update_images_respects_png_and_indices_precedence() {
+    let scratch = temp_dir("reconcile-map-art");
+    let base_map = json!({
+        "format_version": 2,
+        "id": 16,
+        "png": "maps/010_Piata.png",
+        "map_update_images": {
+            "maps/010_Piata.png": "maps/010_Piata_indices.png",
+            "maps/010_Piata_over.png": "maps/010_Piata_over_indices.png"
+        }
+    });
+
+    // Helper: write a fresh overlay maps/010_Piata.json symlinked to a read-only
+    // base copy, run reconciliation with `layers`, and return the resulting map JSON.
+    let run_case = |label: &str, layers: &[(&str, usize)]| -> serde_json::Value {
+        let case_dir = scratch.join(label);
+        let base_dir = case_dir.join("base/maps");
+        let out_dir = case_dir.join("out/maps");
+        fs::create_dir_all(&base_dir).unwrap();
+        fs::create_dir_all(&out_dir).unwrap();
+        let base_file = base_dir.join("010_Piata.json");
+        fs::write(&base_file, serde_json::to_string(&base_map).unwrap()).unwrap();
+        let out_file = out_dir.join("010_Piata.json");
+        link_or_copy(&base_file, &out_file).unwrap();
+
+        let asset_layer: BTreeMap<String, usize> =
+            layers.iter().map(|(k, v)| ((*k).to_owned(), *v)).collect();
+        map_art::reconcile_replaced_map_update_images(&case_dir.join("out"), &asset_layer).unwrap();
+
+        // Base map JSON must never be mutated through the link.
+        let base_after: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&base_file).unwrap()).unwrap();
+        assert_eq!(base_after, base_map, "base map JSON must stay untouched");
+
+        serde_json::from_str(&fs::read_to_string(&out_file).unwrap()).unwrap()
+    };
+
+    // 1. Replacing `.png` alone drops its redirect so the renderer uses the mod PNG,
+    //    while keeping the untouched overlay redirect intact.
+    let png_only = run_case("png-only", &[("maps/010_Piata.png", 0)]);
+    let mui = png_only["map_update_images"].as_object().unwrap();
+    assert!(!mui.contains_key("maps/010_Piata.png"));
+    assert_eq!(
+        mui.get("maps/010_Piata_over.png").and_then(|v| v.as_str()),
+        Some("maps/010_Piata_over_indices.png")
+    );
+
+    // 2. Replacing `_indices.png` explicitly (alone or in the same mod as `.png`)
+    //    keeps the redirect so the renderer loads the mod's `_indices.png`.
+    let idx_only = run_case("idx-only", &[("maps/010_Piata_indices.png", 0)]);
+    assert_eq!(
+        idx_only["map_update_images"]["maps/010_Piata.png"],
+        "maps/010_Piata_indices.png"
+    );
+    let same_mod_both = run_case(
+        "both-same-mod",
+        &[("maps/010_Piata.png", 0), ("maps/010_Piata_indices.png", 0)],
+    );
+    assert_eq!(
+        same_mod_both["map_update_images"]["maps/010_Piata.png"],
+        "maps/010_Piata_indices.png"
+    );
+
+    // 3. Multi-mod precedence: later `.png` beats earlier `_indices.png`;
+    //    later `_indices.png` beats earlier `.png`.
+    let png_wins = run_case(
+        "png-over-idx",
+        &[("maps/010_Piata_indices.png", 0), ("maps/010_Piata.png", 1)],
+    );
+    assert!(
+        !png_wins["map_update_images"]
+            .as_object()
+            .unwrap()
+            .contains_key("maps/010_Piata.png")
+    );
+    let idx_wins = run_case(
+        "idx-over-png",
+        &[("maps/010_Piata.png", 0), ("maps/010_Piata_indices.png", 1)],
+    );
+    assert_eq!(
+        idx_wins["map_update_images"]["maps/010_Piata.png"],
+        "maps/010_Piata_indices.png"
+    );
+
+    // 4. `diff_packs` omits synthetic `map_update_images` removals when round-tripping.
+    let mut patch_val = diff_json(&base_map, &png_only, "maps/010_Piata.json")
+        .unwrap()
+        .expect("reconciled JSON differs from base");
+    let changed_assets = std::collections::BTreeSet::from(["maps/010_Piata.png".to_owned()]);
+    assert!(
+        !map_art::strip_reconciled_map_update_removals(
+            "maps/010_Piata.json",
+            &base_map,
+            &mut patch_val,
+            &changed_assets,
+        ),
+        "synthetic map_update_images removal should not emit a spurious map patch"
+    );
+    // Negative control: deleting a redirect WITHOUT replacing the PNG is preserved.
+    let mut manual_patch = diff_json(&base_map, &png_only, "maps/010_Piata.json")
+        .unwrap()
+        .unwrap();
+    let no_assets = std::collections::BTreeSet::new();
+    assert!(map_art::strip_reconciled_map_update_removals(
+        "maps/010_Piata.json",
+        &base_map,
+        &mut manual_patch,
+        &no_assets,
+    ));
+    assert!(
+        manual_patch["map_update_images"]["maps/010_Piata.png"].is_null(),
+        "explicit redirect deletion without asset replacement must be preserved"
+    );
+
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn apply_mods_reconciles_live_palette_map_png_replacement_on_real_pack() {
+    let Some(base) = real_pack() else {
+        eprintln!("runtime-pack absent; skipping real-pack live-palette map PNG test");
+        return;
+    };
+
+    // Proof that the base pack actually carries the redirect we are reconciling.
+    let base_data = GameData::load(&base).unwrap();
+    let base_piata = base_data.map(crate::MapId(0x010)).unwrap();
+    assert_eq!(
+        base_piata
+            .map_update_images
+            .get("maps/010_Piata.png")
+            .map(String::as_str),
+        Some("maps/010_Piata_indices.png")
+    );
+
+    let scratch = temp_dir("real-map-png");
+    let png_mod = scratch.join("mods/piata-png");
+    init_mod_dir(
+        &png_mod,
+        &ModManifest::new("piata-png", "Piata PNG", "1.0.0"),
+    )
+    .unwrap();
+    let mut custom_png = fs::read(base.join("maps/010_Piata.png")).unwrap();
+    custom_png.push(0x99);
+    fs::create_dir_all(png_mod.join("assets/maps")).unwrap();
+    fs::write(png_mod.join("assets/maps/010_Piata.png"), &custom_png).unwrap();
+
+    let applied_png = apply_mods(
+        &base,
+        &[load_mod(&png_mod).unwrap()],
+        &scratch.join("effective-png"),
+    )
+    .unwrap();
+    let effective_data = GameData::load(&applied_png.effective_pack).unwrap();
+    let piata = effective_data.map(crate::MapId(0x010)).unwrap();
+    assert!(
+        !piata.map_update_images.contains_key("maps/010_Piata.png"),
+        "replacing 010_Piata.png must drop the stale _indices redirect"
+    );
+    assert_eq!(
+        piata
+            .map_update_images
+            .get("maps/010_Piata_over.png")
+            .map(String::as_str),
+        Some("maps/010_Piata_over_indices.png"),
+        "untouched overlay redirect must stay intact"
+    );
+
+    // Explicitly replacing `_indices.png` keeps the redirect pointing at the mod's file.
+    let idx_mod = scratch.join("mods/piata-idx");
+    init_mod_dir(
+        &idx_mod,
+        &ModManifest::new("piata-idx", "Piata Indices", "1.0.0"),
+    )
+    .unwrap();
+    let mut custom_idx = fs::read(base.join("maps/010_Piata_indices.png")).unwrap();
+    custom_idx.push(0x77);
+    fs::create_dir_all(idx_mod.join("assets/maps")).unwrap();
+    fs::write(
+        idx_mod.join("assets/maps/010_Piata_indices.png"),
+        &custom_idx,
+    )
+    .unwrap();
+
+    let applied_idx = apply_mods(
+        &base,
+        &[load_mod(&idx_mod).unwrap()],
+        &scratch.join("effective-idx"),
+    )
+    .unwrap();
+    let effective_idx = GameData::load(&applied_idx.effective_pack).unwrap();
+    let piata_idx = effective_idx.map(crate::MapId(0x010)).unwrap();
+    assert_eq!(
+        piata_idx
+            .map_update_images
+            .get("maps/010_Piata.png")
+            .map(String::as_str),
+        Some("maps/010_Piata_indices.png")
+    );
+    assert_eq!(
+        fs::read(
+            applied_idx
+                .effective_pack
+                .join("maps/010_Piata_indices.png")
+        )
+        .unwrap(),
+        custom_idx
+    );
+
+    // Base pack remains completely untouched.
+    let base_recheck = GameData::load(&base).unwrap();
+    assert_eq!(
+        base_recheck
+            .map(crate::MapId(0x010))
+            .unwrap()
+            .map_update_images
+            .get("maps/010_Piata.png")
+            .map(String::as_str),
+        Some("maps/010_Piata_indices.png")
+    );
+
+    let _ = fs::remove_dir_all(&scratch);
+}
