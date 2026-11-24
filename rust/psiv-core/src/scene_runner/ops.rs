@@ -215,9 +215,15 @@ impl SceneRunner {
                 art_tile,
                 facing,
             } => {
-                if state.join_party(slot, char_id).is_err() {
+                let Ok(displaced) = state.join_party(slot, char_id) else {
                     return Some(SceneFault::BadWrite);
+                };
+                if let Some(prev) = displaced
+                    && prev != char_id
+                {
+                    state.remove_from_macros(prev);
                 }
+                state.add_to_macros(char_id);
                 // Retail builds the new character object at the NPC's field
                 // position: the party object for `slot` is seated there.
                 let seat = self.actor(ActorRef::Npc(npc)).map(|a| a.cell);
@@ -607,9 +613,15 @@ impl SceneRunner {
                 self.pc += 1;
             }
             SceneOp::JoinParty { slot, who } => {
-                if state.join_party(slot, who).is_err() {
+                let Ok(displaced) = state.join_party(slot, who) else {
                     return Some(SceneFault::BadWrite);
+                };
+                if let Some(prev) = displaced
+                    && prev != who
+                {
+                    state.remove_from_macros(prev);
                 }
+                state.add_to_macros(who);
                 effects.push(SceneEffect::PartyChanged);
                 self.pc += 1;
             }
@@ -626,6 +638,7 @@ impl SceneRunner {
                 if state.set_party_slot(slots.len() - 1, None).is_err() {
                     return Some(SceneFault::BadWrite);
                 }
+                state.remove_from_macros(who);
                 effects.push(SceneEffect::PartyChanged);
                 self.pc += 1;
             }
@@ -899,6 +912,15 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 self.blocked = Blocked::Credits;
+            }
+            SceneOp::Presentation {
+                op: crate::PresentationOp::AddMacro { slot },
+            } => {
+                if let Ok(id) = u8::try_from(slot) {
+                    state.add_to_macros(CharId(id));
+                }
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
             }
             SceneOp::PanelCreate { .. }
             | SceneOp::PanelDestroyLast

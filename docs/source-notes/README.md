@@ -357,9 +357,8 @@ agility and dexterity, and enemy paralysis clearing each turn.
     instead of inventing a row.
   - **Macro traps.** `Event_RemoveCharFromMacros` (`ps4.asm:133433`) jumps to `ErrorTrap` on a macro in use
     that lacks the leaver, and `Event_AddMacro` (`ps4.asm:133467`) does on one with no free command. The port
-    leaves such a macro alone (`GameState::remove_from_macros`, `add_to_macros`). The port's other scenes do
-    not write the macros (`PresentationOp::AddMacro` prints and writes nothing), so a port save can hold a
-    macro the cartridge never would, and the trap would end the game.
+    wires every story join/leave through `GameState::add_to_macros` and `remove_from_macros` and leaves a
+    missing or already-full macro alone instead of trapping.
   - **The trail.** A party object whose destination is more than a step away walks there
     (`FieldObj_GetAutoInput`, `ps4.asm:93232`); the port's trail otherwise snaps a follower that is not
     adjacent. `Party::walk_in` gives that walk to the members the routine seats off the trail, and to those

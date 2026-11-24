@@ -281,8 +281,8 @@ impl Field {
                     "scene palette words: offset {offset:#06x}, {first:#06x}, {second:#06x}"
                 );
             }
-            PresentationOp::AddMacro { slot } => {
-                godot_print!("scene macro added for party slot {slot}");
+            PresentationOp::AddMacro { .. } => {
+                // `psiv-core` updates `GameState::macros` when the op runs.
             }
             PresentationOp::SetObjectDestination { slot, x, y } => {
                 self.presentation.object_destination(slot, x, y);

@@ -875,13 +875,22 @@ impl GameState {
 
     /// `Event_AddMacro` (`ps4.asm:133467`): each macro in use takes `who`'s
     /// plain attack in its first free slot. The cartridge traps on a macro with
-    /// no free slot; here that macro stays as it is.
+    /// no free slot; here that macro stays as it is. Skips any macro that
+    /// already holds a command for `who` so paired `PromoteNpcToChar` /
+    /// `JoinParty` / `AddMacro` ops stay idempotent.
     pub fn add_to_macros(&mut self, who: CharId) {
         for record in self
             .macros
             .iter_mut()
             .filter(|r| r.commands[0].command_index != 0)
         {
+            if record
+                .commands
+                .iter()
+                .any(|c| c.command_index != 0 && c.character_id == who.0)
+            {
+                continue;
+            }
             if let Some(free) = record.commands.iter_mut().find(|c| c.command_index == 0) {
                 *free = MacroCommand {
                     character_id: who.0,
