@@ -491,6 +491,13 @@ pub fn apply_mods(
             let files = collect_relative_files(&patches_root, mod_id, MOD_PATCHES_DIR)?;
             for rel in files {
                 let rel_str = normalize_rel(&rel, mod_id, MOD_PATCHES_DIR)?;
+                if rel_str == "manifest.json" {
+                    return Err(ModError::new(
+                        mod_id,
+                        format!("{MOD_PATCHES_DIR}/{rel_str}"),
+                        "pack manifest.json cannot be patched by a mod",
+                    ));
+                }
                 if !rel_str.ends_with(".json") {
                     return Err(ModError::new(
                         mod_id,

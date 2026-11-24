@@ -59,6 +59,9 @@ pub fn diff_packs(
     for rel in edited_files {
         let rel_str = normalize_rel(&rel, &manifest.id, "edited-pack")?;
         edited_set.insert(rel_str.clone());
+        if rel_str == "manifest.json" {
+            continue;
+        }
         let edited_path = edited_pack.join(&rel);
         let base_path = base_pack.join(&rel);
         let edited_bytes = fs::read(&edited_path).map_err(|error| {
@@ -101,9 +104,6 @@ pub fn diff_packs(
             }
         }
 
-        if rel_str == "manifest.json" {
-            continue;
-        }
         staged_assets.push((rel, rel_str, edited_bytes));
     }
 

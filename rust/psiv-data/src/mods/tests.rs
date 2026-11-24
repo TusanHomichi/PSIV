@@ -435,7 +435,13 @@ fn diff_packs_clears_stale_patches_and_assets_on_reexport() {
     assert!(out_mod.join("patches/battle/enemies.json").is_file());
     assert!(out_mod.join("assets/maps/test.png").is_file());
 
-    // Revert both edits and re-export into the same mod directory.
+    // Revert both edits and differ manifest.json; manifest.json must be skipped
+    // rather than emitted into patches/manifest.json.
+    fs::write(
+        edited.join("manifest.json"),
+        "{\"format_version\": 2, \"note\": \"rebuilt\"}\n",
+    )
+    .unwrap();
     fs::write(
         edited.join("battle/enemies.json"),
         r#"{"enemies":[{"id":10,"hp":25}]}"#,
@@ -446,6 +452,10 @@ fn diff_packs_clears_stale_patches_and_assets_on_reexport() {
     let second = diff_packs(&base, &edited, &out_mod, &manifest).unwrap();
     assert!(second.patches.is_empty());
     assert!(second.assets.is_empty());
+    assert!(
+        !out_mod.join("patches/manifest.json").exists(),
+        "pack manifest.json must never be emitted as a mod patch"
+    );
     assert!(
         !out_mod.join("patches/battle/enemies.json").exists(),
         "stale patch file must be removed on re-export"
