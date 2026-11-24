@@ -169,17 +169,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes=$(cat <<EOF
-          **Phantasy Star IV, rebuilt natively in Rust + Godot.** Playable from New Game to the Ending with no emulator required.
-
-          ### Quick start
+          generated=$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f tag_name="$GITHUB_REF_NAME" --jq '.body')
+          if [ -z "$generated" ]; then
+            echo "release: generate-notes returned an empty body for $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+          {
+            printf '%s\n\n' '**Phantasy Star IV, rebuilt natively in Rust + Godot.** Playable from New Game to the Ending with no emulator required.'
+            printf '%s\n\n' "$generated"
+            cat <<EOF
+          ## Quick start
           1. Download and extract the archive for your OS below (**Linux & Steam Deck**, **Windows**, or **macOS**).
           2. Launch \`psiv.x86_64\`, \`PSIV.exe\`, or \`PSIV.app\`.
           3. Choose (or drag and drop) your own copy of the **US Phantasy Star IV ROM** on the first-run setup screen. PSIV verifies the ROM, extracts its data pack in a few seconds, and starts the game.
 
-          Full instructions, ROM SHA-256 check, OS first-run tips, save locations, and controls are in the [Player's Guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/PLAYING.md) (also included inside each archive as \`README.txt\`). Known cartridge differences are tracked under [known differences](https://github.com/$GITHUB_REPOSITORY#known-differences).
+          Full instructions, ROM SHA-256 check, OS first-run tips, save locations, and controls are in the [Player's Guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/PLAYING.md) (also included inside each archive as \`README.txt\`). Shareable mod folders and \`psiv-pack mod\` are documented in the [Modding Guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/MODDING.md), and known cartridge differences are tracked under [known differences](https://github.com/$GITHUB_REPOSITORY#known-differences).
           EOF
-          )
+          } > "$RUNNER_TEMP/release-notes.md"
           gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
             --title "PSIV ${GITHUB_REF_NAME#v}" \
-            --notes "$notes"
+            --notes-file "$RUNNER_TEMP/release-notes.md"

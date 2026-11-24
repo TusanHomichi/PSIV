@@ -119,10 +119,10 @@ separate from the game folder, so upgrading to a new version keeps your saves:
 On Linux, setting `XDG_DATA_HOME` moves this folder to `$XDG_DATA_HOME/PSIV`.
 
 Inside that folder, `runtime-pack` holds the extracted game pack, `saves` holds
-your save slots, and `logs` holds the game's log. Save in-game from **Camp →
-STATE → SAVE**, and load from the title screen's **CONTINUE**, just like on the
-cartridge. To update PSIV later, simply replace the game folder with the new
-release's folder.
+your save slots, `mods` holds optional shareable mod folders, and `logs` holds
+the game's log. Save in-game from **Camp → STATE → SAVE**, and load from the
+title screen's **CONTINUE**, just like on the cartridge. To update PSIV later,
+simply replace the game folder with the new release's folder.
 
 ## Controls
 
@@ -137,6 +137,18 @@ release's folder.
 In menus, the Camp button (`C` / controller `X`) also confirms selections, just
 like Genesis button A. On the Motavia and Dezolis overworlds, open **Camp →
 ITEM → MAP** to scroll the planet map.
+
+## Mods
+
+To install a mod, drop its folder (containing `mod.json`) into the `mods`
+directory inside your [user data folder](#where-your-pack-and-saves-live) and
+start the game. Modded runs automatically isolate saves under
+`saves/mods/<profile>/` so your vanilla saves stay untouched; set
+`PSIV_MODS=none` to launch without mods. Each release archive also includes
+`psiv-pack` (`psiv-pack mod init`, `check`, and `diff`) for creating and
+validating mods — see the
+[Modding Guide](https://github.com/TusanHomichi/PSIV/blob/main/docs/MODDING.md)
+for details.
 
 ## When something is wrong
 
