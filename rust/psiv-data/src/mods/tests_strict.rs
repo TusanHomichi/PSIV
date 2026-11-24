@@ -494,7 +494,7 @@ fn schema_driven_validation_allows_omitted_optionals_and_rejects_nested_typos() 
     assert!(err.contains("patch_tiles.extra_typo"), "{err}");
 
     // Non-null unkeyed array `map_effects` replaced wholesale must also reject typos.
-    let mut non_null_effects_map = base_map;
+    let mut non_null_effects_map = base_map.clone();
     non_null_effects_map["map_effects"] = json!([{"entry": 1, "decoded": true}]);
     let err = apply_json_patch(
         &mut non_null_effects_map,
@@ -503,6 +503,48 @@ fn schema_driven_validation_allows_omitted_optionals_and_rejects_nested_typos() 
     )
     .expect_err("typo inside replaced non-null map_effects must fail");
     assert!(err.contains("map_effects[0].bogus_effect_key"), "{err}");
+
+    // 2b. Null-valued unknown keys on a schema-complete file must fail closed
+    // instead of being silently dropped before schema_check runs.
+    let mut null_unknown_top = base_map.clone();
+    let err = apply_json_patch(
+        &mut null_unknown_top,
+        &json!({"HP": null}),
+        "maps/010_Piata.json",
+    )
+    .expect_err("null-valued unknown top-level key must fail closed");
+    assert!(err.contains("unknown field"), "{err}");
+    assert!(err.contains("HP"), "{err}");
+
+    let mut null_unknown_nested = base_map.clone();
+    let err = apply_json_patch(
+        &mut null_unknown_nested,
+        &json!({"music": {"typo": null}}),
+        "maps/010_Piata.json",
+    )
+    .expect_err("null-valued unknown nested key must fail closed");
+    assert!(err.contains("unknown field"), "{err}");
+    assert!(err.contains("music.typo"), "{err}");
+
+    // Positive control: known Option<T> fields and dynamic map deletions still accept null.
+    let mut null_valid = base_map;
+    null_valid["map_update_images"] = json!({"maps/010_Piata.png": "maps/010_Piata_indices.png"});
+    apply_json_patch(
+        &mut null_valid,
+        &json!({
+            "png_over": null,
+            "patch_tiles": null,
+            "map_update_images": {"maps/010_Piata.png": null}
+        }),
+        "maps/010_Piata.json",
+    )
+    .unwrap();
+    assert!(
+        !null_valid["map_update_images"]
+            .as_object()
+            .unwrap()
+            .contains_key("maps/010_Piata.png")
+    );
 
     // 3. Legacy `dialogue/trees.json` omitting `system_messages` rejects typos inside nested `DialogueEntry`.
     let mut legacy_trees = json!({
@@ -632,6 +674,22 @@ fn real_pack_strict_fields_and_treasure_chests_round_trip() {
         err.detail.contains("enemies[10].HP") || err.detail.contains("enemies.10.HP"),
         "{err}"
     );
+
+    // Negative control 1b: null-valued typo field ("HP": null) also fails closed on real pack.
+    fs::write(
+        bad_typo.join("patches/battle/enemies.json"),
+        r#"{"enemies":{"10":{"HP":null}}}"#,
+    )
+    .unwrap();
+    let null_err = apply_mods(
+        &base,
+        &[load_mod(&bad_typo).unwrap()],
+        &scratch.join("bad-typo-null-out"),
+    )
+    .expect_err("null-valued typo field HP must be refused");
+    assert_eq!(null_err.mod_id, "bad-typo");
+    assert!(null_err.file.contains("battle/enemies.json"), "{null_err}");
+    assert!(null_err.detail.contains("HP"), "{null_err}");
 
     // Negative control 2: legacy wrong map key ("treasures") fails closed.
     let bad_map_key = scratch.join("bad-map-key");

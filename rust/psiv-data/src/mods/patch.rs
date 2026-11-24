@@ -316,10 +316,13 @@ fn apply_object_entry(
         ));
     }
     if v.is_null() {
-        if dynamic || !base_map.contains_key(k) {
+        if dynamic {
             base_map.remove(k);
-        } else if let Some(existing) = base_map.get_mut(k) {
-            *existing = Value::Null;
+        } else {
+            // Keep null entries on non-dynamic structs so schema_check::verify_patched
+            // still sees (and rejects) unknown null-valued keys like `{"HP": null}`
+            // instead of silently dropping them as a no-op.
+            base_map.insert(k.to_owned(), Value::Null);
         }
         return Ok(());
     }
