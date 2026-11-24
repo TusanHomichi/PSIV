@@ -307,10 +307,12 @@ impl super::SceneRunner {
     /// `FieldObj_NPCMove` (`$04A168`, `ps4.asm:97257`) with speed selector 1
     /// (`16` frames per cell, matching `FieldObj_NPCAlysPiata` at `ps4.asm:92140`
     /// and `FieldObj_NPCHahnNearBasement` at `ps4.asm:92241`). Decodes the
-    /// 11-entry command table (`npc_commands.json`) and blocks on `wait: true`
-    /// (#564).
+    /// 11-entry command table (`npc_commands.json`), checks terrain and object
+    /// collision before queuing a step (turning in place when blocked, matching
+    /// `loc_4A188`), and blocks on `wait: true` (#564).
     pub(super) fn move_actor_command(
         &mut self,
+        map: &FieldMap,
         actor: ActorRef,
         command: u8,
         wait: bool,
@@ -325,21 +327,29 @@ impl super::SceneRunner {
             8..=10 => Some(Direction::Right),
             _ => None,
         };
-        let Some(walker) = self.actor_mut(actor) else {
+        let Some(from) = self.actor(actor).map(|w| w.cell) else {
             return Some(crate::SceneFault::UnknownActor { actor });
         };
         let mut walking = false;
         if let Some(dir) = dir {
+            let target = map.neighbor(from, dir).filter(|&to| {
+                !map.grid().is_blocking(to)
+                    && !map.npc_at(to).is_some_and(|npc| npc.cell != from)
+                    && !self
+                        .actors
+                        .iter()
+                        .any(|other| other.actor != actor && other.cell == to)
+            });
+            let Some(walker) = self.actor_mut(actor) else {
+                return Some(crate::SceneFault::UnknownActor { actor });
+            };
             walker.facing = dir;
-            let (dx, dy) = dir.delta();
-            let to = Cell::new(
-                walker.cell.x.saturating_add_signed(dx as i16),
-                walker.cell.y.saturating_add_signed(dy as i16),
-            );
-            walker.pace = StepFrames::new(NPC_CMD_SPEED1_FRAMES).ok();
-            walker.target = Some(to);
-            walking = walker.is_walking();
-            effects.push(crate::SceneEffect::ActorMoveStarted { actor, to });
+            if let Some(to) = target {
+                walker.pace = StepFrames::new(NPC_CMD_SPEED1_FRAMES).ok();
+                walker.target = Some(to);
+                walking = walker.is_walking();
+                effects.push(crate::SceneEffect::ActorMoveStarted { actor, to });
+            }
         }
         effects.push(crate::SceneEffect::Presentation { op });
         self.pc += 1;
@@ -534,5 +544,65 @@ mod tests {
                 "Hahn at x={hahn_x} must step onto leader's column x={leader_x}"
             );
         }
+    }
+
+    #[test]
+    fn move_actor_command_turns_in_place_without_blocking_when_obstructed() {
+        static OPS: &[SceneOp] = &[
+            // Command 8 = Right into a blocking terrain cell (4, 2).
+            SceneOp::MoveActorCommand {
+                actor: ActorRef::Npc(0),
+                command: 8,
+                wait: true,
+            },
+            // Command 2 = Down into a solid map NPC at (3, 3).
+            SceneOp::MoveActorCommand {
+                actor: ActorRef::Npc(0),
+                command: 2,
+                wait: true,
+            },
+        ];
+        let mut cells = vec![0u8; 64];
+        cells[2 * 8 + 4] = 0x08; // solid terrain at (4, 2)
+        let grid = CollisionGrid::new(8, 8, cells).unwrap();
+        let solid_npc = crate::Npc {
+            id: crate::NpcId(1),
+            cell: Cell::new(3, 3),
+            offset: crate::SubCellOffset::ALIGNED,
+            facing: Direction::Up,
+            active: true,
+            camera_bypass: false,
+            interactable: true,
+            talkable: true,
+        };
+        let map = FieldMap::new(MapId(1), grid, vec![], vec![solid_npc]).unwrap();
+        let mut state = GameState::new();
+        let cast = vec![ScriptedActor::new(
+            ActorRef::Npc(0),
+            Cell::new(3, 2),
+            Direction::Up,
+        )];
+        let mut runner = SceneRunner::new(OPS, cast, StepFrames::default());
+        let effects = runner.tick(&map, &mut state, SceneInput::None);
+
+        assert!(
+            runner.is_finished(),
+            "blocked MoveActorCommand must not stall wait: true"
+        );
+        assert!(
+            !effects
+                .iter()
+                .any(|e| matches!(e, SceneEffect::ActorMoveStarted { .. })),
+            "blocked MoveActorCommand must not queue a walk"
+        );
+        assert_eq!(
+            runner.actor(ActorRef::Npc(0)).unwrap().cell,
+            Cell::new(3, 2)
+        );
+        assert_eq!(
+            runner.actor(ActorRef::Npc(0)).unwrap().facing,
+            Direction::Down,
+            "blocked MoveActorCommand still updates facing in place"
+        );
     }
 }

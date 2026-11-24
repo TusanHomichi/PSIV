@@ -226,7 +226,7 @@ impl SceneRunner {
         let mut effects = Vec::new();
         if self.blocked == Blocked::Camera {
             self.blocked = Blocked::No;
-            self.run(state, &mut effects);
+            self.run(map, state, &mut effects);
             self.resolve_belt(map, chunks, &mut effects);
         }
         effects
@@ -592,7 +592,7 @@ impl SceneRunner {
         if drift_frame_completed {
             return effects;
         }
-        self.run(state, &mut effects);
+        self.run(map, state, &mut effects);
         self.resolve_belt(map, chunks, &mut effects);
         self.freeze_belt_riders(chunks);
         effects
@@ -695,7 +695,7 @@ impl SceneRunner {
     }
 
     /// Executes ops until something blocks.
-    fn run(&mut self, state: &mut GameState, effects: &mut Vec<SceneEffect>) {
+    fn run(&mut self, map: &FieldMap, state: &mut GameState, effects: &mut Vec<SceneEffect>) {
         let mut budget = OP_BUDGET_PER_TICK;
         while self.blocked == Blocked::No {
             self.party_slots = state.party();
@@ -714,7 +714,7 @@ impl SceneRunner {
                 return;
             };
 
-            if let Some(fault) = self.step_op(op, state, effects) {
+            if let Some(fault) = self.step_op(map, op, state, effects) {
                 effects.push(SceneEffect::Faulted(fault));
                 self.blocked = Blocked::Done;
                 return;

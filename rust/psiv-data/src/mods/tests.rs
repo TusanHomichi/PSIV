@@ -148,6 +148,13 @@ fn discover_mods_orders_by_order_then_id_and_skips_disabled() {
     let found = discover_mods(&dir).unwrap();
     let ids: Vec<&str> = found.iter().map(|m| m.manifest.id.as_str()).collect();
     assert_eq!(ids, vec!["alpha", "zeta"]);
+
+    // Duplicate enabled mod ID in another folder must be rejected deterministically.
+    init_mod_dir(&dir.join("alpha-copy"), &b).unwrap();
+    let dup_err = discover_mods(&dir).expect_err("duplicate enabled mod id must be rejected");
+    assert_eq!(dup_err.mod_id, "alpha");
+    assert!(dup_err.detail.contains("duplicate mod id"), "{dup_err}");
+
     let _ = fs::remove_dir_all(&dir);
 }
 

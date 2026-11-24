@@ -301,8 +301,29 @@ pub fn discover_mods(mods_dir: &Path) -> Result<Vec<DiscoveredMod>, ModError> {
             .order
             .cmp(&b.manifest.order)
             .then_with(|| a.manifest.id.cmp(&b.manifest.id))
+            .then_with(|| a.root.cmp(&b.root))
     });
+    reject_duplicate_mod_ids(&found)?;
     Ok(found)
+}
+
+fn reject_duplicate_mod_ids(mods: &[DiscoveredMod]) -> Result<(), ModError> {
+    let mut seen: BTreeMap<&str, &Path> = BTreeMap::new();
+    for m in mods {
+        if let Some(first) = seen.insert(m.manifest.id.as_str(), m.root.as_path()) {
+            return Err(ModError::new(
+                &m.manifest.id,
+                MOD_MANIFEST_FILE,
+                format!(
+                    "duplicate mod id `{}` found in `{}` and `{}`",
+                    m.manifest.id,
+                    first.display(),
+                    m.root.display()
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Scaffolds a new mod folder with `mod.json`, `patches/`, and `assets/`.
@@ -358,6 +379,7 @@ pub fn apply_mods(
             replaced_assets: Vec::new(),
         });
     }
+    reject_duplicate_mod_ids(mods)?;
 
     let base_canonical = base_pack
         .canonicalize()

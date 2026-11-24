@@ -15,6 +15,7 @@ impl SceneRunner {
     /// Runs one op. Returns a fault instead of advancing when it cannot.
     pub(super) fn step_op(
         &mut self,
+        map: &crate::map::FieldMap,
         op: SceneOp,
         state: &mut GameState,
         effects: &mut Vec<SceneEffect>,
@@ -330,7 +331,8 @@ impl SceneRunner {
                 command,
                 wait,
             } => {
-                if let Some(fault) = self.move_actor_command(actor, command, wait, op, effects) {
+                if let Some(fault) = self.move_actor_command(map, actor, command, wait, op, effects)
+                {
                     return Some(fault);
                 }
             }
