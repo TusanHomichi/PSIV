@@ -33,7 +33,9 @@ fn id_keyed_patch_and_diff_round_trip() {
     edited["enemies"][0]["hp"] = json!(99);
     edited["enemies"][0]["stats"]["attack"] = json!(20);
 
-    let patch = diff_json(&base, &edited, "battle/enemies.json").expect("non-empty diff");
+    let patch = diff_json(&base, &edited, "battle/enemies.json")
+        .unwrap()
+        .expect("non-empty diff");
     assert_eq!(
         patch,
         json!({"enemies": {"10": {"hp": 99, "stats": {"attack": 20}}}})
@@ -42,6 +44,22 @@ fn id_keyed_patch_and_diff_round_trip() {
     let mut applied = base.clone();
     apply_json_patch(&mut applied, &patch, "battle/enemies.json").unwrap();
     assert_eq!(applied, edited);
+
+    // Negative controls: adding or removing records in an ID-keyed table is rejected.
+    let mut with_added = base.clone();
+    with_added["enemies"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id": 99, "symbol": "NewMob", "hp": 50}));
+    let add_err = diff_json(&base, &with_added, "battle/enemies.json")
+        .expect_err("adding a keyed record must fail diff");
+    assert!(add_err.contains("99"), "{add_err}");
+
+    let mut with_removed = base.clone();
+    with_removed["enemies"].as_array_mut().unwrap().pop();
+    let rm_err = diff_json(&base, &with_removed, "battle/enemies.json")
+        .expect_err("removing a keyed record must fail diff");
+    assert!(rm_err.contains("11"), "{rm_err}");
 }
 
 #[test]
@@ -354,4 +372,61 @@ fn mod_profile_sidecar_round_trips_and_reports_version_changes() {
     );
 
     let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn diff_packs_clears_stale_patches_and_assets_on_reexport() {
+    let scratch = temp_dir("diff-reexport");
+    let base = scratch.join("base");
+    let edited = scratch.join("edited");
+    let out_mod = scratch.join("mod");
+
+    fs::create_dir_all(base.join("battle")).unwrap();
+    fs::create_dir_all(base.join("maps")).unwrap();
+    fs::write(base.join("manifest.json"), "{}\n").unwrap();
+    fs::write(
+        base.join("battle/enemies.json"),
+        r#"{"enemies":[{"id":10,"hp":25}]}"#,
+    )
+    .unwrap();
+    fs::write(base.join("maps/test.png"), b"base-png").unwrap();
+
+    fs::create_dir_all(edited.join("battle")).unwrap();
+    fs::create_dir_all(edited.join("maps")).unwrap();
+    fs::write(edited.join("manifest.json"), "{}\n").unwrap();
+    fs::write(
+        edited.join("battle/enemies.json"),
+        r#"{"enemies":[{"id":10,"hp":99}]}"#,
+    )
+    .unwrap();
+    fs::write(edited.join("maps/test.png"), b"mod-png").unwrap();
+
+    let manifest = ModManifest::new("reexport", "Reexport", "1.0.0");
+    let first = diff_packs(&base, &edited, &out_mod, &manifest).unwrap();
+    assert_eq!(first.patches, vec!["battle/enemies.json"]);
+    assert_eq!(first.assets, vec!["maps/test.png"]);
+    assert!(out_mod.join("patches/battle/enemies.json").is_file());
+    assert!(out_mod.join("assets/maps/test.png").is_file());
+
+    // Revert both edits and re-export into the same mod directory.
+    fs::write(
+        edited.join("battle/enemies.json"),
+        r#"{"enemies":[{"id":10,"hp":25}]}"#,
+    )
+    .unwrap();
+    fs::write(edited.join("maps/test.png"), b"base-png").unwrap();
+
+    let second = diff_packs(&base, &edited, &out_mod, &manifest).unwrap();
+    assert!(second.patches.is_empty());
+    assert!(second.assets.is_empty());
+    assert!(
+        !out_mod.join("patches/battle/enemies.json").exists(),
+        "stale patch file must be removed on re-export"
+    );
+    assert!(
+        !out_mod.join("assets/maps/test.png").exists(),
+        "stale asset file must be removed on re-export"
+    );
+
+    let _ = fs::remove_dir_all(&scratch);
 }

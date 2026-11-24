@@ -312,10 +312,12 @@ impl Rolls for Rng2<'_> {
 ///
 /// Resolving a whole round on one frozen `(seed, frame_count)` causes 16-draw
 /// damage rolls (a full 16-bit rotation) to repeat identically across identical
-/// enemies in the same round. Stepping `UpdateRNGSeed` (`Lcg41::step`) and
-/// bumping `frame_count` between actions models the VInt ticks separating
-/// retail action beats without disturbing single-frame [`Rng2`] or captured
-/// [`SliceRolls`] replays.
+/// enemies in the same round. Stepping `UpdateRNGSeed` (`Lcg41::step`,
+/// `ps4.asm:86066-86092`) and bumping the local frame term by 1 between actions
+/// is a documented single-VInt approximation of the VInt ticks separating
+/// retail action beats while `Runtime::battle_round` resolves upfront (see
+/// `docs/source-notes/battle-party.md`), without disturbing single-frame
+/// [`Rng2`] or captured [`SliceRolls`] replays.
 #[derive(Debug)]
 pub struct RoundRng<'a> {
     inner: Rng2<'a>,

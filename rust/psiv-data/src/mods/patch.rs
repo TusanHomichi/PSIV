@@ -313,22 +313,27 @@ fn parse_dialogue_lines(value: &Value) -> Result<Vec<Vec<String>>, String> {
 }
 
 /// Computes a minimal sparse JSON patch such that applying it to `base`
-/// reproduces `edited`. Returns `None` when `base == edited`.
-#[must_use]
-pub fn diff_json(base: &Value, edited: &Value, rel_file: &str) -> Option<Value> {
+/// reproduces `edited`. Returns `Ok(None)` when `base == edited`.
+///
+/// Returns `Err` if a known ID-keyed table adds, removes, duplicates, or omits
+/// record IDs, because sparse ID-keyed patches only update existing records.
+pub fn diff_json(base: &Value, edited: &Value, rel_file: &str) -> Result<Option<Value>, String> {
     diff_at_slice(base, edited, rel_file, &[])
 }
 
-fn diff_at_slice(base: &Value, edited: &Value, rel_file: &str, path: &[&str]) -> Option<Value> {
+fn diff_at_slice(
+    base: &Value,
+    edited: &Value,
+    rel_file: &str,
+    path: &[&str],
+) -> Result<Option<Value>, String> {
     if base == edited {
-        return None;
+        return Ok(None);
     }
     if let (Value::Array(base_arr), Value::Array(edited_arr), Some(key_field)) =
         (base, edited, array_key_field(rel_file, path))
-        && base_arr.len() == edited_arr.len()
-        && let Some(keyed) = diff_keyed_array(base_arr, edited_arr, rel_file, path, key_field)
     {
-        return keyed;
+        return diff_keyed_array(base_arr, edited_arr, rel_file, path, key_field);
     }
 
     match (base, edited) {
@@ -339,7 +344,7 @@ fn diff_at_slice(base: &Value, edited: &Value, rel_file: &str, path: &[&str]) ->
                     Some(bv) => {
                         let mut next_path: Vec<&str> = path.to_vec();
                         next_path.push(k.as_str());
-                        if let Some(d) = diff_at_slice(bv, ev, rel_file, &next_path) {
+                        if let Some(d) = diff_at_slice(bv, ev, rel_file, &next_path)? {
                             out.insert(k.clone(), d);
                         }
                     }
@@ -354,12 +359,12 @@ fn diff_at_slice(base: &Value, edited: &Value, rel_file: &str, path: &[&str]) ->
                 }
             }
             if out.is_empty() {
-                None
+                Ok(None)
             } else {
-                Some(Value::Object(out))
+                Ok(Some(Value::Object(out)))
             }
         }
-        _ => Some(edited.clone()),
+        _ => Ok(Some(edited.clone())),
     }
 }
 
@@ -369,25 +374,55 @@ fn diff_keyed_array(
     rel_file: &str,
     path: &[&str],
     key_field: &str,
-) -> Option<Option<Value>> {
+) -> Result<Option<Value>, String> {
+    let label = if path.is_empty() {
+        rel_file.to_owned()
+    } else {
+        path.join(".")
+    };
     let mut base_by_id = Map::new();
-    for item in base_arr {
-        let key = value_key_string(item, key_field)?;
+    for (idx, item) in base_arr.iter().enumerate() {
+        let Some(key) = value_key_string(item, key_field) else {
+            return Err(format!(
+                "{label}[{idx}]: base entry is missing `{key_field}`"
+            ));
+        };
         base_by_id.insert(key, item.clone());
     }
     let mut child_path: Vec<&str> = path.to_vec();
     child_path.push("*");
+    let mut seen = std::collections::BTreeSet::new();
     let mut out = Map::new();
-    for edited_item in edited_arr {
-        let key = value_key_string(edited_item, key_field)?;
-        let base_item = base_by_id.get(&key)?;
-        if let Some(d) = diff_at_slice(base_item, edited_item, rel_file, &child_path) {
+    for (idx, edited_item) in edited_arr.iter().enumerate() {
+        let Some(key) = value_key_string(edited_item, key_field) else {
+            return Err(format!(
+                "{label}[{idx}]: edited entry is missing `{key_field}`"
+            ));
+        };
+        if !seen.insert(key.clone()) {
+            return Err(format!(
+                "{label}: duplicate record {key_field}={key} is not supported in sparse patches"
+            ));
+        }
+        let Some(base_item) = base_by_id.get(&key) else {
+            return Err(format!(
+                "{label}: adding new record {key_field}={key} is not supported in sparse ID-keyed patches"
+            ));
+        };
+        if let Some(d) = diff_at_slice(base_item, edited_item, rel_file, &child_path)? {
             out.insert(key, d);
         }
     }
+    for key in base_by_id.keys() {
+        if !seen.contains(key) {
+            return Err(format!(
+                "{label}: removing record {key_field}={key} is not supported in sparse ID-keyed patches"
+            ));
+        }
+    }
     if out.is_empty() {
-        Some(None)
+        Ok(None)
     } else {
-        Some(Some(Value::Object(out)))
+        Ok(Some(Value::Object(out)))
     }
 }
