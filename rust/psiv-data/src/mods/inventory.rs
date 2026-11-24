@@ -159,8 +159,28 @@ pub(crate) fn discover_enabled_mods(mods_dir: &Path) -> Result<Vec<DiscoveredMod
 /// `pack_format_version`) so players can recover from startup errors in-game.
 pub fn set_mod_enabled(mod_dir: &Path, enabled: bool) -> Result<ModManifest, ModError> {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let mut manifest = read_manifest_unchecked(mod_dir)?;
     let manifest_path = mod_dir.join(MOD_MANIFEST_FILE);
+    let text = fs::read_to_string(&manifest_path).map_err(|error| {
+        ModError::new(
+            mod_dir.display().to_string(),
+            MOD_MANIFEST_FILE,
+            format!("could not read manifest: {error}"),
+        )
+    })?;
+    let mut raw: serde_json::Value = serde_json::from_str(&text).map_err(|error| {
+        ModError::new(
+            mod_dir.display().to_string(),
+            MOD_MANIFEST_FILE,
+            format!("invalid JSON: {error}"),
+        )
+    })?;
+    let mut manifest: ModManifest = serde_json::from_value(raw.clone()).map_err(|error| {
+        ModError::new(
+            mod_dir.display().to_string(),
+            MOD_MANIFEST_FILE,
+            format!("invalid JSON: {error}"),
+        )
+    })?;
     if enabled {
         manifest.validate(&manifest_path)?;
     }
@@ -170,7 +190,15 @@ pub fn set_mod_enabled(mod_dir: &Path, enabled: bool) -> Result<ModManifest, Mod
     } else {
         manifest.id.clone()
     };
-    let mut json = serde_json::to_string_pretty(&manifest).map_err(|error| {
+    let Some(obj) = raw.as_object_mut() else {
+        return Err(ModError::new(
+            &owner,
+            MOD_MANIFEST_FILE,
+            "manifest root must be a JSON object",
+        ));
+    };
+    obj.insert("enabled".to_owned(), serde_json::Value::Bool(enabled));
+    let mut json = serde_json::to_string_pretty(&raw).map_err(|error| {
         ModError::new(&owner, MOD_MANIFEST_FILE, format!("encode failed: {error}"))
     })?;
     json.push('\n');

@@ -856,5 +856,22 @@ fn inspect_mods_dir_lists_enabled_disabled_and_invalid_and_set_enabled_persists(
     init_mod_dir(&dir.join("beta-dup"), &beta_on).unwrap();
     assert_eq!(find_mod_dir_by_id(&dir, "beta"), None);
 
+    // Toggling preserves any extra/unmodeled keys in mod.json instead of dropping them.
+    let extra_dir = dir.join("extra-meta");
+    fs::create_dir_all(&extra_dir).unwrap();
+    fs::write(
+        extra_dir.join(MOD_MANIFEST_FILE),
+        r#"{"format_version":1,"id":"extra-meta","name":"Extra","version":"1.0.0","enabled":true,"homepage":"https://example.invalid/mod","custom_nested":{"tag":"v1"}}"#,
+    )
+    .unwrap();
+    let toggled = set_mod_enabled(&extra_dir, false).unwrap();
+    assert!(!toggled.enabled);
+    let saved: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(extra_dir.join(MOD_MANIFEST_FILE)).unwrap())
+            .unwrap();
+    assert_eq!(saved["enabled"], serde_json::Value::Bool(false));
+    assert_eq!(saved["homepage"], "https://example.invalid/mod");
+    assert_eq!(saved["custom_nested"]["tag"], "v1");
+
     let _ = fs::remove_dir_all(&dir);
 }
