@@ -301,6 +301,51 @@ impl super::SceneRunner {
         None
     }
 
+    /// `FieldObj_NPCMove` (`$04A168`, `ps4.asm:97257`) with speed selector 1
+    /// (`16` frames per cell, matching `FieldObj_NPCAlysPiata` at `ps4.asm:92140`
+    /// and `FieldObj_NPCHahnNearBasement` at `ps4.asm:92241`). Decodes the
+    /// 11-entry command table (`npc_commands.json`) and blocks on `wait: true`
+    /// (#564).
+    pub(super) fn move_actor_command(
+        &mut self,
+        actor: ActorRef,
+        command: u8,
+        wait: bool,
+        op: crate::SceneOp,
+        effects: &mut Vec<crate::SceneEffect>,
+    ) -> Option<crate::SceneFault> {
+        const NPC_CMD_SPEED1_FRAMES: u8 = 16;
+        let dir = match command {
+            1 => Some(Direction::Up),
+            2 => Some(Direction::Down),
+            4..=6 => Some(Direction::Left),
+            8..=10 => Some(Direction::Right),
+            _ => None,
+        };
+        let Some(walker) = self.actor_mut(actor) else {
+            return Some(crate::SceneFault::UnknownActor { actor });
+        };
+        let mut walking = false;
+        if let Some(dir) = dir {
+            walker.facing = dir;
+            let (dx, dy) = dir.delta();
+            let to = Cell::new(
+                walker.cell.x.saturating_add_signed(dx as i16),
+                walker.cell.y.saturating_add_signed(dy as i16),
+            );
+            walker.pace = StepFrames::new(NPC_CMD_SPEED1_FRAMES).ok();
+            walker.target = Some(to);
+            walking = walker.is_walking();
+            effects.push(crate::SceneEffect::ActorMoveStarted { actor, to });
+        }
+        effects.push(crate::SceneEffect::Presentation { op });
+        self.pc += 1;
+        if wait && walking {
+            self.blocked = super::Blocked::Actor(actor);
+        }
+        None
+    }
+
     pub(super) fn select_actor_animation(
         &mut self,
         actor: ActorRef,
@@ -378,6 +423,63 @@ mod tests {
             runner.actor(ActorRef::Npc(0)).unwrap().pace,
             None,
             "NPCs keep their own pace"
+        );
+    }
+
+    #[test]
+    fn move_actor_command_moves_by_table_direction_and_blocks_on_wait() {
+        static OPS: &[SceneOp] = &[
+            // Standing-still command (0) does not move or block.
+            SceneOp::MoveActorCommand {
+                actor: ActorRef::Npc(0),
+                command: 0,
+                wait: true,
+            },
+            // Command 2 = one cell down, 16 frames (speed selector 1).
+            SceneOp::MoveActorCommand {
+                actor: ActorRef::Npc(0),
+                command: 2,
+                wait: true,
+            },
+            // Command 8 = one cell right, 16 frames.
+            SceneOp::MoveActorCommand {
+                actor: ActorRef::Npc(0),
+                command: 8,
+                wait: true,
+            },
+        ];
+
+        let grid = CollisionGrid::new(8, 8, vec![0; 64]).unwrap();
+        let map = FieldMap::new(MapId(1), grid, vec![], vec![]).unwrap();
+        let mut state = GameState::new();
+        let cast = vec![ScriptedActor::new(
+            ActorRef::Npc(0),
+            Cell::new(3, 3),
+            Direction::Up,
+        )];
+        let mut runner = SceneRunner::new(OPS, cast, StepFrames::new(8).unwrap());
+        let mut arrivals = Vec::new();
+        for tick in 0..80 {
+            let effects = runner.tick(&map, &mut state, SceneInput::None);
+            if effects
+                .iter()
+                .any(|e| matches!(e, SceneEffect::ActorArrived { .. }))
+            {
+                arrivals.push((tick, runner.actor(ActorRef::Npc(0)).unwrap().cell));
+            }
+            if runner.is_finished() {
+                break;
+            }
+        }
+        assert!(runner.is_finished());
+        assert_eq!(
+            arrivals,
+            vec![(16, Cell::new(3, 4)), (32, Cell::new(4, 4))],
+            "command 0 is a no-op; commands 2 and 8 each take 16 frames and block"
+        );
+        assert_eq!(
+            runner.actor(ActorRef::Npc(0)).unwrap().facing,
+            Direction::Right
         );
     }
 }

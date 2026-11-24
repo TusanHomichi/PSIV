@@ -325,12 +325,14 @@ impl SceneRunner {
                     self.blocked = Blocked::Actor(actor);
                 }
             }
-            SceneOp::MoveActorCommand { actor, .. } => {
-                if self.actor(actor).is_none() {
-                    return Some(SceneFault::UnknownActor { actor });
+            SceneOp::MoveActorCommand {
+                actor,
+                command,
+                wait,
+            } => {
+                if let Some(fault) = self.move_actor_command(actor, command, wait, op, effects) {
+                    return Some(fault);
                 }
-                effects.push(SceneEffect::Presentation { op });
-                self.pc += 1;
             }
             SceneOp::FaceOppositeOf { actor, of } => {
                 let Some(other) = self.actor(of) else {
