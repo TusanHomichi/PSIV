@@ -851,8 +851,19 @@ fn inspect_mods_dir_lists_enabled_disabled_and_invalid_and_set_enabled_persists(
         None
     );
 
-    // Negative control: duplicate enabled IDs return None so recovery does not guess.
+    // Negative control: enabling a second folder with the same ID as an already-enabled
+    // mod is refused before writing so Apply & Reload cannot enter an unrecoverable collision.
     fs::remove_dir_all(dir.join("broken")).unwrap();
+    let mut beta_disabled_copy = beta_on.clone();
+    beta_disabled_copy.enabled = false;
+    init_mod_dir(&dir.join("beta-dup"), &beta_disabled_copy).unwrap();
+    let dup_err = set_mod_enabled(&dir.join("beta-dup"), true)
+        .expect_err("enabling a duplicate mod ID must be refused");
+    assert_eq!(dup_err.mod_id, "beta");
+    assert!(dup_err.detail.contains("same id"), "{dup_err}");
+    assert!(!load_mod(&dir.join("beta-dup")).unwrap().manifest.enabled);
+
+    // Negative control: manually created duplicate enabled IDs return None from find_mod_dir_by_id.
     init_mod_dir(&dir.join("beta-dup"), &beta_on).unwrap();
     assert_eq!(find_mod_dir_by_id(&dir, "beta"), None);
 

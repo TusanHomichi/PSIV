@@ -91,7 +91,9 @@ fn vanilla_title_visibility_shows_nothing_while_modded_and_notices_appear() {
         raw: "none".to_owned(),
     };
     let ignored = ModSourceMode::IgnoredForSession {
-        mods_dir: PathBuf::from("/tmp/nonexistent-mods"),
+        underlying: IgnoredModSource::Directory {
+            mods_dir: PathBuf::from("/tmp/nonexistent-mods"),
+        },
     };
     let mod_a = ModManifest::new("hard-mode", "Hard Mode", "1.0.0");
 
@@ -243,6 +245,24 @@ fn mod_list_and_toggle_persist_directory_mods_and_refuse_read_only_overrides() {
         raw: "none".to_owned(),
     };
     assert!(toggle_mod_in_source(&env_none, &mods_dir.join("alpha"), true).is_err());
+
+    // Negative control: bypassed ExplicitPaths stays read-only, lists the explicit paths
+    // (not unrelated mods/ entries), allows reload, and refuses toggling.
+    let bypassed_explicit = ModSourceMode::IgnoredForSession {
+        underlying: IgnoredModSource::ExplicitPaths {
+            paths: vec![mods_dir.join("broken"), mods_dir.join("beta")],
+        },
+    };
+    let bypassed_list = build_mod_list(&bypassed_explicit, &[], false);
+    assert!(bypassed_list.read_only_note.is_some());
+    assert!(bypassed_list.can_reload);
+    assert_eq!(bypassed_list.rows.len(), 2);
+    assert_eq!(bypassed_list.rows[0].status, ModRowStatus::Invalid);
+    assert_eq!(bypassed_list.rows[0].toggle_dir, None);
+    assert_eq!(bypassed_list.rows[1].id, "beta");
+    assert_eq!(bypassed_list.rows[1].status, ModRowStatus::Bypassed);
+    assert_eq!(bypassed_list.rows[1].toggle_dir, None);
+    assert!(toggle_mod_in_source(&bypassed_explicit, &mods_dir.join("beta"), false).is_err());
 
     let _ = fs::remove_dir_all(&mods_dir);
 }

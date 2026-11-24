@@ -183,6 +183,9 @@ pub fn set_mod_enabled(mod_dir: &Path, enabled: bool) -> Result<ModManifest, Mod
     })?;
     if enabled {
         manifest.validate(&manifest_path)?;
+        if let Some(parent) = mod_dir.parent() {
+            reject_enabled_id_collision(parent, mod_dir, &manifest.id)?;
+        }
     }
     manifest.enabled = enabled;
     let owner = if manifest.id.is_empty() {
@@ -231,6 +234,38 @@ pub fn set_mod_enabled(mod_dir: &Path, enabled: bool) -> Result<ModManifest, Mod
         ));
     }
     Ok(manifest)
+}
+
+/// Rejects enabling `target_dir` when a sibling folder under `mods_dir` already
+/// carries an enabled manifest with the same `id`.
+fn reject_enabled_id_collision(
+    mods_dir: &Path,
+    target_dir: &Path,
+    id: &str,
+) -> Result<(), ModError> {
+    let target_key = target_dir
+        .canonicalize()
+        .unwrap_or_else(|_| target_dir.to_path_buf());
+    for dir in candidate_mod_dirs(mods_dir)? {
+        let dir_key = dir.canonicalize().unwrap_or_else(|_| dir.clone());
+        if dir_key == target_key {
+            continue;
+        }
+        let Ok(other) = read_manifest_unchecked(&dir) else {
+            continue;
+        };
+        if other.enabled && other.id == id {
+            return Err(ModError::new(
+                id,
+                MOD_MANIFEST_FILE,
+                format!(
+                    "cannot enable `{id}`: another enabled mod with the same id already exists at {}",
+                    dir.display()
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Finds the unique enabled, parseable mod folder under `mods_dir` identified by

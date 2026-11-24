@@ -108,6 +108,15 @@ pub(crate) fn session_ignore_mods() -> bool {
     SESSION_IGNORE_MODS.load(Ordering::Relaxed)
 }
 
+/// Underlying mod source selected before applying a session bypass.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum IgnoredModSource {
+    /// Automatic discovery from `<install>/mods/`.
+    Directory { mods_dir: PathBuf },
+    /// Explicit mod folder list supplied via `PSIV_MODS=...` (read-only in-game).
+    ExplicitPaths { paths: Vec<PathBuf> },
+}
+
 /// How mods are selected for this run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ModSourceMode {
@@ -117,8 +126,9 @@ pub(crate) enum ModSourceMode {
     DisabledByEnv { raw: String },
     /// Explicit mod folder list supplied via `PSIV_MODS=...` (read-only in-game).
     ExplicitPaths { paths: Vec<PathBuf> },
-    /// Temporarily bypassed for this session from the mod load error screen.
-    IgnoredForSession { mods_dir: PathBuf },
+    /// Temporarily bypassed for this session from the mod load error screen,
+    /// preserving the underlying source and its read-only policy.
+    IgnoredForSession { underlying: IgnoredModSource },
 }
 
 /// Outcome of resolving and applying mods at startup.
@@ -136,9 +146,6 @@ pub(crate) fn resolve_mod_source(
     install: &Install,
 ) -> ModSourceMode {
     let mods_dir = install.mods_dir();
-    if session_ignored {
-        return ModSourceMode::IgnoredForSession { mods_dir };
-    }
     if let Some(raw) = override_mods.filter(|v| !v.is_empty()) {
         let trimmed = raw.to_string_lossy().trim().to_owned();
         let lower = trimmed.to_ascii_lowercase();
@@ -148,9 +155,21 @@ pub(crate) fn resolve_mod_source(
         let paths: Vec<PathBuf> = std::env::split_paths(raw)
             .filter(|dir| !dir.as_os_str().is_empty())
             .collect();
-        return ModSourceMode::ExplicitPaths { paths };
+        return if session_ignored {
+            ModSourceMode::IgnoredForSession {
+                underlying: IgnoredModSource::ExplicitPaths { paths },
+            }
+        } else {
+            ModSourceMode::ExplicitPaths { paths }
+        };
     }
-    ModSourceMode::Directory { mods_dir }
+    if session_ignored {
+        ModSourceMode::IgnoredForSession {
+            underlying: IgnoredModSource::Directory { mods_dir },
+        }
+    } else {
+        ModSourceMode::Directory { mods_dir }
+    }
 }
 
 /// Resolves active mods from `PSIV_MODS` (when set) or `install.mods_dir()`,
@@ -537,16 +556,29 @@ mod tests {
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].manifest.id, "explicit-a");
 
-        // Session bypass overrides both directory discovery and explicit PSIV_MODS.
-        let (ignored_source, ignored_mods, _) =
+        // Session bypass preserves the underlying source (explicit paths vs directory).
+        let (ignored_explicit, ignored_mods, _) =
             resolve_mods(Some(mod_a.as_os_str()), true, &install).unwrap();
         assert_eq!(
-            ignored_source,
+            ignored_explicit,
             ModSourceMode::IgnoredForSession {
-                mods_dir: install.mods_dir()
+                underlying: IgnoredModSource::ExplicitPaths {
+                    paths: vec![mod_a.clone()],
+                },
             }
         );
         assert!(ignored_mods.is_empty());
+
+        let (ignored_dir, ignored_dir_mods, _) = resolve_mods(None, true, &install).unwrap();
+        assert_eq!(
+            ignored_dir,
+            ModSourceMode::IgnoredForSession {
+                underlying: IgnoredModSource::Directory {
+                    mods_dir: install.mods_dir(),
+                },
+            }
+        );
+        assert!(ignored_dir_mods.is_empty());
 
         // Directory mode discovers enabled mods under install.mods_dir().
         let (dir_source, dir_mods, _) = resolve_mods(None, false, &install).unwrap();

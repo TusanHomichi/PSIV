@@ -17,12 +17,13 @@ use std::path::{Path, PathBuf};
 
 use godot::prelude::*;
 use psiv_data::mods::{
-    ModError, ModInventoryEntry, ModManifest, find_mod_dir_by_id, inspect_mods_dir, set_mod_enabled,
+    ModError, ModInventoryEntry, ModManifest, find_mod_dir_by_id, inspect_mods_dir, load_mod,
+    set_mod_enabled,
 };
 use psiv_runtime::{TitlePhase, TitleView};
 
 use crate::Field;
-use crate::install::{Install, ModBootResult, ModSourceMode};
+use crate::install::{IgnoredModSource, Install, ModBootResult, ModSourceMode};
 use crate::save_dir::SaveProfileNotice;
 
 pub(crate) use error_screen::ModErrorScreen;
@@ -291,7 +292,10 @@ pub(crate) fn build_mod_list(
 ) -> ModListView {
     let active_ids: BTreeSet<&str> = active_mods.iter().map(|m| m.id.as_str()).collect();
     match source {
-        ModSourceMode::Directory { mods_dir } | ModSourceMode::IgnoredForSession { mods_dir } => {
+        ModSourceMode::Directory { mods_dir }
+        | ModSourceMode::IgnoredForSession {
+            underlying: IgnoredModSource::Directory { mods_dir },
+        } => {
             let bypassed = matches!(source, ModSourceMode::IgnoredForSession { .. });
             let source_summary = if bypassed {
                 format!("Mods bypassed for this session  ·  {}", mods_dir.display())
@@ -404,6 +408,59 @@ pub(crate) fn build_mod_list(
                 can_reload: false,
             }
         }
+        ModSourceMode::IgnoredForSession {
+            underlying: IgnoredModSource::ExplicitPaths { paths },
+        } => {
+            let rows = paths
+                .iter()
+                .enumerate()
+                .map(|(idx, path)| match load_mod(path) {
+                    Ok(discovered) => {
+                        let m = discovered.manifest;
+                        ModListRow {
+                            load_slot: Some(idx + 1),
+                            id: m.id,
+                            name: m.name,
+                            version: m.version,
+                            order: Some(m.order),
+                            description: m.description,
+                            status: ModRowStatus::Bypassed,
+                            toggle_dir: None,
+                            next_enabled: None,
+                        }
+                    }
+                    Err(error) => {
+                        let folder_name = path
+                            .file_name()
+                            .map(|n| n.to_string_lossy().into_owned())
+                            .unwrap_or_else(|| path.display().to_string());
+                        ModListRow {
+                            load_slot: None,
+                            id: error.mod_id,
+                            name: folder_name,
+                            version: String::new(),
+                            order: None,
+                            description: Some(error.detail),
+                            status: ModRowStatus::Invalid,
+                            toggle_dir: None,
+                            next_enabled: None,
+                        }
+                    }
+                })
+                .collect();
+            ModListView {
+                source_summary: format!(
+                    "PSIV_MODS override bypassed for this session ({} path(s))",
+                    paths.len()
+                ),
+                read_only_note: Some(
+                    "Loaded from PSIV_MODS (read-only). Fix the listed paths or unset PSIV_MODS, then reload."
+                        .to_owned(),
+                ),
+                rows,
+                can_reload: true,
+            }
+        }
         ModSourceMode::DisabledByEnv { raw } => ModListView {
             source_summary: format!("Mods disabled by PSIV_MODS={raw}"),
             read_only_note: Some(
@@ -416,17 +473,22 @@ pub(crate) fn build_mod_list(
 }
 
 /// Persists an `enabled` toggle for `mod_dir` when the current mod source is
-/// writable (`Directory` or `IgnoredForSession`), refusing read-only overrides.
+/// writable (directory mode, including directory session bypass), refusing
+/// read-only `PSIV_MODS` overrides even when bypassed.
 pub(crate) fn toggle_mod_in_source(
     source: &ModSourceMode,
     mod_dir: &Path,
     enabled: bool,
 ) -> Result<ModManifest, String> {
     match source {
-        ModSourceMode::Directory { .. } | ModSourceMode::IgnoredForSession { .. } => {
-            set_mod_enabled(mod_dir, enabled).map_err(|err| err.to_string())
-        }
-        ModSourceMode::ExplicitPaths { .. } => Err(
+        ModSourceMode::Directory { .. }
+        | ModSourceMode::IgnoredForSession {
+            underlying: IgnoredModSource::Directory { .. },
+        } => set_mod_enabled(mod_dir, enabled).map_err(|err| err.to_string()),
+        ModSourceMode::ExplicitPaths { .. }
+        | ModSourceMode::IgnoredForSession {
+            underlying: IgnoredModSource::ExplicitPaths { .. },
+        } => Err(
             "Cannot toggle mods while PSIV_MODS specifies explicit paths (read-only override)."
                 .to_owned(),
         ),
@@ -437,13 +499,17 @@ pub(crate) fn toggle_mod_in_source(
 }
 
 /// Counts discovered mod folders under `source` (0 if `mods/` is absent or
-/// overridden by `PSIV_MODS`).
+/// disabled via `PSIV_MODS=none`).
 pub(crate) fn count_discovered_mods(source: &ModSourceMode) -> usize {
     match source {
-        ModSourceMode::Directory { mods_dir } | ModSourceMode::IgnoredForSession { mods_dir } => {
-            inspect_mods_dir(mods_dir).map_or(0, |entries| entries.len())
-        }
-        ModSourceMode::ExplicitPaths { paths } => paths.len(),
+        ModSourceMode::Directory { mods_dir }
+        | ModSourceMode::IgnoredForSession {
+            underlying: IgnoredModSource::Directory { mods_dir },
+        } => inspect_mods_dir(mods_dir).map_or(0, |entries| entries.len()),
+        ModSourceMode::ExplicitPaths { paths }
+        | ModSourceMode::IgnoredForSession {
+            underlying: IgnoredModSource::ExplicitPaths { paths },
+        } => paths.len(),
         ModSourceMode::DisabledByEnv { .. } => 0,
     }
 }
