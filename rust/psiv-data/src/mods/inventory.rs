@@ -62,10 +62,21 @@ pub(crate) fn candidate_mod_dirs(mods_dir: &Path) -> Result<Vec<PathBuf>, ModErr
     Ok(dirs)
 }
 
-/// Reads and parses `<mod_dir>/mod.json` without running full compatibility
-/// validation (so a disabled mod with an outdated `pack_format_version` can
-/// still be skipped or toggled off).
-pub(crate) fn read_manifest_unchecked(mod_dir: &Path) -> Result<ModManifest, ModError> {
+/// Modeled keys of [`ModManifest`], used when leniently parsing an invalid
+/// `mod.json` strictly for disabling it during in-game error recovery.
+const KNOWN_MANIFEST_KEYS: &[&str] = &[
+    "format_version",
+    "id",
+    "name",
+    "version",
+    "author",
+    "description",
+    "pack_format_version",
+    "order",
+    "enabled",
+];
+
+fn read_manifest_json(mod_dir: &Path) -> Result<serde_json::Value, ModError> {
     let manifest_path = mod_dir.join(MOD_MANIFEST_FILE);
     let text = fs::read_to_string(&manifest_path).map_err(|error| {
         ModError::new(
@@ -75,6 +86,45 @@ pub(crate) fn read_manifest_unchecked(mod_dir: &Path) -> Result<ModManifest, Mod
         )
     })?;
     serde_json::from_str(&text).map_err(|error| {
+        ModError::new(
+            mod_dir.display().to_string(),
+            MOD_MANIFEST_FILE,
+            format!("invalid JSON: {error}"),
+        )
+    })
+}
+
+fn parse_manifest_lenient(
+    mod_dir: &Path,
+    raw: &serde_json::Value,
+) -> Result<ModManifest, ModError> {
+    let Some(obj) = raw.as_object() else {
+        return Err(ModError::new(
+            mod_dir.display().to_string(),
+            MOD_MANIFEST_FILE,
+            "manifest root must be a JSON object",
+        ));
+    };
+    let filtered: serde_json::Map<String, serde_json::Value> = obj
+        .iter()
+        .filter(|(k, _)| KNOWN_MANIFEST_KEYS.contains(&k.as_str()))
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    serde_json::from_value(serde_json::Value::Object(filtered)).map_err(|error| {
+        ModError::new(
+            mod_dir.display().to_string(),
+            MOD_MANIFEST_FILE,
+            format!("invalid JSON: {error}"),
+        )
+    })
+}
+
+/// Reads and strictly parses `<mod_dir>/mod.json` (enforcing
+/// `#[serde(deny_unknown_fields)]`) without running version-compatibility
+/// validation.
+pub(crate) fn read_manifest_unchecked(mod_dir: &Path) -> Result<ModManifest, ModError> {
+    let raw = read_manifest_json(mod_dir)?;
+    serde_json::from_value(raw).map_err(|error| {
         ModError::new(
             mod_dir.display().to_string(),
             MOD_MANIFEST_FILE,
@@ -123,14 +173,29 @@ pub fn inspect_mods_dir(mods_dir: &Path) -> Result<Vec<ModInventoryEntry>, ModEr
 
 /// Discovers enabled mod directories under `mods_dir`, sorted by `(order, id)`.
 ///
-/// A mod folder whose `mod.json` parses cleanly with `"enabled": false` is
-/// skipped before compatibility checks, so disabling an outdated mod unblocks
-/// startup cleanly.
+/// A mod folder whose `mod.json` parses as a JSON object with `"enabled": false`
+/// is skipped before strict schema and compatibility checks, so disabling an
+/// outdated or unknown-key mod unblocks startup cleanly.
 pub(crate) fn discover_enabled_mods(mods_dir: &Path) -> Result<Vec<DiscoveredMod>, ModError> {
     let dirs = candidate_mod_dirs(mods_dir)?;
     let mut found = Vec::new();
     for path in dirs {
-        let manifest = read_manifest_unchecked(&path)?;
+        let raw = read_manifest_json(&path)?;
+        if raw
+            .as_object()
+            .and_then(|obj| obj.get("enabled"))
+            .and_then(serde_json::Value::as_bool)
+            == Some(false)
+        {
+            continue;
+        }
+        let manifest: ModManifest = serde_json::from_value(raw).map_err(|error| {
+            ModError::new(
+                path.display().to_string(),
+                MOD_MANIFEST_FILE,
+                format!("invalid JSON: {error}"),
+            )
+        })?;
         if !manifest.enabled {
             continue;
         }
@@ -153,40 +218,33 @@ pub(crate) fn discover_enabled_mods(mods_dir: &Path) -> Result<Vec<DiscoveredMod
 
 /// Updates `"enabled"` in `<mod_dir>/mod.json` atomically.
 ///
-/// Enabling (`enabled == true`) validates the manifest first so an incompatible
-/// or malformed mod cannot be turned on. Disabling (`enabled == false`) allows
-/// turning off any parseable `mod.json` (including one targeting an older
-/// `pack_format_version`) so players can recover from startup errors in-game.
+/// Enabling (`enabled == true`) strictly parses and validates the manifest
+/// (rejecting unknown keys, incompatible versions, and duplicate enabled IDs)
+/// so an incompatible or malformed mod cannot be turned on. Disabling
+/// (`enabled == false`) allows turning off any parseable `mod.json` (including
+/// one targeting an older `pack_format_version` or carrying unknown keys) while
+/// preserving its existing fields so players can recover in-game without losing
+/// metadata.
 pub fn set_mod_enabled(mod_dir: &Path, enabled: bool) -> Result<ModManifest, ModError> {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let manifest_path = mod_dir.join(MOD_MANIFEST_FILE);
-    let text = fs::read_to_string(&manifest_path).map_err(|error| {
-        ModError::new(
-            mod_dir.display().to_string(),
-            MOD_MANIFEST_FILE,
-            format!("could not read manifest: {error}"),
-        )
-    })?;
-    let mut raw: serde_json::Value = serde_json::from_str(&text).map_err(|error| {
-        ModError::new(
-            mod_dir.display().to_string(),
-            MOD_MANIFEST_FILE,
-            format!("invalid JSON: {error}"),
-        )
-    })?;
-    let mut manifest: ModManifest = serde_json::from_value(raw.clone()).map_err(|error| {
-        ModError::new(
-            mod_dir.display().to_string(),
-            MOD_MANIFEST_FILE,
-            format!("invalid JSON: {error}"),
-        )
-    })?;
-    if enabled {
-        manifest.validate(&manifest_path)?;
+    let mut raw = read_manifest_json(mod_dir)?;
+    let mut manifest = if enabled {
+        let strict: ModManifest = serde_json::from_value(raw.clone()).map_err(|error| {
+            ModError::new(
+                mod_dir.display().to_string(),
+                MOD_MANIFEST_FILE,
+                format!("invalid JSON: {error}"),
+            )
+        })?;
+        strict.validate(&manifest_path)?;
         if let Some(parent) = mod_dir.parent() {
-            reject_enabled_id_collision(parent, mod_dir, &manifest.id)?;
+            reject_enabled_id_collision(parent, mod_dir, &strict.id)?;
         }
-    }
+        strict
+    } else {
+        parse_manifest_lenient(mod_dir, &raw)?
+    };
     manifest.enabled = enabled;
     let owner = if manifest.id.is_empty() {
         mod_dir.display().to_string()
@@ -280,7 +338,10 @@ pub fn find_mod_dir_by_id(mods_dir: &Path, mod_id: &str) -> Option<PathBuf> {
     let target_path = Path::new(mod_id);
     let mut matches = Vec::new();
     for dir in dirs {
-        let Ok(manifest) = read_manifest_unchecked(&dir) else {
+        let Ok(raw) = read_manifest_json(&dir) else {
+            continue;
+        };
+        let Ok(manifest) = parse_manifest_lenient(&dir, &raw) else {
             continue;
         };
         if !manifest.enabled {
