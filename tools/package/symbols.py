@@ -1,9 +1,9 @@
 """ELF build-id, separate debug symbols, and crash-artifact helpers for releases.
 
 Linux release builds (`tools/package/release.py build --platform linux`) emit
-DWARF line tables (`-C debuginfo=1`) and an explicit GNU build-id
-(`-C link-arg=-Wl,--build-id=sha1`) scoped to Linux so non-Linux targets do not
-produce discarded PDB/dSYM sidecars. `split_linux_symbols` verifies both, extracts
+DWARF line tables (`--config profile.release.debug="line-tables-only"`) and an
+explicit GNU build-id (`-C link-arg=-Wl,--build-id=sha1`) scoped to Linux so
+non-Linux targets do not produce discarded PDB/dSYM sidecars. `split_linux_symbols` verifies both, extracts
 `<binary>.debug` beside the build output, strips `.debug_*` from the shipped
 binary while keeping `.note.gnu.build-id` and `.symtab`, attaches `.gnu_debuglink`,
 and writes `build-symbols.json`. Export and smoke steps reuse these helpers to record

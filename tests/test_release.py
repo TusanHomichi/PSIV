@@ -195,7 +195,9 @@ class BuildMakesEachPlatformsBinaries(unittest.TestCase):
         made = self.built(PLATFORMS["linux"])
         (command, env), = self.calls
         self.assertEqual(env["CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS"],
-                         "-C debuginfo=1 -C link-arg=-Wl,--build-id=sha1")
+                         "-C link-arg=-Wl,--build-id=sha1")
+        self.assertIn("--config", command)
+        self.assertIn('profile.release.debug="line-tables-only"', command)
         self.assertEqual([path.read_bytes() for path in made], [b"x86_64-unknown-linux-gnu"] * 2)
 
     def test_linux_build_preserves_existing_target_rustflags(self):
@@ -204,7 +206,15 @@ class BuildMakesEachPlatformsBinaries(unittest.TestCase):
             self.built(PLATFORMS["linux"])
         (_, env), = self.calls
         self.assertEqual(env["CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS"],
-                         "-C lto=thin -C debuginfo=1 -C link-arg=-Wl,--build-id=sha1")
+                         "-C lto=thin -C link-arg=-Wl,--build-id=sha1")
+
+    def test_non_linux_builds_do_not_enable_release_debug_override(self):
+        for name in ("windows", "macos"):
+            with self.subTest(name):
+                self.calls.clear()
+                self.built(PLATFORMS[name])
+                for command, _ in self.calls:
+                    self.assertNotIn('profile.release.debug="line-tables-only"', command)
 
     def test_macos_joins_both_architectures(self):
         self.built(PLATFORMS["macos"])
@@ -242,11 +252,9 @@ class LinuxGlibcCeiling(unittest.TestCase):
 
 
 def release_profile_symbol_problems(text: str, linux_rustflags: tuple[str, ...]) -> list[str]:
-    """Check that Linux release flags keep line tables + build-id and Cargo does not strip."""
+    """Check that Linux release flags keep build-id and Cargo does not strip."""
     problems = []
     joined = " ".join(linux_rustflags)
-    if "-C debuginfo=1" not in joined:
-        problems.append("Linux release rustflags must enable -C debuginfo=1")
     if "-Wl,--build-id=" not in joined:
         problems.append("Linux release rustflags must pass -Wl,--build-id=")
     profile = tomllib.loads(text).get("profile", {}).get("release", {})

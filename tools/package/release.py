@@ -220,7 +220,7 @@ PLATFORMS = {
     "linux": Platform("linux", ("x86_64-unknown-linux-gnu",), "libpsiv_godot.so",
                       "psiv-pack", "Linux", "psiv.x86_64", "linux_release.x86_64",
                       "psiv.x86_64", "x86_64", ".tar.gz",
-                      ("-C", "debuginfo=1", "-C", "link-arg=-Wl,--build-id=sha1")),
+                      ("-C", "link-arg=-Wl,--build-id=sha1")),
     "windows": Platform("windows", ("x86_64-pc-windows-msvc",), "psiv_godot.dll",
                         "psiv-pack.exe", "Windows", "PSIV.exe", "windows_release_x86_64.exe",
                         "PSIV.exe", "x86_64", ".zip", ("-C", "target-feature=+crt-static")),
@@ -306,9 +306,14 @@ def build(platform: Platform, out: Path, runner: Callable = run) -> list[Path]:
             existing = environment.get(variable, "").strip()
             extra = " ".join(platform.rustflags)
             environment[variable] = f"{existing} {extra}".strip() if existing else extra
-        runner(["cargo", "build", "--release", "--locked",
-                "--manifest-path", str(ROOT / "rust" / "Cargo.toml"), "--target", target,
-                "-p", EXTENSION_PACKAGE, "-p", BUILDER_PACKAGE], env=environment)
+        command = [
+            "cargo", "build", "--release", "--locked",
+            "--manifest-path", str(ROOT / "rust" / "Cargo.toml"), "--target", target,
+            "-p", EXTENSION_PACKAGE, "-p", BUILDER_PACKAGE,
+        ]
+        if platform.name == "linux":
+            command.extend(["--config", 'profile.release.debug="line-tables-only"'])
+        runner(command, env=environment)
     made = []
     for name in (platform.library, platform.builder):
         parts = [target_directory() / target / "release" / name for target in platform.targets]
