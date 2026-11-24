@@ -21,8 +21,19 @@ use godot::obj::Singleton;
 /// The environment variable that names a runtime pack directory.
 const PACK_ENV: &str = "PSIV_RUNTIME_PACK";
 
+/// The environment variable that names explicit mod directories (OS path list
+/// separator: `:` on Linux/macOS, `;` on Windows) or `"none"` / `"0"` to
+/// disable automatic mod discovery.
+const MODS_ENV: &str = "PSIV_MODS";
+
 /// The pack's directory name, in the user data folder and in a checkout.
 const PACK_NAME: &str = "runtime-pack";
+
+/// The mods directory name, in the user data folder and in a checkout.
+const MODS_NAME: &str = "mods";
+
+/// Staging directory inside `mods/` holding the materialized overlaid pack.
+const ACTIVE_PACK_DIR: &str = "_active_pack";
 
 /// The pack builder a release ships beside the game's executable.
 const BUILDER_NAME: &str = "psiv-pack";
@@ -74,6 +85,57 @@ impl Install {
             Install::Checkout { root } => root.join(PACK_NAME),
         }
     }
+
+    /// The mods directory for this install (`<user_data>/mods` or `<root>/mods`).
+    pub(crate) fn mods_dir(&self) -> PathBuf {
+        match self {
+            Install::Installed { user_data, .. } => user_data.join(MODS_NAME),
+            Install::Checkout { root } => root.join(MODS_NAME),
+        }
+    }
+}
+
+/// Resolves active mods from `PSIV_MODS` (when set) or `install.mods_dir()`,
+/// returning `(mods, overlay_staging_dir)`.
+pub(crate) fn resolve_mods(
+    override_mods: Option<&OsStr>,
+    install: &Install,
+) -> Result<(Vec<psiv_data::mods::DiscoveredMod>, PathBuf), psiv_data::mods::ModError> {
+    let overlay_dir = install.mods_dir().join(ACTIVE_PACK_DIR);
+    if let Some(raw) = override_mods.filter(|v| !v.is_empty()) {
+        let lower = raw.to_string_lossy().trim().to_ascii_lowercase();
+        if matches!(lower.as_str(), "none" | "0" | "off" | "false") {
+            return Ok((Vec::new(), overlay_dir));
+        }
+        let mut loaded = Vec::new();
+        for dir in std::env::split_paths(raw) {
+            if dir.as_os_str().is_empty() {
+                continue;
+            }
+            loaded.push(psiv_data::mods::load_mod(&dir)?);
+        }
+        return Ok((loaded, overlay_dir));
+    }
+    let discovered = psiv_data::mods::discover_mods(&install.mods_dir())?;
+    Ok((discovered, overlay_dir))
+}
+
+/// Applies active mods (if any) over `base_pack`. Returns `Ok(None)` when no
+/// mods are enabled or when `base_pack` has not been built yet.
+pub(crate) fn apply_active_mods(
+    install: &Install,
+    base_pack: &Path,
+) -> Result<Option<psiv_data::mods::AppliedMods>, psiv_data::mods::ModError> {
+    if !base_pack.join("manifest.json").is_file() {
+        return Ok(None);
+    }
+    let override_mods = std::env::var_os(MODS_ENV);
+    let (mods, overlay_dir) = resolve_mods(override_mods.as_deref(), install)?;
+    if mods.is_empty() {
+        return Ok(None);
+    }
+    let applied = psiv_data::mods::apply_mods(base_pack, &mods, &overlay_dir)?;
+    Ok(Some(applied))
 }
 
 /// The runtime pack a run reads: `PSIV_RUNTIME_PACK` when it is set and not
@@ -371,5 +433,26 @@ mod tests {
             words,
             ["/roms/game.md", "/data/runtime-pack"].map(OsStr::new)
         );
+    }
+
+    #[test]
+    fn resolve_mods_honours_none_and_explicit_paths() {
+        let install = Install::Checkout {
+            root: std::env::temp_dir().join(format!("psiv-install-mods-{}", std::process::id())),
+        };
+        let (none, _) = resolve_mods(Some(OsStr::new("none")), &install).unwrap();
+        assert!(none.is_empty());
+
+        let mod_a = install.mods_dir().join("explicit-a");
+        let _ = std::fs::remove_dir_all(install.mods_dir());
+        psiv_data::mods::init_mod_dir(
+            &mod_a,
+            &psiv_data::mods::ModManifest::new("explicit-a", "Explicit A", "1.0.0"),
+        )
+        .unwrap();
+        let (loaded, _) = resolve_mods(Some(mod_a.as_os_str()), &install).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].manifest.id, "explicit-a");
+        let _ = std::fs::remove_dir_all(install.mods_dir());
     }
 }

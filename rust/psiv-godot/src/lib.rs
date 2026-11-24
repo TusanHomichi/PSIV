@@ -401,7 +401,21 @@ impl INode2D for Field {
         if overridden {
             godot_print!("runtime pack override: {}", self.pack_dir);
         }
-        let pack = std::path::PathBuf::from(&self.pack_dir);
+        let mut pack = std::path::PathBuf::from(&self.pack_dir);
+        match install::apply_active_mods(&install, &pack) {
+            Ok(Some(applied)) => {
+                for m in &applied.active {
+                    godot_print!("loaded mod: {} ({} v{})", m.name, m.id, m.version);
+                }
+                pack = applied.effective_pack;
+                self.pack_dir = pack.to_string_lossy().into_owned();
+            }
+            Ok(None) => {}
+            Err(error) => {
+                godot_error!("mod load failed: {error}");
+                return;
+            }
+        }
         let data = match GameData::load(&pack) {
             Ok(data) => data,
             Err(e) => {

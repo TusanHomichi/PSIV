@@ -1,15 +1,23 @@
 //! `psiv-pack <rom> <pack>`: see the library's documentation for the
 //! interface the setup screen reads.
 
+mod mods_cli;
+
 use std::io::Write as _;
 use std::path::Path;
 use std::process::ExitCode;
 
 use psiv_pack::{PackError, Rom, SECTIONS, build_pack, claims, default_workers, install};
 
-const USAGE: &str = "usage: psiv-pack <rom> <pack> | psiv-pack --claims";
+const USAGE: &str =
+    "usage: psiv-pack <rom> <pack> | psiv-pack --claims | psiv-pack mod <init|diff|check> ...";
 
 fn run(args: &[String]) -> Result<(), PackError> {
+    if let Some((first, rest)) = args.split_first()
+        && first == "mod"
+    {
+        return mods_cli::run_mod(rest);
+    }
     match args {
         [flag] if flag == "--claims" => {
             println!("{}", psiv_pack::json::dumps(&claims(SECTIONS), true));

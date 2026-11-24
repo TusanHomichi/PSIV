@@ -18,6 +18,7 @@ __pycache__/
 *.pyc
 .venv/
 /runtime-pack
+/mods
 # A pack build's versions, links and staging beside any pack directory
 # (psiv_tools/pack_swap.py): .<name>.v<UTC stamp>-<pid>,
 # .<name>.build-<pid>-<hex> and .<name>.link-<pid>-<hex>. The shapes are

@@ -1,0 +1,149 @@
+//! `psiv-pack mod <init|diff|check>` subcommands (#118).
+
+use std::path::{Path, PathBuf};
+
+use psiv_data::mods::{ModManifest, apply_mods, diff_packs, init_mod_dir, load_mod};
+use psiv_pack::PackError;
+
+pub const MOD_USAGE: &str = "\
+usage:
+  psiv-pack mod init <out-dir> --id <id> [--name <name>] [--version <ver>]
+  psiv-pack mod diff <base-pack> <edited-pack> <out-dir> [--id <id>] [--name <name>] [--version <ver>]
+  psiv-pack mod check <base-pack> <mod-dir>...";
+
+pub fn run_mod(args: &[String]) -> Result<(), PackError> {
+    let Some((sub, rest)) = args.split_first() else {
+        return Err(PackError(MOD_USAGE.into()));
+    };
+    match sub.as_str() {
+        "init" => run_init(rest),
+        "diff" => run_diff(rest),
+        "check" => run_check(rest),
+        _ => Err(PackError(MOD_USAGE.into())),
+    }
+}
+
+struct ManifestFlags {
+    id: Option<String>,
+    name: Option<String>,
+    version: String,
+    author: Option<String>,
+    description: Option<String>,
+    order: i32,
+}
+
+fn parse_manifest_flags(args: &[String]) -> Result<(Vec<String>, ManifestFlags), PackError> {
+    let mut positional = Vec::new();
+    let mut flags = ManifestFlags {
+        id: None,
+        name: None,
+        version: "1.0.0".to_owned(),
+        author: None,
+        description: None,
+        order: 100,
+    };
+    let mut i = 0;
+    while i < args.len() {
+        let arg = args[i].as_str();
+        if let Some(flag) = arg.strip_prefix("--") {
+            let Some(val) = args.get(i + 1) else {
+                return Err(PackError(format!("missing value for --{flag}")));
+            };
+            match flag {
+                "id" => flags.id = Some(val.clone()),
+                "name" => flags.name = Some(val.clone()),
+                "version" => flags.version = val.clone(),
+                "author" => flags.author = Some(val.clone()),
+                "description" => flags.description = Some(val.clone()),
+                "order" => {
+                    flags.order = val
+                        .parse::<i32>()
+                        .map_err(|e| PackError(format!("invalid --order {val:?}: {e}")))?;
+                }
+                _ => return Err(PackError(format!("unknown flag --{flag}\n{MOD_USAGE}"))),
+            }
+            i += 2;
+        } else {
+            positional.push(arg.to_owned());
+            i += 1;
+        }
+    }
+    Ok((positional, flags))
+}
+
+fn build_manifest(flags: ManifestFlags, default_id: &Path) -> Result<ModManifest, PackError> {
+    let id = match flags.id {
+        Some(id) => id,
+        None => default_id
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(str::to_ascii_lowercase)
+            .ok_or_else(|| PackError("pass --id <mod-id>".into()))?,
+    };
+    let name = flags.name.unwrap_or_else(|| id.clone());
+    let mut manifest = ModManifest::new(id, name, flags.version);
+    manifest.author = flags.author;
+    manifest.description = flags.description;
+    manifest.order = flags.order;
+    Ok(manifest)
+}
+
+fn run_init(args: &[String]) -> Result<(), PackError> {
+    let (pos, flags) = parse_manifest_flags(args)?;
+    let [out_dir] = pos.as_slice() else {
+        return Err(PackError(MOD_USAGE.into()));
+    };
+    let out_path = Path::new(out_dir);
+    let manifest = build_manifest(flags, out_path)?;
+    init_mod_dir(out_path, &manifest).map_err(|e| PackError(e.to_string()))?;
+    println!("initialized mod `{}` in {out_dir}", manifest.id);
+    Ok(())
+}
+
+fn run_diff(args: &[String]) -> Result<(), PackError> {
+    let (pos, flags) = parse_manifest_flags(args)?;
+    let [base, edited, out_dir] = pos.as_slice() else {
+        return Err(PackError(MOD_USAGE.into()));
+    };
+    let out_path = Path::new(out_dir);
+    let manifest = build_manifest(flags, out_path)?;
+    let summary = diff_packs(Path::new(base), Path::new(edited), out_path, &manifest)
+        .map_err(|e| PackError(e.to_string()))?;
+    println!(
+        "wrote mod `{}` to {out_dir} ({} patch file(s), {} asset(s))",
+        manifest.id,
+        summary.patches.len(),
+        summary.assets.len()
+    );
+    Ok(())
+}
+
+fn run_check(args: &[String]) -> Result<(), PackError> {
+    if args.len() < 2 {
+        return Err(PackError(MOD_USAGE.into()));
+    }
+    let base = Path::new(&args[0]);
+    let mut mods = Vec::with_capacity(args.len() - 1);
+    for mod_arg in &args[1..] {
+        let loaded = load_mod(Path::new(mod_arg)).map_err(|e| PackError(e.to_string()))?;
+        mods.push(loaded);
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let staging: PathBuf = std::env::temp_dir().join(format!(
+        "psiv-pack-mod-check-{}-{stamp}",
+        std::process::id()
+    ));
+    let result = apply_mods(base, &mods, &staging);
+    let _ = std::fs::remove_dir_all(&staging);
+    let applied = result.map_err(|e| PackError(e.to_string()))?;
+    println!(
+        "ok: {} mod(s), {} patched file(s), {} replaced asset(s)",
+        applied.active.len(),
+        applied.patched_files.len(),
+        applied.replaced_assets.len()
+    );
+    Ok(())
+}
