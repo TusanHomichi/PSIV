@@ -421,17 +421,12 @@ agility and dexterity, and enemy paralysis clearing each turn.
     cell. The scene's frames, its lines and the flags it writes are the same either way.
 
 - `Event_DyingBoy` (`$86`, `ps4.asm:152726-152855`, [record](../scenes/163_DyingBoy.md)) differs
-  from the cartridge three ways, none of which changes a flag, an item or where anyone stands:
+  from the cartridge two ways, neither of which changes a flag, an item or where anyone stands:
   - **Facing frames.** It calls `Event_UpdateObjFacing` (`$05A936`, a `VInt_Prepare` at its end in
     the US build) once for the boy, once for each filled party slot through `loc_5A97C`, and once
     for Chaz: seven frames with a five-member party. The port's facing ops take none
     ([#164](https://github.com/TusanHomichi/PSIV/issues/164)). Nothing moves on those frames; the
     RNG seed and `Main_Frame_Count` (`ps4.asm:617,623`) fall that many frames behind.
-  - **The slow step.** `clr.b (FieldObj_Step_Offset).w` slows the gathering walk and Chaz's walk to
-    the bed's foot to sixteen frames a cell. The port does not apply `SetStepOffset`
-    ([#337](https://github.com/TusanHomichi/PSIV/issues/337)), so they walk at eight. The gathering
-    still ends inside its fixed 150-frame wait; Chaz's two walks, which end their waits, take half
-    the cartridge's frames.
   - **The sword animation is not oracle-captured.** `FieldObj_ChazAlisSword` (`$334`, tile `$43C`)
     is extracted from `CulversHouse` (`$0E7`) and drawn at its literal `($1D0, $1B8)` position as a
     play-once `walk_down` temporary object while Chaz's sprite is hidden for 164 frames; native vs.

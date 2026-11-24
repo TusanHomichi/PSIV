@@ -215,36 +215,11 @@ impl SceneRunner {
                 art_tile,
                 facing,
             } => {
-                let Ok(displaced) = state.join_party(slot, char_id) else {
-                    return Some(SceneFault::BadWrite);
-                };
-                if let Some(prev) = displaced
-                    && prev != char_id
+                if let Some(fault) =
+                    self.promote_npc_to_char(npc, char_id, slot, art_tile, facing, state, effects)
                 {
-                    state.remove_from_macros(prev);
+                    return Some(fault);
                 }
-                state.add_to_macros(char_id);
-                // Retail builds the new character object at the NPC's field
-                // position: the party object for `slot` is seated there.
-                let seat = self.actor(ActorRef::Npc(npc)).map(|a| a.cell);
-                if let Some(cell) = seat {
-                    match self.actor_mut(ActorRef::PartyMember(slot)) {
-                        Some(member) => member.park(cell, facing),
-                        None => self.actors.push(ScriptedActor::new(
-                            ActorRef::PartyMember(slot),
-                            cell,
-                            facing,
-                        )),
-                    }
-                }
-                effects.push(SceneEffect::NpcPromoted {
-                    npc,
-                    char_id,
-                    slot,
-                    art_tile,
-                    facing,
-                });
-                effects.push(SceneEffect::PartyChanged);
                 self.pc += 1;
             }
             SceneOp::StartBattle { index } => {
@@ -541,12 +516,16 @@ impl SceneRunner {
             | SceneOp::DrawTextToPlane { .. }
             | SceneOp::IntroTextFadeUp
             | SceneOp::IntroTextFadeDown
-            | SceneOp::SetStepOffset { .. }
             | SceneOp::PlaySound { .. }
             | SceneOp::PlayMusicIfSavedDifferent { .. }
             | SceneOp::SetSavedMusic { .. }
             | SceneOp::SetDialogueTree { .. }
             | SceneOp::SetRenderSpritesInCutscene { .. } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+            }
+            SceneOp::SetStepOffset { value } => {
+                self.set_step_offset(value);
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }

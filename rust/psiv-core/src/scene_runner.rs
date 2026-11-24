@@ -112,6 +112,9 @@ pub struct SceneRunner {
     guild_jobs: Option<crate::scenes::hunters_guild::GuildJobs>,
     dialogue_window: crate::scene::DialogueWindow,
     step_frames: StepFrames,
+    /// Active `FieldObj_Step_Offset` (`$FFFFECE0`) pace for party actors, when
+    /// changed by [`SceneOp::SetStepOffset`] (#337).
+    party_step_pace: Option<StepFrames>,
     /// The retail follow chain: party followers trail the member ahead of
     /// them through scripted walks. `SetFollowMode` bit 0 turns it off for
     /// independently scripted party moves (the wake-up in the opening).
@@ -179,6 +182,7 @@ impl SceneRunner {
             dialogue_ended: false,
             dialogue_window: crate::scene::DialogueWindow::Standard,
             step_frames,
+            party_step_pace: None,
             follow_chain: true,
             y_first: false,
             map_id: 0,
@@ -460,6 +464,7 @@ impl SceneRunner {
     /// everyone anyway.
     pub fn recast(&mut self, cast: Vec<ScriptedActor>) {
         self.actors = cast;
+        self.apply_party_step_pace();
         // Object indices belong to one map's list.
         self.drifted.clear();
         self.drift = None;
@@ -486,6 +491,7 @@ impl SceneRunner {
                 current
             })
             .collect();
+        self.apply_party_step_pace();
     }
 
     /// One actor by reference.

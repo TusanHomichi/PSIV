@@ -234,6 +234,73 @@ impl ScriptedActor {
 }
 
 impl super::SceneRunner {
+    /// Retail `FieldObj_Step_Offset` (`$FFFFECE0`) into `FieldObj_MovementsTbl`
+    /// (`$047AA8`, `ps4.asm:93387,93500,93675`): 0 = 16 frames/cell (`$0100`),
+    /// 1 = 8 frames/cell (`$0200`), 2 = 4 frames/cell (`$0400`).
+    pub(super) fn set_step_offset(&mut self, value: u8) {
+        let frames = match value {
+            0 => 16,
+            1 => 8,
+            2 => 4,
+            _ => return,
+        };
+        self.party_step_pace = StepFrames::new(frames).ok();
+        self.apply_party_step_pace();
+    }
+
+    pub(super) fn apply_party_step_pace(&mut self) {
+        let Some(pace) = self.party_step_pace else {
+            return;
+        };
+        for actor in &mut self.actors {
+            if matches!(actor.actor, ActorRef::PartyMember(_) | ActorRef::Character(_)) {
+                actor.pace = Some(pace);
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn promote_npc_to_char(
+        &mut self,
+        npc: usize,
+        char_id: crate::CharId,
+        slot: usize,
+        art_tile: u16,
+        facing: Direction,
+        state: &mut crate::GameState,
+        effects: &mut Vec<crate::SceneEffect>,
+    ) -> Option<crate::SceneFault> {
+        let Ok(displaced) = state.join_party(slot, char_id) else {
+            return Some(crate::SceneFault::BadWrite);
+        };
+        if let Some(prev) = displaced
+            && prev != char_id
+        {
+            state.remove_from_macros(prev);
+        }
+        state.add_to_macros(char_id);
+        let seat = self.actor(ActorRef::Npc(npc)).map(|a| a.cell);
+        if let Some(cell) = seat {
+            match self.actor_mut(ActorRef::PartyMember(slot)) {
+                Some(member) => member.park(cell, facing),
+                None => {
+                    let mut actor = ScriptedActor::new(ActorRef::PartyMember(slot), cell, facing);
+                    actor.pace = self.party_step_pace;
+                    self.actors.push(actor);
+                }
+            }
+        }
+        effects.push(crate::SceneEffect::NpcPromoted {
+            npc,
+            char_id,
+            slot,
+            art_tile,
+            facing,
+        });
+        effects.push(crate::SceneEffect::PartyChanged);
+        None
+    }
+
     pub(super) fn select_actor_animation(
         &mut self,
         actor: ActorRef,
@@ -250,5 +317,67 @@ impl super::SceneRunner {
         };
         walker.animation = Some(animation);
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CollisionGrid, GameState, MapId, SceneEffect, SceneInput, SceneOp, SceneRunner};
+
+    #[test]
+    fn set_step_offset_paces_party_walks_at_16_8_and_4_frames() {
+        static OPS: &[SceneOp] = &[
+            SceneOp::SetStepOffset { value: 0 },
+            SceneOp::MoveActorTo {
+                actor: ActorRef::PartyMember(0),
+                x: 3 * 16,
+                y: 16,
+                wait: true,
+            },
+            SceneOp::SetStepOffset { value: 1 },
+            SceneOp::MoveActorTo {
+                actor: ActorRef::PartyMember(0),
+                x: 4 * 16,
+                y: 16,
+                wait: true,
+            },
+            SceneOp::SetStepOffset { value: 2 },
+            SceneOp::MoveActorTo {
+                actor: ActorRef::PartyMember(0),
+                x: 5 * 16,
+                y: 16,
+                wait: true,
+            },
+        ];
+
+        let grid = CollisionGrid::new(8, 8, vec![0; 64]).unwrap();
+        let map = FieldMap::new(MapId(1), grid, vec![], vec![]).unwrap();
+        let mut state = GameState::new();
+        let cast = vec![
+            ScriptedActor::new(ActorRef::PartyMember(0), Cell::new(2, 2), Direction::Right),
+            ScriptedActor::new(ActorRef::Npc(0), Cell::new(2, 4), Direction::Right),
+        ];
+        let mut runner = SceneRunner::new(OPS, cast, StepFrames::new(8).unwrap());
+        let mut arrivals = Vec::new();
+        for tick in 0..100 {
+            let effects = runner.tick(&map, &mut state, SceneInput::None);
+            if effects
+                .iter()
+                .any(|e| matches!(e, SceneEffect::ActorArrived { .. }))
+            {
+                arrivals.push(tick);
+            }
+            if runner.is_finished() {
+                break;
+            }
+        }
+        assert!(runner.is_finished());
+        assert_eq!(arrivals, vec![16, 16 + 8, 16 + 8 + 4]);
+        assert_eq!(
+            runner.actor(ActorRef::Npc(0)).unwrap().pace,
+            None,
+            "NPCs keep their own pace"
+        );
     }
 }
