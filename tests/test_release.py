@@ -607,6 +607,21 @@ class SmokeNeedsACleanExit(unittest.TestCase):
         self.assertEqual((existing / "keep.txt").read_text(), "old\n")
         self.assertEqual((scratch / "new.txt").read_text(), "new\n")
 
+    def test_smoke_retains_artifacts_when_launch_raises_oserror(self):
+        def bad_exec(command, **options):
+            raise OSError(8, "Exec format error", command[0])
+        target = self.dir / "launch-fail"
+        with mock.patch.object(release.subprocess, "run", bad_exec), \
+                self.assertRaisesRegex(ReleaseError, "Exec format error"):
+            release.smoke(self.archive, PLATFORMS["linux"], failure_dir=target)
+        report = json.loads(
+            (target / "first run (portabilité)" / symbols.FAILURE_REPORT_FILE).read_text()
+        )
+        self.assertEqual(report["step"], "setup")
+        self.assertIsNone(report["returncode"])
+        self.assertTrue(pathlib.Path(report["executable"]).is_file())
+        self.assertIn("Exec format error", pathlib.Path(report["stderr_file"]).read_text())
+
     def test_negative_control_smoke_cleans_up_crash_when_keep_on_failure_is_false(self):
         with self.game(-11), self.assertRaisesRegex(ReleaseError, "setup run exited -11") as ctx:
             release.smoke(self.archive, PLATFORMS["linux"], keep_on_failure=False)

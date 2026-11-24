@@ -788,6 +788,9 @@ def smoke(
             except subprocess.TimeoutExpired as error:
                 fail(step, f"the {step} run did not end in {SMOKE_TIMEOUT} s", command,
                      stdout=_as_text(error.stdout), stderr=_as_text(error.stderr), log=log)
+            except OSError as error:
+                fail(step, f"could not launch {step} run: {error}", command,
+                     stderr=f"{error}\n", log=log)
             lines = log.read_text(encoding="utf-8", errors="replace").splitlines() \
                 if log.is_file() else []
             if result.returncode != 0:
