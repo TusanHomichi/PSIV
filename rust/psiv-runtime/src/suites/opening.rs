@@ -19,13 +19,14 @@ fn finding_alys_runs_the_scene_and_alys_leads() {
     let data = GameData::load(Path::new(PACK)).expect("pack loads");
 
     // PiataAcademy_F1; the trigger wants x == $260 (column 38) and
-    // y >= $F0. Spawn one cell below a qualifying cell and step up so the
-    // trigger evaluates on a landing, as RunEvents effectively does.
+    // y >= $F0. Spawn one cell to the right on row 17 (the hallway entry of
+    // tape 04) and step left onto (38, 17) so Chaz enters with camera (456, 168)
+    // and NPC Alys takes MoveActorCommand(2) down from (37, 16) to (37, 17).
     let mut rt = Runtime::new(
         data,
         0x013,
-        Cell::new(38, 18),
-        Direction::Up,
+        Cell::new(39, 17),
+        Direction::Left,
         StepFrames::default(),
     )
     .expect("spawn");
@@ -39,9 +40,9 @@ fn finding_alys_runs_the_scene_and_alys_leads() {
 
     let mut log = Vec::new();
     let mut guard = 0;
-    // Walk up one cell; the landing should fire trigger 3 and start the scene.
+    // Walk left one cell onto (38, 17); landing fires trigger 3.
     while !rt.scene_active() {
-        let events = rt.tick(Input::Direction(Direction::Up));
+        let events = rt.tick(Input::Direction(Direction::Left));
         log.extend(events);
         guard += 1;
         assert!(guard < 40, "trigger never fired; log: {log:?}");
@@ -54,13 +55,16 @@ fn finding_alys_runs_the_scene_and_alys_leads() {
 
     // Drive the scene: answer every dialogue request, bounded ticks.
     let mut dialogues = 0;
-    // (camera, scene ended) per frame, to separate the pan's last movement
-    // from the scene's release.
+    // (camera, party changed, scene ended) per frame, to separate the pan's
+    // last movement from the scene's release and verify the 8-frame pan (#564).
     let mut trace = Vec::new();
     for _ in 0..4000 {
         let events = rt.tick(Input::Neutral);
         trace.push((
             rt.camera().effective(),
+            events
+                .iter()
+                .any(|e| matches!(e, RuntimeEvent::PartyChanged)),
             events.iter().any(|e| matches!(e, RuntimeEvent::SceneEnded)),
         ));
         for e in &events {
@@ -108,23 +112,32 @@ fn finding_alys_runs_the_scene_and_alys_leads() {
 
     // The scene's closing Event_MoveCamera frames the new leader's live
     // position minus the home offset ($98, $58), and returns only on arrival,
-    // so the camera is there when the scene ends. Alys stands at X $250
-    // (camera 440, as the cartridge's tape 04 logs). The cartridge's Alys has
-    // stepped down to Y $100 (camera 168); the port's is still on $F0 because
-    // `MoveActorCommand` does not move the scripted actor (#564).
+    // so the camera is there when the scene ends. NPC Alys stepped down via
+    // MoveActorCommand(2) to ($250, $100), so the camera ends at (440, 168)
+    // after an 8-frame pan (tape 04, f7478-f7486; #564).
     assert_eq!(
         rt.camera().effective(),
-        (0x250 - 152, 0xF0 - 88),
+        (0x250 - 152, 0x100 - 88),
         "camera framed on Alys when the scene ends"
     );
 
     // The final pan frame is preserved: the scene ends a frame after the
     // camera last moved, and the hand-back replays no leader movement.
-    let ended = trace.iter().position(|&(_, e)| e).expect("scene ended");
+    let party_written = trace
+        .iter()
+        .position(|&(_, p, _)| p)
+        .expect("party changed");
+    let ended = trace.iter().position(|&(_, _, e)| e).expect("scene ended");
+    assert_eq!(
+        ended - party_written,
+        8,
+        "8-frame pan from party write to scene end (tape 04, f7478-f7486): {:?}",
+        &trace[party_written..=ended]
+    );
     assert!(ended >= 1, "scene cannot end on its first frame");
     assert_eq!(
         trace[ended - 1].0,
-        (0x250 - 152, 0xF0 - 88),
+        (0x250 - 152, 0x100 - 88),
         "camera has already arrived the frame before the scene ends"
     );
     assert!(
@@ -135,7 +148,7 @@ fn finding_alys_runs_the_scene_and_alys_leads() {
         rt.tick(Input::Neutral);
         assert_eq!(
             rt.camera().effective(),
-            (0x250 - 152, 0xF0 - 88),
+            (0x250 - 152, 0x100 - 88),
             "the follow driver was rebased, not replayed"
         );
     }

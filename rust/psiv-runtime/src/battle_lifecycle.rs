@@ -2,7 +2,7 @@
 //! and the start, round and absorb seams the shell drives.
 
 use psiv_core::CharId;
-use psiv_core::battle::{Battle, BattleEvent, Priority, Rng2, RoundOrders};
+use psiv_core::battle::{Battle, BattleEvent, Priority, Rng2, RoundOrders, RoundRng};
 
 use crate::boss_battles;
 use crate::camp;
@@ -344,7 +344,7 @@ impl Runtime {
             .battle
             .as_mut()
             .ok_or_else(|| BridgeError::Rejected("no battle in progress".into()))?;
-        let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
+        let mut rng2 = RoundRng::with_surrogate(&mut self.rng, self.frames);
         battle
             .round_with_inventory(orders, &set.data, self.game.inventory_mut(), &mut rng2)
             .map_err(|e| BridgeError::Rejected(e.to_string()))

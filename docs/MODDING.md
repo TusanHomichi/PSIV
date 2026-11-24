@@ -1,14 +1,221 @@
 # Modding PSIV
 
-[Project overview](../README.md) · [Documentation index](README.md)
+[Project overview](../README.md) · [Documentation index](README.md) ·
+[Player's guide](PLAYING.md)
 
 PSIV's game data is not compiled in (its rules and event scripts are). The game
 reads the data at start-up from a **data pack**, a directory of JSON tables, PNG
-images and sound data that `psiv-pack <ROM> runtime-pack` builds from your
-ROM (in a checkout, `cargo run --release --manifest-path rust/Cargo.toml -p psiv-pack -- <ROM> runtime-pack`). Edit those
-files and the game plays your edits, as long as they still fit the pack's schema.
-The pack is built from the ROM, so a mod is shared as a description or a script
-of its edits, never as pack files.
+images and sound data that `psiv-pack` builds from your US retail ROM.
+
+You can mod PSIV without touching the base pack by dropping **shareable mod
+folders** into your `mods/` directory — or by editing a copy of `runtime-pack/`
+and running `psiv-pack mod diff` to turn your edits into a clean, legal-to-share
+mod folder.
+
+## Quick start: shareable mod folders
+
+A mod is a folder carrying **only your edits and original assets**, never base
+pack files:
+
+```text
+mods/
+  my-mod/
+    mod.json                      # name, id, version, order, enabled
+    patches/
+      battle/enemies.json         # sparse ID-keyed JSON patches
+      dialogue/trees.json         # dialogue edits (or shorthand replace/lines)
+    assets/
+      maps/010_Piata.png          # optional replacement PNG/audio assets
+```
+
+### Where the game looks for mods
+
+1. **`PSIV_MODS`** (if set):
+   - Set `PSIV_MODS=none` (or `0`) to run the unmodified base pack with all mods
+     disabled.
+   - Set `PSIV_MODS=/path/to/mod-a:/path/to/mod-b` (use `;` on Windows) to load
+     explicit mod folders in that exact order.
+2. Otherwise, the install's `mods/` directory (independent of `PSIV_RUNTIME_PACK`,
+   so pointing `PSIV_RUNTIME_PACK` at an alternate or read-only base pack still
+   uses your writable `mods/` folder):
+   - **Installed release build:** `<user data folder>/mods/` (see
+     [where your pack and saves live](PLAYING.md#where-your-pack-and-saves-live)).
+   - **Source checkout:** `mods/` at the repository root.
+
+Every enabled mod in `mods/` is sorted by `(order, id)` (lower `order` loads
+first; later mods override earlier ones) and layered over the base pack into a
+hidden staging directory inside `mods/` without ever modifying `runtime-pack/`
+or `saves/`. Rebuilding the base pack from your ROM never touches `mods/`.
+
+> **Automatic save isolation:** Modded runs never touch your vanilla
+> `saves/slot_1..3.sram`. Whenever one or more mods are active (and
+> `PSIV_SAVE_DIR` is not set), the game automatically saves into
+> `saves/mods/<profile>/`, where `<profile>` is derived from the active mod
+> IDs in load order (not their version numbers, so updating a mod keeps your
+> progress). A small `mod_profile.json` sidecar is written beside the modded
+> slots without altering `.sram` bytes — so you can still copy a vanilla
+> `slot_1.sram` into a mod's save folder to test a mod mid-campaign, or set
+> `PSIV_SAVE_DIR` to point anywhere you want.
+
+## Modding with an AI assistant
+
+If you point an AI assistant or coding agent at this repo (or at an installed
+release folder) to create a mod:
+
+1. **Never distribute or commit base pack files.** Create a mod folder with
+   `psiv-pack mod init` (ships inside every release archive beside the game
+   binary, or run via `cargo run --release --manifest-path rust/Cargo.toml -p psiv-pack -- mod ...`).
+2. **Patch tables by stable ID under `patches/`** (see the table key reference
+   below) and place original replacement art/audio under `assets/`.
+3. **Validate before launching** with `psiv-pack mod check <base-pack> <mod-dir>`.
+   It runs the exact same fail-closed schema checks the game runs on startup and
+   names the mod, file, and field if anything does not fit.
+4. **Drop the validated mod folder into `mods/`** (or test directly with
+   `PSIV_MODS=/path/to/mod`).
+
+## `mod.json` manifest
+
+```json
+{
+  "format_version": 1,
+  "id": "hard-mode",
+  "name": "Hard Mode",
+  "version": "1.0.0",
+  "author": "Your Name",
+  "description": "Raises early enemy HP and tweaks Hahn's BioPlant greeting",
+  "pack_format_version": 2,
+  "order": 100,
+  "enabled": true
+}
+```
+
+- `id`: 1–64 lowercase ASCII letters, digits, `-` or `_`.
+- `order`: optional integer (default `100`); lower loads first, ties break by `id`.
+- `enabled`: optional boolean (default `true`); set `false` to disable without
+  deleting the folder.
+
+## CLI tools (`psiv-pack mod`)
+
+Every release archive includes the `psiv-pack` executable alongside the game
+(`psiv-pack`, `psiv-pack.exe`, or `PSIV.app/Contents/MacOS/psiv-pack`). In a
+source checkout, replace `psiv-pack` with
+`cargo run --release --manifest-path rust/Cargo.toml -p psiv-pack --`.
+
+| Command | What it does |
+| --- | --- |
+| `psiv-pack mod init <out-dir> --id <id> [--name <name>] [--version <ver>]` | Scaffolds a mod folder (`mod.json`, `patches/`, `assets/`). |
+| `psiv-pack mod check <base-pack> <mod-dir>...` | Layers one or more mods over `<base-pack>` and runs full schema validation. |
+| `psiv-pack mod diff <base-pack> <edited-pack> <out-dir> [--id <id>] [--name <name>]` | Diffs an edited pack copy against `<base-pack>` and writes only the changed JSON patches and assets into a shareable mod folder. |
+
+## What each file holds and its patch key
+
+The game reads pack data through `psiv-data` (`rust/psiv-data/src/`), and the
+Rust types there are the schema: a field's name, type and range are what the
+loader accepts. Under `patches/<file>`, known record arrays accept either an
+ID-keyed object (`{"10": {"hp": 99}}`) or an array of partial objects carrying
+that key (`[{"id": 10, "hp": 99}]`).
+
+| To change | Pack file | Keyed arrays (`array` → key field) | Schema |
+| --- | --- | --- | --- |
+| Dialogue and text windows | `dialogue/trees.json` | `trees` → `tree`, `entries` → `id` | `rust/psiv-data/src/dialogue/trees.rs` |
+| Enemies: HP, stats, resistances, AI, rewards | `battle/enemies.json` | `enemies` → `id` | `rust/psiv-data/src/battle/enemies.rs` |
+| Battle formations and map encounters | `battle/formations.json` | `formations` → `id`, `boss_formations` → `event_battle_index`, `map_bindings` → `map_id` | `rust/psiv-data/src/battle/formations.rs` |
+| Items and equipment | `battle/equipment.json` | `items` → `id` | `rust/psiv-data/src/battle/party.rs` |
+| Party members | `battle/characters.json` | `characters` → `character_id` | `rust/psiv-data/src/battle/party.rs` |
+| Techniques, skills, enemy skills, combos | `battle/abilities.json` | `techniques`, `skills`, `enemy_skills`, `item_effects`, `combos` → `id` | `rust/psiv-data/src/battle/abilities.rs` |
+| Level-up tables | `battle/levels.json` | `characters` → `character_id`, `levels` → `level` | `rust/psiv-data/src/battle/levels.rs` |
+| Shops and inns | `shops.json` | `inventories` → `index`, `inns` → `index`, `counters` → `id` | `rust/psiv-data/src/shops.rs` |
+| Maps: collision, warps, NPCs, treasures | `maps/<id>_<symbol>.json` (art: `.png`, `_over.png`) | `npcs`, `warps`, `treasures` → `index` | `rust/psiv-data/src/map.rs` |
+| New-game starting state | `game_start.json` | recursive JSON merge | `rust/psiv-data/src/new_game.rs` |
+| Sprites & sound | `sprites/`, `sound/` | recursive JSON merge + replacement files in `assets/` | `rust/psiv-data/src/sprites.rs`, `sound/schema.rs` |
+
+## Example 1: change an enemy's stats
+
+The first random battle of the game, in the Academy basement, is two Zoran
+Bults (enemy `10`, formation `$8A`) with 25 HP each. Create
+`mods/tough-zoran/patches/battle/enemies.json`:
+
+```json
+{
+  "enemies": {
+    "10": {
+      "hp": 99
+    }
+  }
+}
+```
+
+Validate and test it against the base pack without modifying `runtime-pack/`:
+
+```bash
+psiv-pack mod check runtime-pack mods/tough-zoran
+PSIV_MODS="$PWD/mods/tough-zoran" PSIV_SAVE_DIR="$PWD/saves" \
+  PSIV_DEBUG_BATTLE=0x8a PSIV_DEBUG_STATE="$PWD/state.json" PSIV_DEBUG_SHOT_FRAME=200 \
+  python3 tools/godot.py run -- --quit-after 400
+```
+
+## Example 2: change a line of dialogue
+
+Hahn's first line when he finds the professor in the BioPlant is tree `34`,
+entry `0` in `dialogue/trees.json`. Dialogue patches support two shorthands
+that update `segments`, `pages`, and `text` in lockstep automatically:
+
+- **`"replace": [["old", "new"], ...]`** — replaces matching text while keeping
+  every portrait, newline, and control code intact:
+
+```json
+{
+  "trees": {
+    "34": {
+      "entries": {
+        "0": {
+          "replace": [
+            ["Thank goodness you're safe!", "Glad to see you in one piece!"]
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+- **`"lines": ["Line 1", "Line 2"]`** (or nested pages `[["Page 1 L1", "L2"], ["Page 2"]]`) —
+  replaces the entry's text cleanly (keeping any leading portrait unless
+  `"keep_portrait": false`).
+
+Dialogue is checked for lines that fit the window (at most 32 characters, two
+lines a window) and characters present in `dialogue/font.json`.
+
+## When an edit does not fit
+
+The loader refuses any mod that violates the schema and names **the mod, the
+file, and the place** — both in `psiv-pack mod check` and in `logs/godot.log`.
+For example, setting `"hp": 70000` (HP is a 16-bit `u16`, at most 65535) fails
+with:
+
+```text
+mod `tough-zoran` (battle/enemies.json): could not parse .../battle/enemies.json:
+invalid value: integer `70000`, expected u16 at line 1 column ...
+```
+
+## Edit-a-copy workflow (`psiv-pack mod diff`)
+
+If you prefer editing a full copy of `runtime-pack/` directly (for instance
+with an image editor or custom script), keep your base pack clean and export
+your changes into a shareable mod folder with one command:
+
+```bash
+cp -rL runtime-pack my-edited-pack
+# ... edit files inside my-edited-pack ...
+psiv-pack mod diff runtime-pack my-edited-pack mods/my-mod --id my-mod --name "My Mod"
+psiv-pack mod check runtime-pack mods/my-mod
+```
+
+`psiv-pack mod diff` skips every untouched file, extracts minimal ID-keyed
+patches for edited JSON tables, and copies only modified or new assets — so the
+resulting `mods/my-mod/` folder contains zero ROM-derived base files and is
+safe to zip and share in
+[Discussions, "Show and tell"](https://github.com/TusanHomichi/PSIV/discussions/categories/show-and-tell).
 
 ## Where the game looks for the pack
 
@@ -22,146 +229,3 @@ In this order:
 When that directory holds no pack the game can load, it shows a setup screen
 that asks for the ROM and builds the pack there
 ([`pack_setup.rs`](../rust/psiv-godot/src/pack_setup.rs)).
-
-Work on a copy, so the original stays one command away:
-
-```bash
-cp -rL runtime-pack my-mod-pack
-python3 tools/godot.py prepare
-PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" python3 tools/godot.py run
-```
-
-`run` inherits `PSIV_RUNTIME_PACK`, and the game prefers that override over the
-run root's link to the checkout's pack, so the copy above is the one that loads.
-
-**`psiv-pack` replaces.** Running `psiv-pack` into a directory
-builds a new pack beside it and swaps it in whole: the directory becomes a
-link to the new version, and the previous versions, edits included, are kept
-as `.<name>.v<stamp>-<pid>` beside it until three newer builds prune them. On
-Windows the directory stays a real one and the previous version, edits
-included, is removed.
-Keep edits in a separate copy, as above.
-A loader that layers a mod over the original pack instead is planned after 1.0
-([#118](https://github.com/TusanHomichi/PSIV/issues/118)).
-
-## What each file holds
-
-The game reads these through `psiv-data` (`rust/psiv-data/src/`), and the Rust
-types there are the schema: a field's name, type and range are what the loader
-accepts.
-
-| To change | Edit | Schema |
-| --- | --- | --- |
-| Dialogue and every in-game text window | `dialogue/trees.json` | `rust/psiv-data/src/dialogue/trees.rs` |
-| Enemies: HP, stats, element resistances, abilities, rewards | `battle/enemies.json` | `rust/psiv-data/src/battle/enemies.rs` |
-| Which enemies a battle seats, and where | `battle/formations.json` | `rust/psiv-data/src/battle/formations.rs` |
-| Items and equipment | `battle/equipment.json` | `rust/psiv-data/src/battle/party.rs` |
-| Party members, techniques and skills, level-up tables | `battle/characters.json`, `battle/abilities.json`, `battle/levels.json` | `rust/psiv-data/src/battle/party.rs`, `abilities.rs`, `levels.rs` |
-| Shops and inns: stock, prices, inn rates | `shops.json` | `rust/psiv-data/src/shops.rs` |
-| Maps: collision, warps, objects, chests, music | `maps/<id>_<symbol>.json`, with the rendered planes in `maps/<id>_<symbol>.png` and `_over.png` | `rust/psiv-data/src/map.rs` |
-| The new-game state | `game_start.json` | `rust/psiv-data/src/new_game.rs` |
-| Sprites | `sprites/` (`party.json`, `npcs.json`, `vehicles.json` and the sheets) | `rust/psiv-data/src/sprites.rs` |
-| Music and sound effects | `sound/` | `rust/psiv-data/src/sound/schema.rs` (the files), `rust/psiv-data/src/sound.rs` (loading) |
-
-`manifest.json` lists every map file and the ROM the pack came from; the
-loader checks it before anything else. The extractor's other output,
-`generated/`, is a research table set; the game does not read it.
-
-## When an edit does not fit
-
-The loader refuses a table that does not fit its schema, names the file and
-the place, and the game reports it in its log: for example, an enemy HP of
-70000 in `battle/enemies.json` (HP is a 16-bit value, at most 65535) gives
-
-```text
-battle pack failed to load from <pack>: could not parse <pack>/battle/enemies.json:
-invalid value: integer `70000`, expected u16 at line 1 column 12565
-```
-
-and no battle starts. Dialogue is checked for lines that fit the window (at
-most 32 characters, two lines a window) and characters the font has
-(`dialogue/font.json`).
-
-## Example: change a line of dialogue
-
-Hahn's first line when he finds the professor in the BioPlant is
-"Professor! / Thank goodness you're safe!". It is entry 0 of tree 34 in
-`dialogue/trees.json`:
-
-```json
-{"text": "Professor!"},
-{"code": "0xFC", "ctrl": "newline", "operands": []},
-{"text": "Thank goodness you're safe!"},
-```
-
-An entry's `segments` are what the text window draws: text runs, and control
-codes (`newline`, `wait`, `portrait` and the rest) between them. To change the
-line, change its `text` segment, and change the same line in the entry's
-`pages` (what the cartridge's text loop would show, which the tests compare
-with) and its `text` (a plain copy for searching) to match. This script does
-all three:
-
-```python
-import json
-path = "my-mod-pack/dialogue/trees.json"
-data = json.load(open(path))
-entry = next(t for t in data["trees"] if t["tree"] == 34)["entries"][0]
-old, new = "Thank goodness you're safe!", "Glad to see you in one piece!"
-for segment in entry["segments"]:
-    if segment.get("text") == old:
-        segment["text"] = new
-for page in entry["pages"]:
-    page["lines"] = [new if line == old else line for line in page["lines"]]
-entry["text"] = entry["text"].replace(old, new)
-json.dump(data, open(path, "w"))
-```
-
-The scene's own debug selector opens it directly. With the edited pack, Hahn's
-window reads "Professor! / Glad to see you in one piece!":
-
-```bash
-PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" \
-  PSIV_DEBUG_EVENT=0x8007 python3 tools/godot.py run
-```
-
-A longer line takes longer to type out: the window draws one character every
-three frames.
-
-## Example: change an enemy's stats
-
-The first random battle of the game, in the Academy basement, is two Zoran
-Bults (enemy 10, formation `$8A`) with 25 HP each. In `battle/enemies.json`,
-the record with `"id": 10` holds `"hp": 25`; set it to 99:
-
-```python
-import json
-path = "my-mod-pack/battle/enemies.json"
-data = json.load(open(path))
-next(e for e in data["enemies"] if e["id"] == 10)["hp"] = 99
-json.dump(data, open(path, "w"))
-```
-
-The battle's debug selector starts that formation, and `PSIV_DEBUG_STATE`
-writes the runtime's state to a file at the frame `PSIV_DEBUG_SHOT_FRAME`
-names. With the edited pack both enemies start at 99 HP:
-
-```bash
-PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" \
-  PSIV_DEBUG_BATTLE=0x8a PSIV_DEBUG_STATE="$PWD/state.json" PSIV_DEBUG_SHOT_FRAME=200 \
-  python3 tools/godot.py run -- --quit-after 400
-```
-
-```text
-"battle": [ {"id": 1, "name": "Chaz", "hp": 25, ...},
-            {"id": 6, "name": "ZORAN BULT", "hp": 99, ...},
-            {"id": 7, "name": "ZORAN BULT", "hp": 99, ...} ]
-```
-
-Every Zoran Bult in the game takes the new HP: a record is per enemy, not per
-battle.
-
-## Sharing a mod
-
-Share the script or the list of edits, not pack files: the pack is built from
-the ROM, and its files are not yours to distribute. Mods are welcome in
-[Discussions, "Show and tell"](https://github.com/TusanHomichi/PSIV/discussions/categories/show-and-tell).

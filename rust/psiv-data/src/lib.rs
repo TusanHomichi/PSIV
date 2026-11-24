@@ -51,6 +51,7 @@ mod guild;
 mod ids;
 mod manifest;
 mod map;
+pub mod mods;
 mod new_game;
 mod presentation;
 mod ship_menu;

@@ -358,7 +358,7 @@ pub static CRASH_LANDING: Scene = Scene {
         },
         SceneOp::Wait { ticks: 40 },
         SceneOp::PlaySound { id: SFX_POWER_DOWN },
-        SceneOp::Wait { ticks: 60 },
+        SceneOp::Wait { ticks: 61 },
         // `ps4.asm:155984-155987`: literal `($5F0,$120)`, speed 1.
         SceneOp::PanCamera {
             subject: CameraSubject::At { x: 0x5F0, y: 0x120 },

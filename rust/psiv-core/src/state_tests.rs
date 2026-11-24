@@ -430,3 +430,81 @@ fn every_bank_holds_exactly_the_ram_maps_bits() {
         assert_eq!(bank.capacity(), bits, "{bank:?}");
     }
 }
+
+#[test]
+fn story_party_ops_update_in_use_macros_without_duplicating() {
+    use crate::scene::SceneOp;
+    use crate::{
+        ActorRef, Cell, CharId, CollisionGrid, Direction, FieldMap, MacroCommand, MacroRecord,
+        PresentationOp, SceneInput, SceneRunner, ScriptedActor, StepFrames,
+    };
+
+    let mut state = GameState::new();
+    state.set_party([Some(CharId(0)), Some(CharId(1)), None, None, None]);
+    let mut active = MacroRecord::default();
+    active.commands[0] = MacroCommand {
+        character_id: 0,
+        command_index: 1,
+        ability_id: 0,
+        reserved: 0,
+    };
+    active.commands[1] = MacroCommand {
+        character_id: 1,
+        command_index: 1,
+        ability_id: 0,
+        reserved: 0,
+    };
+    state.macros_mut()[0] = active;
+
+    // Join Hahn + redundant AddMacro (must not duplicate), displace Hahn with
+    // Gryz via PromoteNpcToChar (Dorin pattern), remove Alys, and verify that
+    // a temporary SetParty (Anger Tower solo) does not wipe macros.
+    static OPS: &[SceneOp] = &[
+        SceneOp::JoinParty {
+            slot: 2,
+            who: CharId(2),
+        },
+        SceneOp::Presentation {
+            op: PresentationOp::AddMacro { slot: 2 },
+        },
+        SceneOp::PromoteNpcToChar {
+            npc: 0,
+            char_id: CharId(4),
+            slot: 2,
+            art_tile: 0x534,
+            facing: Direction::Down,
+        },
+        SceneOp::RemovePartyMember { who: CharId(1) },
+        SceneOp::SetParty {
+            slots: [Some(CharId(0)), None, None, None, None],
+        },
+    ];
+
+    let grid = CollisionGrid::new(8, 8, vec![0; 64]).unwrap();
+    let map = FieldMap::new(crate::MapId(1), grid, vec![], vec![]).unwrap();
+    let cast = vec![
+        ScriptedActor::new(ActorRef::PartyMember(0), Cell::new(2, 2), Direction::Down),
+        ScriptedActor::new(ActorRef::Npc(0), Cell::new(3, 2), Direction::Down),
+    ];
+    let mut runner = SceneRunner::new(OPS, cast, StepFrames::new(8).unwrap());
+    runner.tick(&map, &mut state, SceneInput::None);
+    assert!(runner.is_finished());
+
+    let m0 = &state.macros()[0];
+    let entries: Vec<(u8, u8)> = m0
+        .commands
+        .iter()
+        .filter(|c| c.command_index != 0)
+        .map(|c| (c.character_id, c.command_index))
+        .collect();
+    assert_eq!(
+        entries,
+        vec![(0, 1), (4, 1)],
+        "Chaz kept, Hahn displaced by Gryz without duplicate, Alys removed, SetParty preserved"
+    );
+    assert_eq!(
+        state.macros()[1],
+        MacroRecord::default(),
+        "unused macro slots stay untouched"
+    );
+}

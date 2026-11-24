@@ -170,18 +170,31 @@ impl Runtime {
     /// `Event_MoveCamera` pan owns the camera instead, and a scripted teleport
     /// (`PlaceActor`, a map load) reseats rather than chasing the jump as a
     /// one-frame velocity.
+    fn scene_leader_driver(&self) -> Option<Driver> {
+        let actor = self.scene_party_actor(0).copied()?;
+        let (ox, oy) = actor.render_offset_16ths(self.party.leader().step_frames());
+        let at = PixelPos::from_cell(actor.cell);
+        Some(Driver {
+            x: (at.x + ox) * ONE_PIXEL,
+            y: (at.y + oy) * ONE_PIXEL,
+        })
+    }
+
+    /// Re-baselines the follow camera's driver on the scripted leader so an
+    /// explicit camera op (`Event_MoveCamera` / `SetCameraPos`) on a walk's
+    /// arrival frame does not replay that final step's velocity (#291).
+    fn reseat_scene_camera_driver(&mut self) {
+        if let Some(driver) = self.scene_leader_driver() {
+            self.camera.reseat(driver);
+        }
+    }
+
     fn tick_scene_camera(&mut self) {
         if self.scene_camera_locked {
             return;
         }
-        let Some(actor) = self.scene_party_actor(0).copied() else {
+        let Some(driver) = self.scene_leader_driver() else {
             return;
-        };
-        let (ox, oy) = actor.render_offset_16ths(self.party.leader().step_frames());
-        let at = PixelPos::from_cell(actor.cell);
-        let driver = Driver {
-            x: (at.x + ox) * ONE_PIXEL,
-            y: (at.y + oy) * ONE_PIXEL,
         };
         if self.camera_glide.is_some() {
             // The pan owns the camera; keep the follow driver on the leader so
@@ -726,7 +739,10 @@ impl Runtime {
                     SceneOp::GetOff(psiv_core::GetOffOp::PlayMapMusic) => {
                         self.dismount_music(events);
                     }
-                    SceneOp::SetCameraPos { x, y } => self.set_camera(x, y),
+                    SceneOp::SetCameraPos { x, y } => {
+                        self.set_camera(x, y);
+                        self.reseat_scene_camera_driver();
+                    }
                     SceneOp::Presentation {
                         op: psiv_core::PresentationOp::Quake { frames, opening },
                     } => self.quake = Some(crate::quake::Quake::new(frames, opening)),
@@ -765,6 +781,9 @@ impl Runtime {
                         // with no glide the runner's wait releases at once.
                         if let Some(at) = at {
                             self.scene_pan_camera(at.x, at.y, i32::from(speed));
+                            if self.camera_glide.is_none() {
+                                self.reseat_scene_camera_driver();
+                            }
                         }
                     }
                     // Bit 2 hands the camera to the scene (the opening's

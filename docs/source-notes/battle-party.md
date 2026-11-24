@@ -6,6 +6,28 @@ attack passes' draw counts.
 
 Index: [source and provenance notes](README.md).
 
+## 2026-11-24 — Inter-action battle RNG step in upfront round resolution (#585)
+
+**DELIBERATE DEVIATION — single-VInt inter-action RNG step (`RoundRng`).**
+On the cartridge, `UpdateRNGSeed` (`ps4.asm:86066-86092`) runs once per VInt
+and `Main_Frame_Count` increments per VInt, so consecutive action beats in a
+battle round execute tens of frames apart with distinct seeds and frame terms
+([battle measurements](../battle/BATTLE_MEASUREMENTS.md#rng)). Because
+`Runtime::battle_round` (`rust/psiv-runtime/src/battle_lifecycle.rs`) still
+resolves an entire round synchronously upfront into `Vec<BattleEvent>` before
+beat playback rather than suspending mid-round across VInts, keeping one frozen
+`(seed, frame_count)` across the whole round caused 16-draw damage passes (one
+full 16-bit `ror` rotation) to repeat identically across identical enemies in
+the same round (`#585`, e.g., formation 129 `LASRCANNON` hitting 77×4).
+
+`RoundRng::advance_action` (`rust/psiv-core/src/battle/rng.rs`) steps
+`UpdateRNGSeed` (`Lcg41::step`) once and increments the local frame term by 1
+between consecutive queued actions inside `Runtime::battle_round`. This breaks
+the artificial same-frame rotation lock without altering single-action formulas,
+single-frame `Rng2`, or captured `SliceRolls` replays. Exact per-beat elapsed
+VInt counts remain an approximation until round resolution is interleaved with
+frame-by-frame beat playback.
+
 ## 2026-11-15 — Normal-opening upload timing approximation
 
 **DELIBERATE DEVIATION — generalized upload holds and first-upload visibility.**

@@ -234,6 +234,131 @@ impl ScriptedActor {
 }
 
 impl super::SceneRunner {
+    /// Retail `FieldObj_Step_Offset` (`$FFFFECE0`) into `FieldObj_MovementsTbl`
+    /// (`$047AA8`, `ps4.asm:93387,93500,93675`): 0 = 16 frames/cell (`$0100`),
+    /// 1 = 8 frames/cell (`$0200`), 2 = 4 frames/cell (`$0400`).
+    pub(super) fn set_step_offset(&mut self, value: u8) {
+        let frames = match value {
+            0 => 16,
+            1 => 8,
+            2 => 4,
+            _ => return,
+        };
+        self.party_step_pace = StepFrames::new(frames).ok();
+        self.apply_party_step_pace();
+    }
+
+    pub(super) fn apply_party_step_pace(&mut self) {
+        let Some(pace) = self.party_step_pace else {
+            return;
+        };
+        for actor in &mut self.actors {
+            if matches!(
+                actor.actor,
+                ActorRef::PartyMember(_) | ActorRef::Character(_)
+            ) {
+                actor.pace = Some(pace);
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn promote_npc_to_char(
+        &mut self,
+        npc: usize,
+        char_id: crate::CharId,
+        slot: usize,
+        art_tile: u16,
+        facing: Direction,
+        state: &mut crate::GameState,
+        effects: &mut Vec<crate::SceneEffect>,
+    ) -> Option<crate::SceneFault> {
+        let Ok(displaced) = state.join_party(slot, char_id) else {
+            return Some(crate::SceneFault::BadWrite);
+        };
+        if let Some(prev) = displaced
+            && prev != char_id
+        {
+            state.remove_from_macros(prev);
+        }
+        state.add_to_macros(char_id);
+        let seat = self.actor(ActorRef::Npc(npc)).map(|a| a.cell);
+        if let Some(cell) = seat {
+            match self.actor_mut(ActorRef::PartyMember(slot)) {
+                Some(member) => member.park(cell, facing),
+                None => {
+                    let mut actor = ScriptedActor::new(ActorRef::PartyMember(slot), cell, facing);
+                    actor.pace = self.party_step_pace;
+                    self.actors.push(actor);
+                }
+            }
+        }
+        effects.push(crate::SceneEffect::NpcPromoted {
+            npc,
+            char_id,
+            slot,
+            art_tile,
+            facing,
+        });
+        effects.push(crate::SceneEffect::PartyChanged);
+        None
+    }
+
+    /// `FieldObj_NPCMove` (`$04A168`, `ps4.asm:97257`) with speed selector 1
+    /// (`16` frames per cell, matching `FieldObj_NPCAlysPiata` at `ps4.asm:92140`
+    /// and `FieldObj_NPCHahnNearBasement` at `ps4.asm:92241`). Decodes the
+    /// 11-entry command table (`npc_commands.json`), checks terrain and object
+    /// collision before queuing a step (turning in place when blocked, matching
+    /// `loc_4A188`), and blocks on `wait: true` (#564).
+    pub(super) fn move_actor_command(
+        &mut self,
+        map: &FieldMap,
+        actor: ActorRef,
+        command: u8,
+        wait: bool,
+        op: crate::SceneOp,
+        effects: &mut Vec<crate::SceneEffect>,
+    ) -> Option<crate::SceneFault> {
+        const NPC_CMD_SPEED1_FRAMES: u8 = 16;
+        let dir = match command {
+            1 => Some(Direction::Up),
+            2 => Some(Direction::Down),
+            4..=6 => Some(Direction::Left),
+            8..=10 => Some(Direction::Right),
+            _ => None,
+        };
+        let Some(from) = self.actor(actor).map(|w| w.cell) else {
+            return Some(crate::SceneFault::UnknownActor { actor });
+        };
+        let mut walking = false;
+        if let Some(dir) = dir {
+            let target = map.neighbor(from, dir).filter(|&to| {
+                !map.grid().is_blocking(to)
+                    && !map.npc_at(to).is_some_and(|npc| npc.cell != from)
+                    && !self
+                        .actors
+                        .iter()
+                        .any(|other| other.actor != actor && other.cell == to)
+            });
+            let Some(walker) = self.actor_mut(actor) else {
+                return Some(crate::SceneFault::UnknownActor { actor });
+            };
+            walker.facing = dir;
+            if let Some(to) = target {
+                walker.pace = StepFrames::new(NPC_CMD_SPEED1_FRAMES).ok();
+                walker.target = Some(to);
+                walking = walker.is_walking();
+                effects.push(crate::SceneEffect::ActorMoveStarted { actor, to });
+            }
+        }
+        effects.push(crate::SceneEffect::Presentation { op });
+        self.pc += 1;
+        if wait && walking {
+            self.blocked = super::Blocked::Actor(actor);
+        }
+        None
+    }
+
     pub(super) fn select_actor_animation(
         &mut self,
         actor: ActorRef,
@@ -250,5 +375,234 @@ impl super::SceneRunner {
         };
         walker.animation = Some(animation);
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CollisionGrid, GameState, MapId, SceneEffect, SceneInput, SceneOp, SceneRunner};
+
+    #[test]
+    fn set_step_offset_paces_party_walks_at_16_8_and_4_frames() {
+        static OPS: &[SceneOp] = &[
+            SceneOp::SetStepOffset { value: 0 },
+            SceneOp::MoveActorTo {
+                actor: ActorRef::PartyMember(0),
+                x: 3 * 16,
+                y: 16,
+                wait: true,
+            },
+            SceneOp::SetStepOffset { value: 1 },
+            SceneOp::MoveActorTo {
+                actor: ActorRef::PartyMember(0),
+                x: 4 * 16,
+                y: 16,
+                wait: true,
+            },
+            SceneOp::SetStepOffset { value: 2 },
+            SceneOp::MoveActorTo {
+                actor: ActorRef::PartyMember(0),
+                x: 5 * 16,
+                y: 16,
+                wait: true,
+            },
+        ];
+
+        let grid = CollisionGrid::new(8, 8, vec![0; 64]).unwrap();
+        let map = FieldMap::new(MapId(1), grid, vec![], vec![]).unwrap();
+        let mut state = GameState::new();
+        let cast = vec![
+            ScriptedActor::new(ActorRef::PartyMember(0), Cell::new(2, 2), Direction::Right),
+            ScriptedActor::new(ActorRef::Npc(0), Cell::new(2, 4), Direction::Right),
+        ];
+        let mut runner = SceneRunner::new(OPS, cast, StepFrames::new(8).unwrap());
+        let mut arrivals = Vec::new();
+        for tick in 0..100 {
+            let effects = runner.tick(&map, &mut state, SceneInput::None);
+            if effects
+                .iter()
+                .any(|e| matches!(e, SceneEffect::ActorArrived { .. }))
+            {
+                arrivals.push(tick);
+            }
+            if runner.is_finished() {
+                break;
+            }
+        }
+        assert!(runner.is_finished());
+        assert_eq!(arrivals, vec![16, 16 + 8, 16 + 8 + 4]);
+        assert_eq!(
+            runner.actor(ActorRef::Npc(0)).unwrap().pace,
+            None,
+            "NPCs keep their own pace"
+        );
+    }
+
+    #[test]
+    fn move_actor_command_moves_by_table_direction_and_blocks_on_wait() {
+        static OPS: &[SceneOp] = &[
+            // Standing-still command (0) does not move or block.
+            SceneOp::MoveActorCommand {
+                actor: ActorRef::Npc(0),
+                command: 0,
+                wait: true,
+            },
+            // Command 2 = one cell down, 16 frames (speed selector 1).
+            SceneOp::MoveActorCommand {
+                actor: ActorRef::Npc(0),
+                command: 2,
+                wait: true,
+            },
+            // Command 8 = one cell right, 16 frames.
+            SceneOp::MoveActorCommand {
+                actor: ActorRef::Npc(0),
+                command: 8,
+                wait: true,
+            },
+        ];
+
+        let grid = CollisionGrid::new(8, 8, vec![0; 64]).unwrap();
+        let map = FieldMap::new(MapId(1), grid, vec![], vec![]).unwrap();
+        let mut state = GameState::new();
+        let cast = vec![ScriptedActor::new(
+            ActorRef::Npc(0),
+            Cell::new(3, 3),
+            Direction::Up,
+        )];
+        let mut runner = SceneRunner::new(OPS, cast, StepFrames::new(8).unwrap());
+        let mut arrivals = Vec::new();
+        for tick in 0..80 {
+            let effects = runner.tick(&map, &mut state, SceneInput::None);
+            if effects
+                .iter()
+                .any(|e| matches!(e, SceneEffect::ActorArrived { .. }))
+            {
+                arrivals.push((tick, runner.actor(ActorRef::Npc(0)).unwrap().cell));
+            }
+            if runner.is_finished() {
+                break;
+            }
+        }
+        assert!(runner.is_finished());
+        assert_eq!(
+            arrivals,
+            vec![(16, Cell::new(3, 4)), (32, Cell::new(4, 4))],
+            "command 0 is a no-op; commands 2 and 8 each take 16 frames and block"
+        );
+        assert_eq!(
+            runner.actor(ActorRef::Npc(0)).unwrap().facing,
+            Direction::Right
+        );
+    }
+
+    #[test]
+    fn meeting_hahn_steps_toward_leader_from_either_side() {
+        let grid = CollisionGrid::new(8, 4, vec![0; 32]).unwrap();
+        let map = FieldMap::new(MapId(0x12), grid, vec![], vec![]).unwrap();
+        for (leader_x, hahn_x) in [(4u16, 3u16), (2u16, 3u16)] {
+            let mut state = GameState::new();
+            state.set_party([
+                Some(crate::CharId(1)),
+                Some(crate::CharId(0)),
+                None,
+                None,
+                None,
+            ]);
+            let mut runner = SceneRunner::new(
+                crate::scenes::opening::MEETING_HAHN.ops,
+                vec![
+                    ScriptedActor::new(
+                        ActorRef::PartyMember(0),
+                        Cell::new(leader_x, 2),
+                        Direction::Up,
+                    ),
+                    ScriptedActor::new(ActorRef::Npc(0), Cell::new(hahn_x, 1), Direction::Down),
+                ],
+                StepFrames::default(),
+            );
+            let mut arrived = false;
+            for _ in 0..30 {
+                let effects = runner.tick(&map, &mut state, SceneInput::None);
+                if effects.iter().any(|e| {
+                    matches!(
+                        e,
+                        SceneEffect::ActorArrived {
+                            actor: ActorRef::Npc(0),
+                            ..
+                        }
+                    )
+                }) {
+                    arrived = true;
+                    break;
+                }
+            }
+            assert!(arrived, "Hahn must finish his alignment step");
+            assert_eq!(
+                runner.actor(ActorRef::Npc(0)).unwrap().cell.x,
+                leader_x,
+                "Hahn at x={hahn_x} must step onto leader's column x={leader_x}"
+            );
+        }
+    }
+
+    #[test]
+    fn move_actor_command_turns_in_place_without_blocking_when_obstructed() {
+        static OPS: &[SceneOp] = &[
+            // Command 8 = Right into a blocking terrain cell (4, 2).
+            SceneOp::MoveActorCommand {
+                actor: ActorRef::Npc(0),
+                command: 8,
+                wait: true,
+            },
+            // Command 2 = Down into a solid map NPC at (3, 3).
+            SceneOp::MoveActorCommand {
+                actor: ActorRef::Npc(0),
+                command: 2,
+                wait: true,
+            },
+        ];
+        let mut cells = vec![0u8; 64];
+        cells[2 * 8 + 4] = 0x08; // solid terrain at (4, 2)
+        let grid = CollisionGrid::new(8, 8, cells).unwrap();
+        let solid_npc = crate::Npc {
+            id: crate::NpcId(1),
+            cell: Cell::new(3, 3),
+            offset: crate::SubCellOffset::ALIGNED,
+            facing: Direction::Up,
+            active: true,
+            camera_bypass: false,
+            interactable: true,
+            talkable: true,
+        };
+        let map = FieldMap::new(MapId(1), grid, vec![], vec![solid_npc]).unwrap();
+        let mut state = GameState::new();
+        let cast = vec![ScriptedActor::new(
+            ActorRef::Npc(0),
+            Cell::new(3, 2),
+            Direction::Up,
+        )];
+        let mut runner = SceneRunner::new(OPS, cast, StepFrames::default());
+        let effects = runner.tick(&map, &mut state, SceneInput::None);
+
+        assert!(
+            runner.is_finished(),
+            "blocked MoveActorCommand must not stall wait: true"
+        );
+        assert!(
+            !effects
+                .iter()
+                .any(|e| matches!(e, SceneEffect::ActorMoveStarted { .. })),
+            "blocked MoveActorCommand must not queue a walk"
+        );
+        assert_eq!(
+            runner.actor(ActorRef::Npc(0)).unwrap().cell,
+            Cell::new(3, 2)
+        );
+        assert_eq!(
+            runner.actor(ActorRef::Npc(0)).unwrap().facing,
+            Direction::Down,
+            "blocked MoveActorCommand still updates facing in place"
+        );
     }
 }

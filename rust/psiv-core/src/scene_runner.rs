@@ -112,6 +112,9 @@ pub struct SceneRunner {
     guild_jobs: Option<crate::scenes::hunters_guild::GuildJobs>,
     dialogue_window: crate::scene::DialogueWindow,
     step_frames: StepFrames,
+    /// Active `FieldObj_Step_Offset` (`$FFFFECE0`) pace for party actors, when
+    /// changed by [`SceneOp::SetStepOffset`] (#337).
+    party_step_pace: Option<StepFrames>,
     /// The retail follow chain: party followers trail the member ahead of
     /// them through scripted walks. `SetFollowMode` bit 0 turns it off for
     /// independently scripted party moves (the wake-up in the opening).
@@ -179,6 +182,7 @@ impl SceneRunner {
             dialogue_ended: false,
             dialogue_window: crate::scene::DialogueWindow::Standard,
             step_frames,
+            party_step_pace: None,
             follow_chain: true,
             y_first: false,
             map_id: 0,
@@ -222,7 +226,7 @@ impl SceneRunner {
         let mut effects = Vec::new();
         if self.blocked == Blocked::Camera {
             self.blocked = Blocked::No;
-            self.run(state, &mut effects);
+            self.run(map, state, &mut effects);
             self.resolve_belt(map, chunks, &mut effects);
         }
         effects
@@ -460,6 +464,7 @@ impl SceneRunner {
     /// everyone anyway.
     pub fn recast(&mut self, cast: Vec<ScriptedActor>) {
         self.actors = cast;
+        self.apply_party_step_pace();
         // Object indices belong to one map's list.
         self.drifted.clear();
         self.drift = None;
@@ -486,6 +491,7 @@ impl SceneRunner {
                 current
             })
             .collect();
+        self.apply_party_step_pace();
     }
 
     /// One actor by reference.
@@ -586,7 +592,7 @@ impl SceneRunner {
         if drift_frame_completed {
             return effects;
         }
-        self.run(state, &mut effects);
+        self.run(map, state, &mut effects);
         self.resolve_belt(map, chunks, &mut effects);
         self.freeze_belt_riders(chunks);
         effects
@@ -689,7 +695,7 @@ impl SceneRunner {
     }
 
     /// Executes ops until something blocks.
-    fn run(&mut self, state: &mut GameState, effects: &mut Vec<SceneEffect>) {
+    fn run(&mut self, map: &FieldMap, state: &mut GameState, effects: &mut Vec<SceneEffect>) {
         let mut budget = OP_BUDGET_PER_TICK;
         while self.blocked == Blocked::No {
             self.party_slots = state.party();
@@ -708,7 +714,7 @@ impl SceneRunner {
                 return;
             };
 
-            if let Some(fault) = self.step_op(op, state, effects) {
+            if let Some(fault) = self.step_op(map, op, state, effects) {
                 effects.push(SceneEffect::Faulted(fault));
                 self.blocked = Blocked::Done;
                 return;

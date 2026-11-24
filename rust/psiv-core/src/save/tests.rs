@@ -315,3 +315,41 @@ fn a_zero_stats_seat_survives_through_the_rust_occupancy_extension() {
         })
     );
 }
+
+/// Post-1.0 save compatibility guard: pins the v1.0.0/v1.0.1 slot header and
+/// payload layout so future work can never break reading a player's 1.0 save.
+/// Any future native extension must live in `$F030..$F0FF` and default cleanly
+/// when zero.
+#[test]
+fn v1_0_save_header_and_payload_remain_loadable_with_zeroed_future_header() {
+    let save = RetailSave {
+        snapshot: mid_progress_state().snapshot(),
+        location: RetailLocation {
+            world_index: 0,
+            map_index_2: 0x010,
+            map_index: 0x013,
+            char_x: 38 * 16,
+            char_y: 17 * 16,
+        },
+    };
+    let encoded = RetailSlot::encode(&save, 0)
+        .unwrap()
+        .with_dungeon_exit(3)
+        .with_saved_party_slots(Some([Some(CharId(0)), Some(CharId(1)), None, None, None]))
+        .mark_game_cleared();
+    let mut bytes = encoded.as_bytes().to_vec();
+    assert_eq!(bytes.len(), RETAIL_SLOT_FILE_BYTES);
+
+    // Every unused header byte past the v1.0 markers (`$F030..$F0FF`) is zero
+    // in a v1.0.0/v1.0.1 save; explicitly zeroing them must still decode cleanly.
+    bytes[2 * 0x30..0x200].fill(0);
+
+    let reloaded = RetailSlot::from_bytes(&bytes, 0).expect("v1.0 save must remain valid");
+    assert!(reloaded.game_cleared());
+    assert_eq!(reloaded.dungeon_exit(), Some(3));
+    assert_eq!(
+        reloaded.saved_party_slots(),
+        Some([Some(CharId(0)), Some(CharId(1)), None, None, None])
+    );
+    assert_eq!(reloaded.decode().unwrap(), save);
+}

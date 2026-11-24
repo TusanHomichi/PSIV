@@ -15,6 +15,7 @@ impl SceneRunner {
     /// Runs one op. Returns a fault instead of advancing when it cannot.
     pub(super) fn step_op(
         &mut self,
+        map: &crate::map::FieldMap,
         op: SceneOp,
         state: &mut GameState,
         effects: &mut Vec<SceneEffect>,
@@ -215,30 +216,11 @@ impl SceneRunner {
                 art_tile,
                 facing,
             } => {
-                if state.join_party(slot, char_id).is_err() {
-                    return Some(SceneFault::BadWrite);
+                if let Some(fault) =
+                    self.promote_npc_to_char(npc, char_id, slot, art_tile, facing, state, effects)
+                {
+                    return Some(fault);
                 }
-                // Retail builds the new character object at the NPC's field
-                // position: the party object for `slot` is seated there.
-                let seat = self.actor(ActorRef::Npc(npc)).map(|a| a.cell);
-                if let Some(cell) = seat {
-                    match self.actor_mut(ActorRef::PartyMember(slot)) {
-                        Some(member) => member.park(cell, facing),
-                        None => self.actors.push(ScriptedActor::new(
-                            ActorRef::PartyMember(slot),
-                            cell,
-                            facing,
-                        )),
-                    }
-                }
-                effects.push(SceneEffect::NpcPromoted {
-                    npc,
-                    char_id,
-                    slot,
-                    art_tile,
-                    facing,
-                });
-                effects.push(SceneEffect::PartyChanged);
                 self.pc += 1;
             }
             SceneOp::StartBattle { index } => {
@@ -344,12 +326,15 @@ impl SceneRunner {
                     self.blocked = Blocked::Actor(actor);
                 }
             }
-            SceneOp::MoveActorCommand { actor, .. } => {
-                if self.actor(actor).is_none() {
-                    return Some(SceneFault::UnknownActor { actor });
+            SceneOp::MoveActorCommand {
+                actor,
+                command,
+                wait,
+            } => {
+                if let Some(fault) = self.move_actor_command(map, actor, command, wait, op, effects)
+                {
+                    return Some(fault);
                 }
-                effects.push(SceneEffect::Presentation { op });
-                self.pc += 1;
             }
             SceneOp::FaceOppositeOf { actor, of } => {
                 let Some(other) = self.actor(of) else {
@@ -535,12 +520,16 @@ impl SceneRunner {
             | SceneOp::DrawTextToPlane { .. }
             | SceneOp::IntroTextFadeUp
             | SceneOp::IntroTextFadeDown
-            | SceneOp::SetStepOffset { .. }
             | SceneOp::PlaySound { .. }
             | SceneOp::PlayMusicIfSavedDifferent { .. }
             | SceneOp::SetSavedMusic { .. }
             | SceneOp::SetDialogueTree { .. }
             | SceneOp::SetRenderSpritesInCutscene { .. } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+            }
+            SceneOp::SetStepOffset { value } => {
+                self.set_step_offset(value);
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
@@ -607,9 +596,15 @@ impl SceneRunner {
                 self.pc += 1;
             }
             SceneOp::JoinParty { slot, who } => {
-                if state.join_party(slot, who).is_err() {
+                let Ok(displaced) = state.join_party(slot, who) else {
                     return Some(SceneFault::BadWrite);
+                };
+                if let Some(prev) = displaced
+                    && prev != who
+                {
+                    state.remove_from_macros(prev);
                 }
+                state.add_to_macros(who);
                 effects.push(SceneEffect::PartyChanged);
                 self.pc += 1;
             }
@@ -626,6 +621,7 @@ impl SceneRunner {
                 if state.set_party_slot(slots.len() - 1, None).is_err() {
                     return Some(SceneFault::BadWrite);
                 }
+                state.remove_from_macros(who);
                 effects.push(SceneEffect::PartyChanged);
                 self.pc += 1;
             }
@@ -899,6 +895,15 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 self.blocked = Blocked::Credits;
+            }
+            SceneOp::Presentation {
+                op: crate::PresentationOp::AddMacro { slot },
+            } => {
+                if let Ok(id) = u8::try_from(slot) {
+                    state.add_to_macros(CharId(id));
+                }
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
             }
             SceneOp::PanelCreate { .. }
             | SceneOp::PanelDestroyLast
