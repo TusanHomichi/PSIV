@@ -21,11 +21,12 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tomllib
 import unittest
 import zipfile
 from unittest import mock
 
-from tools.package import notices, release
+from tools.package import notices, release, symbols
 from tools.package.notices import FILES as NOTICE_FILES
 from tools.package.notices import NoticeError, Texts
 from tools.package.release import PLATFORMS, ReleaseError
@@ -190,12 +191,30 @@ class BuildMakesEachPlatformsBinaries(unittest.TestCase):
                          "-C target-feature=+crt-static")
         self.assertIn("psiv-pack", command)
 
-    def test_linux_builds_its_one_target_with_no_extra_flags(self):
+    def test_linux_builds_its_one_target_with_explicit_build_id_flag(self):
         made = self.built(PLATFORMS["linux"])
         (command, env), = self.calls
-        self.assertFalse([key for key in env if key.endswith("_RUSTFLAGS")
-                          and key not in os.environ])
+        self.assertEqual(env["CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS"],
+                         "-C link-arg=-Wl,--build-id=sha1")
+        self.assertIn("--config", command)
+        self.assertIn('profile.release.debug="line-tables-only"', command)
         self.assertEqual([path.read_bytes() for path in made], [b"x86_64-unknown-linux-gnu"] * 2)
+
+    def test_linux_build_preserves_existing_target_rustflags(self):
+        with mock.patch.dict(os.environ,
+                             {"CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS": "-C lto=thin"}):
+            self.built(PLATFORMS["linux"])
+        (_, env), = self.calls
+        self.assertEqual(env["CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS"],
+                         "-C lto=thin -C link-arg=-Wl,--build-id=sha1")
+
+    def test_non_linux_builds_do_not_enable_release_debug_override(self):
+        for name in ("windows", "macos"):
+            with self.subTest(name):
+                self.calls.clear()
+                self.built(PLATFORMS[name])
+                for command, _ in self.calls:
+                    self.assertNotIn('profile.release.debug="line-tables-only"', command)
 
     def test_macos_joins_both_architectures(self):
         self.built(PLATFORMS["macos"])
@@ -230,6 +249,118 @@ class LinuxGlibcCeiling(unittest.TestCase):
         for text in ("", "Name: GLIBC_2.34\nName: GLIBC_PRIVATE\n"):
             with self.subTest(text=text), self.assertRaisesRegex(ReleaseError, "missing public"):
                 self.check(dict.fromkeys(("libpsiv_godot.so", "psiv-pack"), text))
+
+
+def release_profile_symbol_problems(text: str, linux_rustflags: tuple[str, ...]) -> list[str]:
+    """Check that Linux release flags keep build-id and Cargo does not strip."""
+    problems = []
+    joined = " ".join(linux_rustflags)
+    if "-Wl,--build-id=" not in joined:
+        problems.append("Linux release rustflags must pass -Wl,--build-id=")
+    profile = tomllib.loads(text).get("profile", {}).get("release", {})
+    if isinstance(profile, dict):
+        strip = profile.get("strip")
+        if strip not in (None, False, "none"):
+            problems.append(f"[profile.release] must not set strip = {strip!r}")
+    return problems
+
+
+class ReleaseProfilePreservesDebugSymbols(unittest.TestCase):
+    def test_linux_release_flags_keep_debug_line_tables_and_cargo_does_not_strip(self):
+        manifest = (ROOT / "rust" / "Cargo.toml").read_text(encoding="utf-8")
+        self.assertEqual(
+            release_profile_symbol_problems(manifest, PLATFORMS["linux"].rustflags),
+            [],
+        )
+        for non_linux in ("windows", "macos"):
+            self.assertNotIn("debuginfo=", " ".join(PLATFORMS[non_linux].rustflags))
+
+    def test_negative_controls_catch_missing_debug_or_stripping(self):
+        manifest = (ROOT / "rust" / "Cargo.toml").read_text(encoding="utf-8")
+        self.assertTrue(release_profile_symbol_problems(manifest, ()))
+        self.assertTrue(release_profile_symbol_problems(
+            manifest + '\n[profile.release]\nstrip = "debuginfo"\n',
+            PLATFORMS["linux"].rustflags,
+        ))
+
+
+class LinuxBuildSplitsAndChecksSymbols(unittest.TestCase):
+    def setUp(self):
+        self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.lib = self.dir / "libpsiv_godot.so"
+        self.builder = self.dir / "psiv-pack"
+        self.lib.write_bytes(b"\x7fELFlib")
+        self.builder.write_bytes(b"\x7fELFpack")
+        self.state = {
+            self.lib.name: {"build_id": "aa" * 20, "sections": {".note.gnu.build-id", ".debug_line", ".symtab"}},
+            self.builder.name: {"build_id": "bb" * 20, "sections": {".note.gnu.build-id", ".debug_line", ".symtab"}},
+        }
+        self.commands = []
+
+    def runner(self, command):
+        self.commands.append(command)
+        tool = command[0]
+        if tool == "readelf" and "--notes" in command:
+            info = self.state.get(pathlib.Path(command[-1]).name, {})
+            bid = info.get("build_id")
+            stdout = f"  GNU  0x14  NT_GNU_BUILD_ID\n    Build ID: {bid}\n" if bid else ""
+            return subprocess.CompletedProcess(command, 0, stdout, "")
+        if tool == "readelf" and "--section-headers" in command:
+            sections = sorted(self.state.get(pathlib.Path(command[-1]).name, {}).get("sections", ()))
+            stdout = "\n".join(f"  [{i:2d}] {name:<20} PROGBITS" for i, name in enumerate(sections, 1))
+            return subprocess.CompletedProcess(command, 0, stdout, "")
+        if tool == "objcopy" and command[1] == "--only-keep-debug":
+            src, dst = pathlib.Path(command[2]), pathlib.Path(command[3])
+            dst.write_bytes(b"debug:" + src.read_bytes())
+            self.state[dst.name] = {
+                "build_id": self.state[src.name]["build_id"],
+                "sections": {".note.gnu.build-id", ".debug_line"},
+            }
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if tool == "objcopy" and command[1] == "--strip-debug":
+            target = pathlib.Path(command[2])
+            self.state[target.name]["sections"].discard(".debug_line")
+            target.write_bytes(b"stripped:" + target.read_bytes())
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if tool == "objcopy" and command[1].startswith("--add-gnu-debuglink="):
+            target = pathlib.Path(command[2])
+            self.state[target.name]["sections"].add(".gnu_debuglink")
+            return subprocess.CompletedProcess(command, 0, "", "")
+        raise AssertionError(f"unexpected command: {command}")
+
+    def test_splits_debug_files_preserves_build_ids_and_writes_manifest(self):
+        debug_paths, manifest_path = release.preserve_linux_symbols(
+            [self.lib, self.builder], out=self.dir, runner=self.runner,
+        )
+        self.assertEqual([p.name for p in debug_paths],
+                         ["libpsiv_godot.so.debug", "psiv-pack.debug"])
+        self.assertEqual(manifest_path.name, symbols.BUILD_SYMBOLS_FILE)
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["binaries"]["libpsiv_godot.so"]["build_id"], "aa" * 20)
+        self.assertEqual(manifest["binaries"]["psiv-pack"]["build_id"], "bb" * 20)
+        self.assertEqual(manifest["binaries"]["libpsiv_godot.so"]["debug_sha256"],
+                         symbols.sha256(self.dir / "libpsiv_godot.so.debug"))
+        self.assertNotIn(".debug_line", self.state["libpsiv_godot.so"]["sections"])
+        self.assertIn(".gnu_debuglink", self.state["libpsiv_godot.so"]["sections"])
+
+    def test_negative_control_missing_build_id_fails(self):
+        self.state["libpsiv_godot.so"]["build_id"] = None
+        with self.assertRaisesRegex(ReleaseError, "missing ELF GNU build-id"):
+            release.preserve_linux_symbols([self.lib], out=self.dir, runner=self.runner)
+
+    def test_negative_control_missing_debug_line_fails(self):
+        self.state["libpsiv_godot.so"]["sections"].discard(".debug_line")
+        with self.assertRaisesRegex(ReleaseError, "missing DWARF debug symbols"):
+            release.preserve_linux_symbols([self.lib], out=self.dir, runner=self.runner)
+
+    def test_negative_control_mismatched_debug_build_id_fails(self):
+        def broken_objcopy(command):
+            result = self.runner(command)
+            if command[0] == "objcopy" and command[1] == "--only-keep-debug":
+                self.state[pathlib.Path(command[3]).name]["build_id"] = "cc" * 20
+            return result
+        with self.assertRaisesRegex(ReleaseError, "does not match"):
+            release.preserve_linux_symbols([self.lib], out=self.dir, runner=broken_objcopy)
 
 
 class PlatformsAgreeWithTheGameAndTheProject(unittest.TestCase):
@@ -289,6 +420,9 @@ class ExportWritesWhereTheCallerAsked(unittest.TestCase):
 
     def setUp(self):
         self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        self.tmp = self.dir / "tmp"
+        self.tmp.mkdir()
+        self.enterContext(mock.patch.object(tempfile, "tempdir", str(self.tmp)))
         self.libraries = self.dir / "libraries"
         self.libraries.mkdir()
         for platform in PLATFORMS.values():
@@ -333,6 +467,45 @@ class ExportWritesWhereTheCallerAsked(unittest.TestCase):
                 self.assertEqual(exports[name], self.dir / "out" / name)
                 self.assertTrue((self.dir / "out" / name / platform.export).is_file())
         self.assertTrue((self.dir / "out" / "godot.json").is_file())
+        self.assertTrue((self.dir / "out" / symbols.EXPORT_METADATA_FILE).is_file())
+        self.assertEqual(list(self.tmp.iterdir()), [])
+
+    def test_export_records_template_version_sha_and_copies_sidecar_symbols(self):
+        (self.libraries / "libpsiv_godot.so.debug").write_bytes(b"dwarf-symbols")
+        (self.libraries / symbols.BUILD_SYMBOLS_FILE).write_text('{"binaries":{}}\n')
+        xdg = self.dir / "xdg"
+        pinned = release.pinned_godot_info()
+        tpl_dir = xdg / "godot" / "export_templates" / f"{pinned['version']}.stable"
+        tpl_dir.mkdir(parents=True)
+        (tpl_dir / "version.txt").write_text(f"{pinned['version']}.stable\n")
+        (tpl_dir / PLATFORMS["linux"].template).write_bytes(b"linux-template-bytes")
+        with mock.patch.dict(os.environ, {"XDG_DATA_HOME": str(xdg)}):
+            release.export(self.libraries, pathlib.Path("out"))
+        meta = json.loads((self.dir / "out" / symbols.EXPORT_METADATA_FILE).read_text())
+        self.assertEqual(meta["godot_version"], pinned["version"])
+        self.assertEqual(meta["templates"]["sha512"], pinned["templates"]["sha512"])
+        self.assertEqual(meta["templates"]["version_txt"], f"{pinned['version']}.stable")
+        self.assertEqual(meta["templates"]["files"]["linux"]["sha256"],
+                         symbols.sha256(tpl_dir / PLATFORMS["linux"].template))
+        self.assertEqual(sorted(item["file"] for item in meta["symbols"]),
+                         [symbols.BUILD_SYMBOLS_FILE, "libpsiv_godot.so.debug"])
+        self.assertTrue((self.dir / "out" / "symbols" / "libpsiv_godot.so.debug").is_file())
+
+    def test_export_retains_failure_dir_on_crash_and_cleans_up_when_disabled(self):
+        def crash(command):
+            raise ReleaseError("godot --export-release crashed")
+        kept_dir = self.dir / "export-fail"
+        with mock.patch.object(release, "run", crash):
+            with self.assertRaisesRegex(ReleaseError, "retained failure directory:"):
+                release.export(self.libraries, pathlib.Path("out"), failure_dir=kept_dir)
+        report = json.loads((kept_dir / symbols.FAILURE_REPORT_FILE).read_text())
+        self.assertEqual(report["stage"], "export")
+        self.assertEqual(report["godot"]["version"], release.pinned_godot_info()["version"])
+        with mock.patch.object(release, "run", crash):
+            with self.assertRaises(ReleaseError) as ctx:
+                release.export(self.libraries, pathlib.Path("out"), keep_on_failure=False)
+        self.assertNotIn("retained failure directory:", str(ctx.exception))
+        self.assertEqual(list(self.tmp.iterdir()), [])
 
 
 class SmokeNeedsACleanExit(unittest.TestCase):
@@ -340,7 +513,10 @@ class SmokeNeedsACleanExit(unittest.TestCase):
     logs, then exits with the code given."""
 
     def setUp(self):
-        self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        self.tmp = self.dir / "tmp"
+        self.tmp.mkdir()
+        self.enterContext(mock.patch.object(tempfile, "tempdir", str(self.tmp)))
         platform = PLATFORMS["linux"]
         self.archive = tar_archive(self.dir / f"{platform.archive_name(VERSION)}.tar.gz",
                                    release_files(platform))
@@ -362,6 +538,7 @@ class SmokeNeedsACleanExit(unittest.TestCase):
         with self.game(0):
             shown = release.smoke(self.archive, PLATFORMS["linux"])
         self.assertTrue(shown)
+        self.assertEqual(list(self.tmp.iterdir()), [])
 
     def test_a_first_run_that_logs_an_error_fails(self):
         logged = ("ERROR: runtime pack failed to load from /p: could not read "
@@ -377,9 +554,79 @@ class SmokeNeedsACleanExit(unittest.TestCase):
         with self.game(0, logged=logged):
             self.assertTrue(release.smoke(self.archive, PLATFORMS["linux"]))
 
-    def test_a_crash_after_the_lines_fails(self):
-        with self.game(-11), self.assertRaisesRegex(ReleaseError, "setup run exited -11"):
-            release.smoke(self.archive, PLATFORMS["linux"])
+    def test_a_crash_after_the_lines_fails_and_retains_unpacked_export_logs_and_symbols(self):
+        sym_dir = self.dir / "syms"
+        sym_dir.mkdir()
+        (sym_dir / "libpsiv_godot.so.debug").write_bytes(b"dwarf-bytes")
+        with self.game(-11), self.assertRaisesRegex(ReleaseError, "setup run exited -11") as ctx:
+            release.smoke(self.archive, PLATFORMS["linux"], symbols_dir=sym_dir)
+        match = re.search(r"retained failure directory: (.+)$", str(ctx.exception), re.M)
+        self.assertIsNotNone(match, str(ctx.exception))
+        kept = pathlib.Path(match.group(1))
+        self.assertTrue(kept.is_dir())
+        run_root = kept / "first run (portabilité)"
+        report = json.loads((run_root / symbols.FAILURE_REPORT_FILE).read_text())
+        self.assertEqual(report["returncode"], -11)
+        self.assertEqual(report["signal"], "SIGSEGV")
+        self.assertEqual(report["godot"]["templates"]["sha512"],
+                         release.pinned_godot_info()["templates"]["sha512"])
+        self.assertTrue(pathlib.Path(report["executable"]).is_file())
+        self.assertTrue(pathlib.Path(report["library"]).is_file())
+        self.assertTrue(pathlib.Path(report["log_file"]).is_file())
+        self.assertIn("Segmentation fault", pathlib.Path(report["stderr_file"]).read_text())
+        self.assertTrue((run_root / "symbols" / "libpsiv_godot.so.debug").is_file())
+
+    def test_smoke_moves_retained_artifacts_to_requested_failure_dir(self):
+        target = self.dir / "kept-crash"
+        with self.game(-11), self.assertRaisesRegex(ReleaseError, str(target)):
+            release.smoke(self.archive, PLATFORMS["linux"], failure_dir=target)
+        report = json.loads((target / "first run (portabilité)" / symbols.FAILURE_REPORT_FILE).read_text())
+        self.assertEqual(report["retained_dir"], str(target))
+        self.assertTrue(report["executable"].startswith(str(target)))
+        self.assertTrue(pathlib.Path(report["executable"]).is_file())
+        self.assertEqual(list(self.tmp.iterdir()), [])
+
+    def test_smoke_refuses_non_empty_failure_dir_without_deleting_it(self):
+        existing = self.dir / "prior-crash"
+        existing.mkdir()
+        kept_file = existing / "earlier.log"
+        kept_file.write_text("earlier evidence\n")
+        with self.game(-11), self.assertRaisesRegex(ReleaseError, "non-empty failure directory"):
+            release.smoke(self.archive, PLATFORMS["linux"], failure_dir=existing)
+        self.assertEqual(kept_file.read_text(), "earlier evidence\n")
+
+    def test_move_failure_dir_refuses_non_empty_dir_and_keeps_both(self):
+        existing = self.dir / "prior"
+        existing.mkdir()
+        (existing / "keep.txt").write_text("old\n")
+        scratch = self.dir / "scratch-new"
+        scratch.mkdir()
+        (scratch / "new.txt").write_text("new\n")
+        with self.assertRaisesRegex(symbols.SymbolError, "refusing to overwrite"):
+            symbols.move_failure_dir(scratch, existing)
+        self.assertEqual((existing / "keep.txt").read_text(), "old\n")
+        self.assertEqual((scratch / "new.txt").read_text(), "new\n")
+
+    def test_smoke_retains_artifacts_when_launch_raises_oserror(self):
+        def bad_exec(command, **options):
+            raise OSError(8, "Exec format error", command[0])
+        target = self.dir / "launch-fail"
+        with mock.patch.object(release.subprocess, "run", bad_exec), \
+                self.assertRaisesRegex(ReleaseError, "Exec format error"):
+            release.smoke(self.archive, PLATFORMS["linux"], failure_dir=target)
+        report = json.loads(
+            (target / "first run (portabilité)" / symbols.FAILURE_REPORT_FILE).read_text()
+        )
+        self.assertEqual(report["step"], "setup")
+        self.assertIsNone(report["returncode"])
+        self.assertTrue(pathlib.Path(report["executable"]).is_file())
+        self.assertIn("Exec format error", pathlib.Path(report["stderr_file"]).read_text())
+
+    def test_negative_control_smoke_cleans_up_crash_when_keep_on_failure_is_false(self):
+        with self.game(-11), self.assertRaisesRegex(ReleaseError, "setup run exited -11") as ctx:
+            release.smoke(self.archive, PLATFORMS["linux"], keep_on_failure=False)
+        self.assertNotIn("retained failure directory:", str(ctx.exception))
+        self.assertEqual(list(self.tmp.iterdir()), [])
 
     def test_a_clean_exit_without_the_setup_screen_fails(self):
         def no_setup(command, **options):
