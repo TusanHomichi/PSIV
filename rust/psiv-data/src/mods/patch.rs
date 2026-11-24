@@ -292,10 +292,107 @@ fn apply_at_slice(
             }
             Ok(())
         }
+        (Value::Array(base_arr), Value::Array(patch_arr)) if strict_base_keys => {
+            validate_replacement_array(base_arr, patch_arr, rel_file, display_path)?;
+            *base_arr = patch_arr.clone();
+            Ok(())
+        }
         (target, replacement) => {
             *target = replacement.clone();
             Ok(())
         }
+    }
+}
+
+/// Recursive key-union schema inferred from existing base JSON values for files
+/// outside `psiv-data` (such as Godot-only `battle/art/*.json` files).
+enum BaseShape {
+    Object(std::collections::BTreeMap<String, BaseShape>),
+    Array(Box<BaseShape>),
+    Any,
+}
+
+impl BaseShape {
+    fn merge(&mut self, value: &Value) {
+        match value {
+            Value::Object(map) => {
+                if matches!(self, Self::Any) {
+                    *self = Self::Object(std::collections::BTreeMap::new());
+                }
+                if let Self::Object(fields) = self {
+                    for (k, v) in map {
+                        fields.entry(k.clone()).or_insert(Self::Any).merge(v);
+                    }
+                }
+            }
+            Value::Array(items) => {
+                if matches!(self, Self::Any) {
+                    *self = Self::Array(Box::new(Self::Any));
+                }
+                if let Self::Array(elem) = self {
+                    for item in items {
+                        elem.merge(item);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn validate_replacement_array(
+    base_arr: &[Value],
+    patch_arr: &[Value],
+    rel_file: &str,
+    display_path: &[&str],
+) -> Result<(), String> {
+    let mut elem_shape = BaseShape::Any;
+    for item in base_arr {
+        elem_shape.merge(item);
+    }
+    let prefix = display_path.join(".");
+    for (idx, item) in patch_arr.iter().enumerate() {
+        let item_path = if prefix.is_empty() {
+            format!("[{idx}]")
+        } else {
+            format!("{prefix}[{idx}]")
+        };
+        validate_value_against_shape(&elem_shape, item, rel_file, &item_path)?;
+    }
+    Ok(())
+}
+
+fn validate_value_against_shape(
+    shape: &BaseShape,
+    value: &Value,
+    rel_file: &str,
+    path: &str,
+) -> Result<(), String> {
+    match (shape, value) {
+        (BaseShape::Object(fields), Value::Object(map)) if !fields.is_empty() => {
+            for (k, v) in map {
+                let next_path = if path.is_empty() {
+                    k.clone()
+                } else {
+                    format!("{path}.{k}")
+                };
+                let Some(child_shape) = fields.get(k) else {
+                    return Err(format!(
+                        "unknown field `{next_path}` (not present in base `{rel_file}`)"
+                    ));
+                };
+                validate_value_against_shape(child_shape, v, rel_file, &next_path)?;
+            }
+            Ok(())
+        }
+        (BaseShape::Array(elem_shape), Value::Array(items)) => {
+            for (idx, item) in items.iter().enumerate() {
+                let next_path = format!("{path}[{idx}]");
+                validate_value_against_shape(elem_shape, item, rel_file, &next_path)?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
     }
 }
 

@@ -655,6 +655,42 @@ fn schema_driven_validation_allows_omitted_optionals_and_rejects_nested_typos() 
     )
     .expect_err("typo inside replaced battle/enemy_animations.json entry must fail");
     assert!(err.contains("animations[0].bogus_anim_field"), "{err}");
+
+    // 5. Godot-only files outside `psiv-data` (e.g. `battle/art/enemy_overlays.json`)
+    //    reject unknown fields inside wholesale-replaced unkeyed arrays recursively.
+    let mut overlays = json!({
+        "format_version": 2,
+        "enemies": [
+            {"id": 10, "symbol": "Zoran", "pieces": [{"piece": 0, "enabled": true}]},
+            {"id": 11, "symbol": "Bug", "pieces": [{"piece": 0, "enabled": false, "cadence_ticks": 8}]}
+        ]
+    });
+    // Valid edit using key seen on a sibling item (`cadence_ticks`) succeeds.
+    apply_json_patch(
+        &mut overlays,
+        &json!({
+            "enemies": [
+                {"id": 10, "symbol": "Zoran", "pieces": [{"piece": 0, "enabled": true, "cadence_ticks": 4}]}
+            ]
+        }),
+        "battle/art/enemy_overlays.json",
+    )
+    .unwrap();
+    // Nested typo inside `enemies[0].pieces[0]` fails closed.
+    let err = apply_json_patch(
+        &mut overlays,
+        &json!({
+            "enemies": [
+                {"id": 10, "symbol": "Zoran", "pieces": [{"piece": 0, "enabled": true, "bogus_piece_key": 1}]}
+            ]
+        }),
+        "battle/art/enemy_overlays.json",
+    )
+    .expect_err("typo inside replaced Godot-only array entry must fail closed");
+    assert!(
+        err.contains("enemies[0].pieces[0].bogus_piece_key"),
+        "{err}"
+    );
 }
 
 fn minimal_valid_map_json() -> serde_json::Value {
