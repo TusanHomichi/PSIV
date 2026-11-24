@@ -84,22 +84,6 @@ pub(crate) fn resolve_save_directory<Argument: AsRef<OsStr>>(
     resolve_save_directory_for_mods(arguments, save_dir, default_saves, &[])
 }
 
-/// The run's save directory, or the rule that refuses to guess one.
-///
-/// The thin wrapper over `std::env`; every call site resolves through here and
-/// reports the error instead of touching a fallback path.
-pub(crate) fn save_directory_for_mods(
-    active_mods: &[ModManifest],
-) -> Result<PathBuf, SaveDirError> {
-    let arguments: Vec<OsString> = std::env::args_os().collect();
-    resolve_save_directory_for_mods(
-        &arguments,
-        std::env::var_os(SAVE_DIR_ENV).as_deref(),
-        &PathBuf::from(Os::singleton().get_user_data_dir().to_string()).join("saves"),
-        active_mods,
-    )
-}
-
 /// In-game notice when a save directory's recorded `mod_profile.json` differs
 /// from the currently active mods or cannot be parsed.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -114,22 +98,87 @@ pub(crate) struct ResolvedSaveStore {
     pub(crate) notice: Option<SaveProfileNotice>,
 }
 
-/// Compares `active_mods` against any existing `mod_profile.json` in
-/// `directory`. Pure filesystem read: returns `None` when no sidecar exists or
-/// when the active mod list matches the sidecar exactly.
-pub(crate) fn inspect_save_profile(
+/// Compares `active_mods` against `<directory>/mod_profile.json`, or—when
+/// using the default save root (`default_saves: Some(...)`, i.e. no explicit
+/// `PSIV_SAVE_DIR`) and `<directory>` has no sidecar yet—against the most
+/// recent prior profile under `<default_saves>/mods/*/` so adding, removing, or
+/// reordering mods still surfaces a notice even though the active save path
+/// moved to a new profile slug.
+pub(crate) fn inspect_save_profile_with_fallback(
     directory: &Path,
+    default_saves: Option<&Path>,
     active_mods: &[ModManifest],
 ) -> Option<SaveProfileNotice> {
     match ModProfile::read_from_dir(directory) {
         Ok(Some(previous)) => {
             let current = ModProfile::from_manifests(active_mods);
             let diff = current.diff_against(&previous);
-            (!diff.is_empty()).then_some(SaveProfileNotice::Diff(diff))
+            return (!diff.is_empty()).then_some(SaveProfileNotice::Diff(diff));
         }
-        Ok(None) => None,
-        Err(error) => Some(SaveProfileNotice::Unreadable(error.to_string())),
+        Err(error) => return Some(SaveProfileNotice::Unreadable(error.to_string())),
+        Ok(None) => {}
     }
+    let default_saves = default_saves?;
+    if active_mods.is_empty() && has_sram_saves(directory) {
+        return None;
+    }
+    let mods_root = default_saves.join("mods");
+    let exclude = (!active_mods.is_empty()).then_some(directory);
+    let previous = latest_prior_mod_profile(&mods_root, exclude)?;
+    let current = ModProfile::from_manifests(active_mods);
+    let diff = current.diff_against(&previous);
+    (!diff.is_empty()).then_some(SaveProfileNotice::Diff(diff))
+}
+
+#[cfg(test)]
+pub(crate) fn inspect_save_profile(
+    directory: &Path,
+    active_mods: &[ModManifest],
+) -> Option<SaveProfileNotice> {
+    inspect_save_profile_with_fallback(directory, None, active_mods)
+}
+
+fn has_sram_saves(dir: &Path) -> bool {
+    std::fs::read_dir(dir).ok().is_some_and(|entries| {
+        entries.flatten().any(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("sram"))
+        })
+    })
+}
+
+fn latest_prior_mod_profile(
+    mods_saves_root: &Path,
+    exclude_dir: Option<&Path>,
+) -> Option<ModProfile> {
+    let entries = std::fs::read_dir(mods_saves_root).ok()?;
+    let mut best: Option<(std::time::SystemTime, PathBuf, ModProfile)> = None;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() || exclude_dir.is_some_and(|excluded| excluded == path) {
+            continue;
+        }
+        let sidecar = path.join(psiv_data::mods::MOD_PROFILE_FILE);
+        let Ok(meta) = std::fs::metadata(&sidecar) else {
+            continue;
+        };
+        let Ok(Some(profile)) = ModProfile::read_from_dir(&path) else {
+            continue;
+        };
+        let modified = meta.modified().unwrap_or(std::time::UNIX_EPOCH);
+        let replace = match &best {
+            None => true,
+            Some((best_time, best_path, _)) => {
+                modified > *best_time || (modified == *best_time && path > *best_path)
+            }
+        };
+        if replace {
+            best = Some((modified, path, profile));
+        }
+    }
+    best.map(|(_, _, profile)| profile)
 }
 
 /// The run's save directory as a store, plus any `mod_profile.json` mismatch
@@ -139,12 +188,23 @@ pub(crate) fn inspect_save_profile(
 /// directory gets no store, and the session refuses every slot operation
 /// instead of falling back to a default path. Modded runs isolate into
 /// `<saves>/mods/<profile>/` unless `PSIV_SAVE_DIR` overrides it, inspect any
-/// existing `mod_profile.json` sidecar for version or mod-set changes, and
-/// attach the active [`ModProfile`] so the sidecar stays current on save.
+/// existing `mod_profile.json` sidecar (or prior profile under `<saves>/mods/`
+/// when switching profiles on the default root) for version or mod-set changes,
+/// and attach the active [`ModProfile`] so the sidecar stays current on save.
 pub(crate) fn session_store(active_mods: &[ModManifest]) -> ResolvedSaveStore {
-    match save_directory_for_mods(active_mods) {
+    let override_dir = std::env::var_os(SAVE_DIR_ENV).filter(|value| !value.is_empty());
+    let default_saves =
+        PathBuf::from(Os::singleton().get_user_data_dir().to_string()).join("saves");
+    let arguments: Vec<OsString> = std::env::args_os().collect();
+    match resolve_save_directory_for_mods(
+        &arguments,
+        override_dir.as_deref(),
+        &default_saves,
+        active_mods,
+    ) {
         Ok(directory) => {
-            let notice = inspect_save_profile(&directory, active_mods);
+            let fallback_root = override_dir.is_none().then_some(default_saves.as_path());
+            let notice = inspect_save_profile_with_fallback(&directory, fallback_root, active_mods);
             if let Some(notice) = &notice {
                 match notice {
                     SaveProfileNotice::Diff(diff) => {
@@ -379,5 +439,83 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn default_save_path_change_surfaces_prior_profile_mismatch_until_saved() {
+        let root =
+            std::env::temp_dir().join(format!("psiv-save-profile-fallback-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let alpha = ModManifest::new("alpha", "Alpha", "1.0.0");
+        let beta = ModManifest::new("beta", "Beta", "1.0.0");
+
+        // Player previously saved with `[alpha]` under `saves/mods/alpha/`.
+        let alpha_dir = resolve_save_directory_for_mods(
+            &["--main-pack", "psiv.pck"],
+            None,
+            &root,
+            std::slice::from_ref(&alpha),
+        )
+        .unwrap();
+        ModProfile::from_manifests(std::slice::from_ref(&alpha))
+            .write_to_dir(&alpha_dir)
+            .unwrap();
+
+        // Adding `beta` switches the default save directory to `saves/mods/alpha+beta/`
+        // (no sidecar yet) and surfaces the Added notice against the prior profile.
+        let combo = [alpha.clone(), beta.clone()];
+        let combo_dir =
+            resolve_save_directory_for_mods(&["--main-pack", "psiv.pck"], None, &root, &combo)
+                .unwrap();
+        let added = inspect_save_profile_with_fallback(&combo_dir, Some(&root), &combo)
+            .expect("adding beta should surface prior profile diff");
+        assert!(
+            matches!(&added, SaveProfileNotice::Diff(diff) if diff.added == vec!["beta"] && diff.removed.is_empty()),
+            "{added:?}"
+        );
+
+        // Once the new profile saves its own sidecar, exact match becomes quiet again.
+        ModProfile::from_manifests(&combo)
+            .write_to_dir(&combo_dir)
+            .unwrap();
+        assert_eq!(
+            inspect_save_profile_with_fallback(&combo_dir, Some(&root), &combo),
+            None
+        );
+
+        // Reordering `[beta, alpha]` switches to `saves/mods/beta+alpha/` and surfaces order_changed.
+        let reordered = [beta.clone(), alpha.clone()];
+        let reordered_dir =
+            resolve_save_directory_for_mods(&["--main-pack", "psiv.pck"], None, &root, &reordered)
+                .unwrap();
+        let order_notice =
+            inspect_save_profile_with_fallback(&reordered_dir, Some(&root), &reordered)
+                .expect("reordering should surface order_changed");
+        assert!(
+            matches!(&order_notice, SaveProfileNotice::Diff(diff) if diff.order_changed || !diff.added.is_empty()),
+            "{order_notice:?}"
+        );
+
+        // Disabling all mods with no vanilla `.sram` saves yet surfaces removal; once a vanilla
+        // save exists in `saves/`, vanilla launches stay quiet.
+        let removed_notice = inspect_save_profile_with_fallback(&root, Some(&root), &[])
+            .expect("disabling all mods with no vanilla saves surfaces prior modded profile");
+        assert!(
+            matches!(&removed_notice, SaveProfileNotice::Diff(diff) if !diff.removed.is_empty()),
+            "{removed_notice:?}"
+        );
+        std::fs::write(root.join("slot_1.sram"), b"vanilla-save").unwrap();
+        assert_eq!(
+            inspect_save_profile_with_fallback(&root, Some(&root), &[]),
+            None
+        );
+
+        // Explicit PSIV_SAVE_DIR (`default_saves: None`) never peeks at `<root>/mods/`.
+        assert_eq!(
+            inspect_save_profile_with_fallback(&reordered_dir, None, &reordered),
+            None
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
