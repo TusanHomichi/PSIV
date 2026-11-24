@@ -332,7 +332,7 @@ impl SaveStore {
                 continue;
             };
             if !encoded.game_cleared() {
-                std::fs::write(&path, encoded.mark_game_cleared().as_bytes())?;
+                write_save_atomic(&path, encoded.mark_game_cleared().as_bytes())?;
             }
         }
         Ok(())
@@ -403,7 +403,7 @@ impl Runtime {
                 .to_vec();
         }
         std::fs::create_dir_all(directory)?;
-        std::fs::write(&path, bytes)?;
+        write_save_atomic(&path, &bytes)?;
         Ok(path)
     }
 
@@ -441,7 +441,7 @@ impl Runtime {
         let path = Self::slot_path(directory, slot)?;
         let bytes = std::fs::read(&path)?;
         let erased = RetailSlot::erase_physical_payload(&bytes, slot)?;
-        std::fs::write(&path, erased.as_bytes())?;
+        write_save_atomic(&path, erased.as_bytes())?;
         Ok(path)
     }
 
@@ -548,4 +548,57 @@ fn saved_cell(location: RetailLocation) -> Result<Cell, RuntimeSaveError> {
         });
     }
     Ok(Cell::new(location.char_x / 16, location.char_y / 16))
+}
+
+/// Writes `bytes` to a sibling temp file, flushes to disk with `sync_all`,
+/// and atomically renames over `path`, so a crash or power loss mid-save
+/// never truncates or corrupts an existing slot file.
+fn write_save_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write as _;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let tmp = path.with_extension(format!("sram.tmp.{}.{seq}", std::process::id()));
+    let write_result = (|| -> std::io::Result<()> {
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        Ok(())
+    })();
+    if let Err(error) = write_result {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(error);
+    }
+    if let Err(error) = std::fs::rename(&tmp, path) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(error);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod atomic_write_tests {
+    use super::write_save_atomic;
+
+    #[test]
+    fn atomic_save_overwrites_cleanly_without_leaving_temp_files() {
+        let dir = std::env::temp_dir().join(format!("psiv-atomic-save-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let slot = dir.join("slot_1.sram");
+
+        write_save_atomic(&slot, b"first-save").unwrap();
+        assert_eq!(std::fs::read(&slot).unwrap(), b"first-save");
+
+        write_save_atomic(&slot, b"second-save").unwrap();
+        assert_eq!(std::fs::read(&slot).unwrap(), b"second-save");
+
+        let entries: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(entries, vec![std::ffi::OsString::from("slot_1.sram")]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

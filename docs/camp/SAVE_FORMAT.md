@@ -339,3 +339,23 @@ checks a native CONTINUE's resave through the same codec rules: a source
 without the marker may gain it, and a cartridge image's resave must add
 exactly the writer's metadata, the roster mask of the records the codec
 seats and a valid `TR` exit.
+
+## Post-1.0 compatibility and crash safety
+
+Saves written by PSIV 1.0.0 and later are guaranteed to remain loadable:
+
+* **Retail payload immutability.** The `$F100..$FB00` payload layout, 16-bit
+  checksum (`$F014..$F019`), and `PHANTASY STAR 4` header signature follow the
+  cartridge byte for byte and never change across releases.
+* **Additive, zero-default header extensions only.** Existing native header
+  fields live in `$F020..$F02F` (`$F020..$F021` occupancy mask, `$F022..$F025`
+  `TR` dungeon exit, `$F026..$F02D` `PS` parked-party bridge, `$F02E..$F02F`
+  `SY` standing-Y marker). Any future native extension must live in unused
+  header space (`$F030..$F0FF`), carry an explicit magic/check tag, and degrade
+  cleanly when all zero — so both v1.0 saves and cartridge SRAM dumps continue
+  to load without migration loss. Non-retail metadata (such as future per-save
+  mod lists) belongs in sidecar files rather than altering `.sram` bytes.
+* **Atomic slot writes.** `save_slot`, `mark_game_cleared`, and `erase_slot`
+  (`rust/psiv-runtime/src/save.rs`) write to a sibling temporary file, flush
+  with `sync_all`, and atomically rename into `slot_N.sram`, so a crash or
+  power loss mid-save never truncates or corrupts an existing save slot.
