@@ -1,11 +1,12 @@
 """ELF build-id, separate debug symbols, and crash-artifact helpers for releases.
 
 Linux release builds (`tools/package/release.py build --platform linux`) emit
-DWARF line tables (`rust/Cargo.toml` `[profile.release]`) and an explicit GNU
-build-id. `split_linux_symbols` verifies both, extracts `<binary>.debug` beside
-the build output, strips `.debug_*` from the shipped binary while keeping
-`.note.gnu.build-id` and `.symtab`, attaches `.gnu_debuglink`, and writes
-`build-symbols.json`. Export and smoke steps reuse these helpers to record
+DWARF line tables (`-C debuginfo=1`) and an explicit GNU build-id
+(`-C link-arg=-Wl,--build-id=sha1`) scoped to Linux so non-Linux targets do not
+produce discarded PDB/dSYM sidecars. `split_linux_symbols` verifies both, extracts
+`<binary>.debug` beside the build output, strips `.debug_*` from the shipped
+binary while keeping `.note.gnu.build-id` and `.symtab`, attaches `.gnu_debuglink`,
+and writes `build-symbols.json`. Export and smoke steps reuse these helpers to record
 Godot template metadata and preserve crash diagnostics without shipping debug
 payloads in player archives.
 
@@ -171,13 +172,49 @@ def signal_name(returncode: int | None) -> str | None:
         return f"SIG{-returncode}"
 
 
+def _failure_target(failure_dir: Path) -> Path:
+    """Resolve parent directory while preserving a final symlink for refusal."""
+    return failure_dir.parent.resolve() / failure_dir.name
+
+
+def validate_failure_dir(failure_dir: Path | None) -> Path | None:
+    """Validate that `failure_dir` does not already hold files or non-directory paths."""
+    if failure_dir is None:
+        return None
+    target = _failure_target(failure_dir)
+    if target.is_symlink() or (target.exists() and not target.is_dir()):
+        raise SymbolError(
+            f"refusing to overwrite existing path {target} with failure artifacts"
+        )
+    if target.is_dir() and any(target.iterdir()):
+        raise SymbolError(
+            f"refusing to overwrite non-empty failure directory {target}"
+        )
+    return target
+
+
 def move_failure_dir(scratch: Path, failure_dir: Path | None) -> Path:
-    """Keep `scratch` in place, or move it into `failure_dir` when requested."""
+    """Keep `scratch` in place, or move it into `failure_dir` when requested.
+
+    Never deletes an existing non-empty destination or non-directory path: if
+    `failure_dir` already contains files, keeps `scratch` intact and raises
+    `SymbolError` naming both paths.
+    """
     if failure_dir is None:
         return scratch
-    target = failure_dir.resolve()
+    target = _failure_target(failure_dir)
+    if target.is_symlink() or (target.exists() and not target.is_dir()):
+        raise SymbolError(
+            f"refusing to overwrite existing path {target}; failure artifacts kept at {scratch}"
+        )
+    if target.is_dir():
+        try:
+            target.rmdir()
+        except OSError as error:
+            raise SymbolError(
+                f"refusing to overwrite non-empty failure directory {target}; "
+                f"failure artifacts kept at {scratch}"
+            ) from error
     target.parent.mkdir(parents=True, exist_ok=True)
-    if target.exists():
-        shutil.rmtree(target)
     shutil.move(str(scratch), str(target))
     return target

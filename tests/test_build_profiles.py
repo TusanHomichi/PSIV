@@ -77,10 +77,8 @@ class ProfileCase(unittest.TestCase):
                                  [f"[profile.dev.package.psiv-sound] sets {key} = false"])
 
     def test_negative_control_another_profile(self):
-        problems = self.mutated(
-            "[profile.release]\n",
-            "[profile.release]\noverflow-checks = false\n",
-        )
+        problems = profile_problems(CARGO.read_text()
+                                    + "\n[profile.release]\noverflow-checks = false\n")
         self.assertEqual(problems, ["[profile.release] sets overflow-checks = false"])
 
 

@@ -112,6 +112,7 @@ from tools.package.symbols import (  # noqa: E402
     signal_name,
     split_linux_symbols,
     try_read_build_id,
+    validate_failure_dir,
 )
 
 #: The workspace packages a release ships: the extension and the builder.
@@ -219,7 +220,7 @@ PLATFORMS = {
     "linux": Platform("linux", ("x86_64-unknown-linux-gnu",), "libpsiv_godot.so",
                       "psiv-pack", "Linux", "psiv.x86_64", "linux_release.x86_64",
                       "psiv.x86_64", "x86_64", ".tar.gz",
-                      ("-C", "link-arg=-Wl,--build-id=sha1")),
+                      ("-C", "debuginfo=1", "-C", "link-arg=-Wl,--build-id=sha1")),
     "windows": Platform("windows", ("x86_64-pc-windows-msvc",), "psiv_godot.dll",
                         "psiv-pack.exe", "Windows", "PSIV.exe", "windows_release_x86_64.exe",
                         "PSIV.exe", "x86_64", ".zip", ("-C", "target-feature=+crt-static")),
@@ -499,6 +500,11 @@ def _export(
                if not (libraries / name).is_file()]
     if missing:
         raise ReleaseError(f"{libraries} lacks {', '.join(missing)}; run `build` for each platform")
+    if keep_on_failure and failure_dir is not None:
+        try:
+            validate_failure_dir(failure_dir)
+        except SymbolError as error:
+            raise ReleaseError(str(error)) from error
     exports = {}
     scratch = Path(tempfile.mkdtemp(prefix="psiv-export-"))
     made = None
@@ -541,7 +547,10 @@ def _export(
                 json.dumps(report, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8", newline="\n",
             )
-            kept = move_failure_dir(scratch, failure_dir)
+            try:
+                kept = move_failure_dir(scratch, failure_dir)
+            except SymbolError as move_error:
+                raise ReleaseError(f"{error}\n{move_error}") from error
             raise ReleaseError(f"{error}\nretained failure directory: {kept}") from error
         if made is not None:
             remove_run_root(made.root)
@@ -678,6 +687,11 @@ def smoke(
     symbols_dir: Path | None = None,
 ) -> list[str]:
     """Run the archive's game as a first run does; the lines it showed."""
+    if keep_on_failure and failure_dir is not None:
+        try:
+            validate_failure_dir(failure_dir)
+        except SymbolError as error:
+            raise ReleaseError(str(error)) from error
     scratch = Path(tempfile.mkdtemp(prefix="psiv-smoke-"))
     scratch_path = scratch / "first run (portabilité)"
     scratch_path.mkdir()
@@ -737,7 +751,10 @@ def smoke(
             encoding="utf-8", newline="\n",
         )
         if keep_on_failure:
-            kept = move_failure_dir(scratch, failure_dir)
+            try:
+                kept = move_failure_dir(scratch, failure_dir)
+            except SymbolError as move_error:
+                raise ReleaseError(f"{reason}\n{move_error}") from move_error
             raise ReleaseError(f"{reason}\nretained failure directory: {kept}")
         shutil.rmtree(scratch, ignore_errors=True)
         raise ReleaseError(reason)

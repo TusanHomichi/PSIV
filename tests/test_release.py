@@ -195,7 +195,7 @@ class BuildMakesEachPlatformsBinaries(unittest.TestCase):
         made = self.built(PLATFORMS["linux"])
         (command, env), = self.calls
         self.assertEqual(env["CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS"],
-                         "-C link-arg=-Wl,--build-id=sha1")
+                         "-C debuginfo=1 -C link-arg=-Wl,--build-id=sha1")
         self.assertEqual([path.read_bytes() for path in made], [b"x86_64-unknown-linux-gnu"] * 2)
 
     def test_linux_build_preserves_existing_target_rustflags(self):
@@ -204,7 +204,7 @@ class BuildMakesEachPlatformsBinaries(unittest.TestCase):
             self.built(PLATFORMS["linux"])
         (_, env), = self.calls
         self.assertEqual(env["CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS"],
-                         "-C lto=thin -C link-arg=-Wl,--build-id=sha1")
+                         "-C lto=thin -C debuginfo=1 -C link-arg=-Wl,--build-id=sha1")
 
     def test_macos_joins_both_architectures(self):
         self.built(PLATFORMS["macos"])
@@ -241,34 +241,39 @@ class LinuxGlibcCeiling(unittest.TestCase):
                 self.check(dict.fromkeys(("libpsiv_godot.so", "psiv-pack"), text))
 
 
-def release_profile_symbol_problems(text: str) -> list[str]:
-    """Check that `[profile.release]` emits debug symbols without stripping them."""
-    profile = tomllib.loads(text).get("profile", {}).get("release")
-    if not isinstance(profile, dict):
-        return ["missing [profile.release]"]
+def release_profile_symbol_problems(text: str, linux_rustflags: tuple[str, ...]) -> list[str]:
+    """Check that Linux release flags keep line tables + build-id and Cargo does not strip."""
     problems = []
-    debug = profile.get("debug")
-    if debug in (None, False, 0, "none"):
-        problems.append("[profile.release] must enable debug info")
-    strip = profile.get("strip")
-    if strip not in (None, False, "none"):
-        problems.append(f"[profile.release] must not set strip = {strip!r}")
+    joined = " ".join(linux_rustflags)
+    if "-C debuginfo=1" not in joined:
+        problems.append("Linux release rustflags must enable -C debuginfo=1")
+    if "-Wl,--build-id=" not in joined:
+        problems.append("Linux release rustflags must pass -Wl,--build-id=")
+    profile = tomllib.loads(text).get("profile", {}).get("release", {})
+    if isinstance(profile, dict):
+        strip = profile.get("strip")
+        if strip not in (None, False, "none"):
+            problems.append(f"[profile.release] must not set strip = {strip!r}")
     return problems
 
 
 class ReleaseProfilePreservesDebugSymbols(unittest.TestCase):
-    def test_cargo_release_profile_keeps_debug_line_tables(self):
+    def test_linux_release_flags_keep_debug_line_tables_and_cargo_does_not_strip(self):
         manifest = (ROOT / "rust" / "Cargo.toml").read_text(encoding="utf-8")
-        self.assertEqual(release_profile_symbol_problems(manifest), [])
+        self.assertEqual(
+            release_profile_symbol_problems(manifest, PLATFORMS["linux"].rustflags),
+            [],
+        )
+        for non_linux in ("windows", "macos"):
+            self.assertNotIn("debuginfo=", " ".join(PLATFORMS[non_linux].rustflags))
 
     def test_negative_controls_catch_missing_debug_or_stripping(self):
         manifest = (ROOT / "rust" / "Cargo.toml").read_text(encoding="utf-8")
+        self.assertTrue(release_profile_symbol_problems(manifest, ()))
         self.assertTrue(release_profile_symbol_problems(
-            manifest.replace('debug = "line-tables-only"', "debug = false")))
-        self.assertTrue(release_profile_symbol_problems(
-            manifest + 'strip = "debuginfo"\n'))
-        self.assertTrue(release_profile_symbol_problems(
-            manifest.split("[profile.release]")[0]))
+            manifest + '\n[profile.release]\nstrip = "debuginfo"\n',
+            PLATFORMS["linux"].rustflags,
+        ))
 
 
 class LinuxBuildSplitsAndChecksSymbols(unittest.TestCase):
@@ -572,6 +577,27 @@ class SmokeNeedsACleanExit(unittest.TestCase):
         self.assertTrue(report["executable"].startswith(str(target)))
         self.assertTrue(pathlib.Path(report["executable"]).is_file())
         self.assertEqual(list(self.tmp.iterdir()), [])
+
+    def test_smoke_refuses_non_empty_failure_dir_without_deleting_it(self):
+        existing = self.dir / "prior-crash"
+        existing.mkdir()
+        kept_file = existing / "earlier.log"
+        kept_file.write_text("earlier evidence\n")
+        with self.game(-11), self.assertRaisesRegex(ReleaseError, "non-empty failure directory"):
+            release.smoke(self.archive, PLATFORMS["linux"], failure_dir=existing)
+        self.assertEqual(kept_file.read_text(), "earlier evidence\n")
+
+    def test_move_failure_dir_refuses_non_empty_dir_and_keeps_both(self):
+        existing = self.dir / "prior"
+        existing.mkdir()
+        (existing / "keep.txt").write_text("old\n")
+        scratch = self.dir / "scratch-new"
+        scratch.mkdir()
+        (scratch / "new.txt").write_text("new\n")
+        with self.assertRaisesRegex(symbols.SymbolError, "refusing to overwrite"):
+            symbols.move_failure_dir(scratch, existing)
+        self.assertEqual((existing / "keep.txt").read_text(), "old\n")
+        self.assertEqual((scratch / "new.txt").read_text(), "new\n")
 
     def test_negative_control_smoke_cleans_up_crash_when_keep_on_failure_is_false(self):
         with self.game(-11), self.assertRaisesRegex(ReleaseError, "setup run exited -11") as ctx:
