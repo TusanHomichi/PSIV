@@ -61,8 +61,14 @@ The open items are the
 - A self-check that compares a player's build against the reference results,
   so testers on Windows and macOS can report a verdict
   ([#134](https://github.com/TusanHomichi/PSIV/issues/134)).
-- A mod overlay loader, so mods sit beside the original pack instead of
-  editing it ([#118](https://github.com/TusanHomichi/PSIV/issues/118)).
+- **Mod support** ([#118](https://github.com/TusanHomichi/PSIV/issues/118)):
+  shareable mod overlay folders, `psiv-pack mod` (`init`/`check`/`diff`), and
+  automatic modded save isolation shipped in
+  [`v1.0.2`](https://github.com/TusanHomichi/PSIV/releases/tag/v1.0.2)
+  ([#784](https://github.com/TusanHomichi/PSIV/pull/784),
+  [modding guide](MODDING.md)); follow-up modding milestones (in-game mod UI,
+  JSON Schema export, adding new records, data-driven scenes) remain tracked
+  on [#118](https://github.com/TusanHomichi/PSIV/issues/118).
 - Presentation fidelity: whole-scene staging, ability animations, audio timing
   ([`presentation` issues](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Apresentation)).
 - Selectable battle RNG modes

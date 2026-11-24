@@ -10,8 +10,9 @@ while you play, and the goal is the original game's behavior, quirks included.
 | I want to… | Start here |
 | --- | --- |
 | **Play now** | [Quick start](#quick-start) below & [Player's guide](docs/PLAYING.md) |
+| **Install or create mods** | [Modding guide](docs/MODDING.md) (shareable `mods/` folders & `psiv-pack mod`) |
 | **Report a bug or weirdness** | [Bug reporting guide](docs/REPORTING.md) (works for humans & AI assistants) |
-| **Help out / contribute** | [Contributing](CONTRIBUTING.md) (works for humans & AI assistants) & [Modding guide](docs/MODDING.md) |
+| **Help out / contribute** | [Contributing](CONTRIBUTING.md) (works for humans & AI assistants) |
 | **Build from source** | [Build from source](#build-from-source) below |
 | **Read how the cartridge works** | [Documentation index](docs/README.md#retail-reference) |
 | **Work on it with a coding agent** | [AGENTS.md](AGENTS.md) & [Agent workflow](docs/AGENT_WORKFLOW.md) |
@@ -144,10 +145,12 @@ issue (or help fix it via [CONTRIBUTING.md](CONTRIBUTING.md)). Questions go to
 
 ## Status
 
-**Version 1.0.0 is out** ([downloads](https://github.com/TusanHomichi/PSIV/releases/tag/v1.0.0)):
+**Version 1.0.x is out** ([latest release](https://github.com/TusanHomichi/PSIV/releases/latest)):
 the unmodified US game is completable natively from New Game to the Ending with
-ready-to-play archives for Linux/Steam Deck, Windows, and macOS. Post-1.0 work
-is tracked on the [roadmap](docs/ROADMAP.md) and in open issues.
+ready-to-play archives for Linux/Steam Deck, Windows, and macOS, plus shareable
+mod folders with automatic save isolation ([modding guide](docs/MODDING.md)).
+Ongoing post-1.0 work is tracked on the [roadmap](docs/ROADMAP.md) and in open
+issues.
 
 ## License and third-party code
 

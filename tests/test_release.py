@@ -574,5 +574,21 @@ class TheNoticesNameEveryPart(unittest.TestCase):
         self.assertIn(f"\nCOMMIT={notices.pinned_gpgx()}\n", script)
 
 
+class ReleaseWorkflowPublishesRealNotes(unittest.TestCase):
+    """Tagged releases include generated per-release notes plus player/modding pointers."""
+
+    def test_publish_step_combines_generated_notes_with_quick_start(self):
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
+        match = re.search(r"- name: Publish the release\b.*", workflow, re.S)
+        self.assertIsNotNone(match, "missing Publish the release step")
+        step = match.group(0)
+        self.assertTrue(
+            "releases/generate-notes" in step or "--generate-notes" in step,
+            "Publish the release step must include generated per-release changes",
+        )
+        self.assertIn("docs/PLAYING.md", step)
+        self.assertIn("docs/MODDING.md", step)
+
+
 if __name__ == "__main__":
     unittest.main()
