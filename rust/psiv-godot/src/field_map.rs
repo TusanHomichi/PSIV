@@ -4,6 +4,7 @@
 //! one-thousand-line maintenance limit. The party sprite and the per-frame
 //! animation half of the same drawing path stay in `field_visuals.rs`.
 
+use godot::classes::image::Format;
 use godot::classes::{Image, ImageTexture, Material, Shader, ShaderMaterial, Sprite2D};
 use godot::prelude::*;
 
@@ -99,8 +100,11 @@ impl Field {
                     Some(mut image) => {
                         if let Some(tiles) = &atlas {
                             let atlas_path = format!("{}/{}", self.pack_dir, tiles.png);
-                            let source =
-                                map_image_source(palette.is_some(), palette_images, &tiles.png);
+                            // Match the map's colour representation: when a mod
+                            // supplies a baked RGB/RGBA map PNG on a live-palette
+                            // map, load the baked patch atlas so open doors blit
+                            // cleanly instead of colliding with `_indices.png`.
+                            let source = map_image_source(indexed, palette_images, &tiles.png);
                             match load_map_image(&self.pack_dir, source, &tiles.png) {
                                 (Some(_), atlas_indexed) if atlas_indexed != indexed => {
                                     godot_error!(
@@ -108,23 +112,7 @@ impl Field {
                                     );
                                 }
                                 (Some(atlas_img), _) => {
-                                    let edge = tiles.tile_pixels as i32;
-                                    for &(cx, cy, index) in &blits {
-                                        let Some(tile) =
-                                            tiles.tiles.iter().find(|t| t.index == index)
-                                        else {
-                                            godot_error!("patch tile {index} missing from atlas");
-                                            continue;
-                                        };
-                                        image.blit_rect(
-                                            &atlas_img,
-                                            Rect2i::new(
-                                                Vector2i::new(tile.x as i32, 0),
-                                                Vector2i::new(edge, edge),
-                                            ),
-                                            Vector2i::new(cx as i32 * edge, cy as i32 * edge),
-                                        );
-                                    }
+                                    blit_patch_tiles(&mut image, &atlas_img, tiles, &blits, true);
                                     godot_print!(
                                         "map {id:#05x}: {} patch tile(s) applied",
                                         blits.len()
@@ -148,7 +136,6 @@ impl Field {
                             if let Some(frames) = art_cycles.get(&name).filter(|f| f.len() > 1) {
                                 self.map_art_frames = build_art_cycle_textures(
                                     &self.pack_dir,
-                                    palette.is_some(),
                                     palette_images,
                                     &name,
                                     &texture,
@@ -187,8 +174,7 @@ impl Field {
                                 && let Some(over_png) = &tiles.png_over
                             {
                                 let atlas_path = format!("{}/{over_png}", self.pack_dir);
-                                let source =
-                                    map_image_source(palette.is_some(), palette_images, over_png);
+                                let source = map_image_source(indexed, palette_images, over_png);
                                 let (atlas_img, atlas_indexed) =
                                     load_map_image(&self.pack_dir, source, over_png);
                                 if atlas_img.is_some() && atlas_indexed != indexed {
@@ -196,21 +182,7 @@ impl Field {
                                         "overlay atlas {atlas_path} does not match the map's colours"
                                     );
                                 } else if let Some(atlas_img) = atlas_img {
-                                    let edge = tiles.tile_pixels as i32;
-                                    for &(cx, cy, index) in &blits {
-                                        if let Some(tile) =
-                                            tiles.tiles.iter().find(|t| t.index == index)
-                                        {
-                                            image.blit_rect(
-                                                &atlas_img,
-                                                Rect2i::new(
-                                                    Vector2i::new(tile.x as i32, 0),
-                                                    Vector2i::new(edge, edge),
-                                                ),
-                                                Vector2i::new(cx as i32 * edge, cy as i32 * edge),
-                                            );
-                                        }
-                                    }
+                                    blit_patch_tiles(&mut image, &atlas_img, tiles, &blits, false);
                                 } else {
                                     godot_error!("could not load overlay atlas {atlas_path}");
                                 }
@@ -228,7 +200,6 @@ impl Field {
                                     {
                                         self.overlay_art_frames = build_art_cycle_textures(
                                             &self.pack_dir,
-                                            palette.is_some(),
                                             palette_images,
                                             &name,
                                             &texture,
@@ -478,10 +449,44 @@ impl Field {
     }
 }
 
+/// Blits active `patch_tiles` onto `image`, normalizing both images to `RGBA8`
+/// first when their formats differ (for example an RGB8 mod map PNG paired with
+/// an RGBA8 base patch atlas).
+fn blit_patch_tiles(
+    image: &mut Gd<Image>,
+    atlas_img: &Gd<Image>,
+    tiles: &psiv_data::PatchTiles,
+    blits: &[(u32, u32, u32)],
+    log_missing: bool,
+) {
+    let mut converted_atlas: Option<Gd<Image>> = None;
+    let src: &Gd<Image> = if image.get_format() != atlas_img.get_format() {
+        image.convert(Format::RGBA8);
+        let mut copy = atlas_img.duplicate_resource();
+        copy.convert(Format::RGBA8);
+        converted_atlas.insert(copy)
+    } else {
+        atlas_img
+    };
+    let edge = tiles.tile_pixels as i32;
+    for &(cx, cy, index) in blits {
+        let Some(tile) = tiles.tiles.iter().find(|t| t.index == index) else {
+            if log_missing {
+                godot_error!("patch tile {index} missing from atlas");
+            }
+            continue;
+        };
+        image.blit_rect(
+            src,
+            Rect2i::new(Vector2i::new(tile.x as i32, 0), Vector2i::new(edge, edge)),
+            Vector2i::new(cx as i32 * edge, cy as i32 * edge),
+        );
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_art_cycle_textures(
     pack_dir: &str,
-    palette_live: bool,
     palette_images: Option<&std::collections::BTreeMap<String, String>>,
     base_name: &str,
     base_texture: &Gd<ImageTexture>,
@@ -497,7 +502,7 @@ fn build_art_cycle_textures(
         } else {
             tiles.png.as_str()
         };
-        let source = map_image_source(palette_live, palette_images, atlas_name);
+        let source = map_image_source(base_indexed, palette_images, atlas_name);
         let (img, indexed) = load_map_image(pack_dir, source, atlas_name);
         (indexed == base_indexed).then_some(img).flatten()
     });
@@ -507,7 +512,7 @@ fn build_art_cycle_textures(
             if frame_name == base_name {
                 return base_texture.clone();
             }
-            let source = map_image_source(palette_live, palette_images, frame_name);
+            let source = map_image_source(base_indexed, palette_images, frame_name);
             let (loaded, frame_indexed) = load_map_image(pack_dir, source, frame_name);
             if frame_indexed != base_indexed {
                 godot_error!("art-cycle frame {frame_name} does not match the map's colours");
@@ -518,16 +523,7 @@ fn build_art_cycle_textures(
                 return base_texture.clone();
             };
             if let (Some(tiles), Some(atlas_img)) = (atlas, atlas_img.as_ref()) {
-                let edge = tiles.tile_pixels as i32;
-                for &(cx, cy, index) in blits {
-                    if let Some(tile) = tiles.tiles.iter().find(|t| t.index == index) {
-                        image.blit_rect(
-                            atlas_img,
-                            Rect2i::new(Vector2i::new(tile.x as i32, 0), Vector2i::new(edge, edge)),
-                            Vector2i::new(cx as i32 * edge, cy as i32 * edge),
-                        );
-                    }
-                }
+                blit_patch_tiles(&mut image, atlas_img, tiles, blits, false);
             }
             ImageTexture::create_from_image(&image).unwrap_or_else(|| {
                 godot_error!("could not texture art-cycle frame {pack_dir}/{frame_name}");
@@ -695,6 +691,54 @@ mod tests {
         assert_eq!(
             map_image_source(true, Some(&images), "atlas.png"),
             MapImageSource::Rewrite
+        );
+    }
+
+    /// Replacing `assets/maps/010_Piata.png` without `_indices.png` causes
+    /// `apply_mods` to drop the `map_update_images` redirect for that PNG so
+    /// the renderer routes through `Rewrite` (live CRAM if indexed, baked if
+    /// RGB/RGBA) instead of loading the base `_indices.png`; patch atlases then
+    /// follow the map's actual `indexed` state (`false` -> `Baked`).
+    #[test]
+    fn reconciled_mod_map_png_routes_to_rewrite_and_baked_atlas_follows() {
+        let mut images: BTreeMap<String, String> = [
+            (
+                "maps/010_Piata.png".to_owned(),
+                "maps/010_Piata_indices.png".to_owned(),
+            ),
+            (
+                "maps/010_Piata_over.png".to_owned(),
+                "maps/010_Piata_over_indices.png".to_owned(),
+            ),
+            (
+                "maps/010_Piata_patch.png".to_owned(),
+                "maps/010_Piata_patch_indices.png".to_owned(),
+            ),
+        ]
+        .into();
+
+        // Unmodded (or mod that explicitly replaced `_indices.png`): PackIndex wins.
+        assert_eq!(
+            map_image_source(true, Some(&images), "maps/010_Piata.png"),
+            MapImageSource::PackIndex("maps/010_Piata_indices.png")
+        );
+
+        // After `apply_mods` drops the stale redirect for a replaced `.png`:
+        images.remove("maps/010_Piata.png");
+        assert_eq!(
+            map_image_source(true, Some(&images), "maps/010_Piata.png"),
+            MapImageSource::Rewrite
+        );
+        // Untouched overlay keeps its live-palette index image.
+        assert_eq!(
+            map_image_source(true, Some(&images), "maps/010_Piata_over.png"),
+            MapImageSource::PackIndex("maps/010_Piata_over_indices.png")
+        );
+        // If the mod's `.png` was baked RGB/RGBA (`indexed == false`), the
+        // patch atlas resolves to `Baked` so `blit_rect` matches colour spaces.
+        assert_eq!(
+            map_image_source(false, Some(&images), "maps/010_Piata_patch.png"),
+            MapImageSource::Baked
         );
     }
 }
