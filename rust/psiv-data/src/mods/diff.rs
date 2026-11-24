@@ -48,12 +48,15 @@ pub fn diff_packs(
         ));
     }
 
+    let base_files = collect_relative_files(base_pack, &manifest.id, "base-pack")?;
     let edited_files = collect_relative_files(edited_pack, &manifest.id, "edited-pack")?;
+    let mut edited_set = std::collections::BTreeSet::new();
     let mut staged_patches: Vec<(std::path::PathBuf, String, String)> = Vec::new();
     let mut staged_assets: Vec<(std::path::PathBuf, String, Vec<u8>)> = Vec::new();
 
     for rel in edited_files {
         let rel_str = normalize_rel(&rel, &manifest.id, "edited-pack")?;
+        edited_set.insert(rel_str.clone());
         let edited_path = edited_pack.join(&rel);
         let base_path = base_pack.join(&rel);
         let edited_bytes = fs::read(&edited_path).map_err(|error| {
@@ -100,6 +103,17 @@ pub fn diff_packs(
             continue;
         }
         staged_assets.push((rel, rel_str, edited_bytes));
+    }
+
+    for rel in base_files {
+        let rel_str = normalize_rel(&rel, &manifest.id, "base-pack")?;
+        if !edited_set.contains(&rel_str) {
+            return Err(ModError::new(
+                &manifest.id,
+                &rel_str,
+                "deleting base pack files is not supported in shareable mod folders",
+            ));
+        }
     }
 
     // Clear previous exported patches/assets only after all diffs validate, so

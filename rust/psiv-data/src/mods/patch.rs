@@ -381,17 +381,20 @@ fn diff_keyed_array(
         path.join(".")
     };
     let mut base_by_id = Map::new();
+    let mut base_order = Vec::with_capacity(base_arr.len());
     for (idx, item) in base_arr.iter().enumerate() {
         let Some(key) = value_key_string(item, key_field) else {
             return Err(format!(
                 "{label}[{idx}]: base entry is missing `{key_field}`"
             ));
         };
+        base_order.push(key.clone());
         base_by_id.insert(key, item.clone());
     }
     let mut child_path: Vec<&str> = path.to_vec();
     child_path.push("*");
     let mut seen = std::collections::BTreeSet::new();
+    let mut edited_order = Vec::with_capacity(edited_arr.len());
     let mut out = Map::new();
     for (idx, edited_item) in edited_arr.iter().enumerate() {
         let Some(key) = value_key_string(edited_item, key_field) else {
@@ -404,6 +407,7 @@ fn diff_keyed_array(
                 "{label}: duplicate record {key_field}={key} is not supported in sparse patches"
             ));
         }
+        edited_order.push(key.clone());
         let Some(base_item) = base_by_id.get(&key) else {
             return Err(format!(
                 "{label}: adding new record {key_field}={key} is not supported in sparse ID-keyed patches"
@@ -419,6 +423,11 @@ fn diff_keyed_array(
                 "{label}: removing record {key_field}={key} is not supported in sparse ID-keyed patches"
             ));
         }
+    }
+    if base_order != edited_order {
+        return Err(format!(
+            "{label}: reordering records is not supported in sparse ID-keyed patches"
+        ));
     }
     if out.is_empty() {
         Ok(None)

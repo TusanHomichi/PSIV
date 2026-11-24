@@ -60,6 +60,12 @@ fn id_keyed_patch_and_diff_round_trip() {
     let rm_err = diff_json(&base, &with_removed, "battle/enemies.json")
         .expect_err("removing a keyed record must fail diff");
     assert!(rm_err.contains("11"), "{rm_err}");
+
+    let mut reordered = base.clone();
+    reordered["enemies"].as_array_mut().unwrap().reverse();
+    let reorder_err = diff_json(&base, &reordered, "battle/enemies.json")
+        .expect_err("reordering keyed records must fail diff");
+    assert!(reorder_err.contains("reordering"), "{reorder_err}");
 }
 
 #[test]
@@ -427,6 +433,13 @@ fn diff_packs_clears_stale_patches_and_assets_on_reexport() {
         !out_mod.join("assets/maps/test.png").exists(),
         "stale asset file must be removed on re-export"
     );
+
+    // Deleting a base pack file from edited_pack must fail closed.
+    fs::remove_file(edited.join("maps/test.png")).unwrap();
+    let del_err = diff_packs(&base, &edited, &out_mod, &manifest)
+        .expect_err("deleting a base pack file must be rejected");
+    assert_eq!(del_err.file, "maps/test.png");
+    assert!(del_err.detail.contains("deleting"), "{del_err}");
 
     let _ = fs::remove_dir_all(&scratch);
 }

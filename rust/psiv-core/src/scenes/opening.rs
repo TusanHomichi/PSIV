@@ -203,10 +203,17 @@ static MEETING_HAHN_OPS: &[SceneOp] = &[
         if_aligned: 5,
         if_not: 2,
     },
-    // 2: `cmp.w hahn_x, leader_x / bhi` picks command 4, else command 8.
-    //    The doc writes this as one op selecting a *value*; this vocabulary
-    //    has no value-selecting branch, so it is control flow over two command
-    //    ops instead — same behaviour, two ops more than the doc's count.
+    // 2: `cmp.w hahn_x, leader_x / bhi` (`ps4.asm:144630-144640`) branches on
+    //    which side the leader stands on. In retail `Event_MeetingHahn` loads
+    //    `d0 = 4` / `8` and calls `FieldObj_NPCHahnNearBasement` (`ps4.asm:92223`),
+    //    whose `FieldObj_NPCHahnNearBasementMain` (`ps4.asm:92241`) delegates to
+    //    `FieldObj_MoveLeftOrRight` (`ps4.asm:93332`) — that routine clobbers `d0`
+    //    and toggles Hahn across his 2-cell corridor (`3 -> cmd 4 = Left`,
+    //    `4 -> cmd 8 = Right`), always moving him onto the leader's column.
+    //    Because `MoveActorCommand` dispatches directly through `FieldObj_NPCMove`'s
+    //    table (`npc_commands.json`: 4 = Left, 8 = Right), emit 8 when the leader
+    //    is to Hahn's right and 4 when to Hahn's left so Hahn steps onto the
+    //    leader's column in both branches.
     SceneOp::BranchIfActorGreater {
         a: LEADER,
         b: NPC_0,
@@ -214,19 +221,17 @@ static MEETING_HAHN_OPS: &[SceneOp] = &[
         if_greater: 3,
         if_not: 4,
     },
-    // 3: leader is to Hahn's right -> command 4.
-    SceneOp::MoveActorCommand {
-        actor: NPC_0,
-        command: 4,
-        wait: true,
-    },
-    SceneOp::Jump { to: 5 },
-    // 4: leader is to Hahn's left -> command 8. Which byte means which
-    //    direction is an open question in the doc; the engine reports the byte
-    //    rather than acting on it.
+    // 3: leader is to Hahn's right -> step right (command 8) onto leader's column.
     SceneOp::MoveActorCommand {
         actor: NPC_0,
         command: 8,
+        wait: true,
+    },
+    SceneOp::Jump { to: 5 },
+    // 4: leader is to Hahn's left -> step left (command 4) onto leader's column.
+    SceneOp::MoveActorCommand {
+        actor: NPC_0,
+        command: 4,
         wait: true,
     },
     // 5: FacingDir_Down.

@@ -485,4 +485,54 @@ mod tests {
             Direction::Right
         );
     }
+
+    #[test]
+    fn meeting_hahn_steps_toward_leader_from_either_side() {
+        let grid = CollisionGrid::new(8, 4, vec![0; 32]).unwrap();
+        let map = FieldMap::new(MapId(0x12), grid, vec![], vec![]).unwrap();
+        for (leader_x, hahn_x) in [(4u16, 3u16), (2u16, 3u16)] {
+            let mut state = GameState::new();
+            state.set_party([
+                Some(crate::CharId(1)),
+                Some(crate::CharId(0)),
+                None,
+                None,
+                None,
+            ]);
+            let mut runner = SceneRunner::new(
+                crate::scenes::opening::MEETING_HAHN.ops,
+                vec![
+                    ScriptedActor::new(
+                        ActorRef::PartyMember(0),
+                        Cell::new(leader_x, 2),
+                        Direction::Up,
+                    ),
+                    ScriptedActor::new(ActorRef::Npc(0), Cell::new(hahn_x, 1), Direction::Down),
+                ],
+                StepFrames::default(),
+            );
+            let mut arrived = false;
+            for _ in 0..30 {
+                let effects = runner.tick(&map, &mut state, SceneInput::None);
+                if effects.iter().any(|e| {
+                    matches!(
+                        e,
+                        SceneEffect::ActorArrived {
+                            actor: ActorRef::Npc(0),
+                            ..
+                        }
+                    )
+                }) {
+                    arrived = true;
+                    break;
+                }
+            }
+            assert!(arrived, "Hahn must finish his alignment step");
+            assert_eq!(
+                runner.actor(ActorRef::Npc(0)).unwrap().cell.x,
+                leader_x,
+                "Hahn at x={hahn_x} must step onto leader's column x={leader_x}"
+            );
+        }
+    }
 }
