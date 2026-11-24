@@ -253,7 +253,10 @@ impl super::SceneRunner {
             return;
         };
         for actor in &mut self.actors {
-            if matches!(actor.actor, ActorRef::PartyMember(_) | ActorRef::Character(_)) {
+            if matches!(
+                actor.actor,
+                ActorRef::PartyMember(_) | ActorRef::Character(_)
+            ) {
                 actor.pace = Some(pace);
             }
         }
