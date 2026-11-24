@@ -18,6 +18,7 @@
 mod diff;
 #[cfg(test)]
 mod guide_tests;
+mod inventory;
 mod map_art;
 mod patch;
 mod profile;
@@ -25,6 +26,7 @@ mod profile;
 mod tests;
 
 pub use diff::{DiffSummary, diff_packs};
+pub use inventory::{ModInventoryEntry, find_mod_dir_by_id, inspect_mods_dir, set_mod_enabled};
 pub use patch::{apply_json_patch, diff_json};
 pub use profile::{
     MOD_PROFILE_FILE, MOD_PROFILE_FORMAT_VERSION, ModProfile, ModProfileDiff, ModProfileEntry,
@@ -250,22 +252,8 @@ pub(crate) fn is_windows_reserved_name(name: &str) -> bool {
 
 /// Loads and validates a single mod directory's `mod.json`.
 pub fn load_mod(mod_dir: &Path) -> Result<DiscoveredMod, ModError> {
-    let manifest_path = mod_dir.join(MOD_MANIFEST_FILE);
-    let text = fs::read_to_string(&manifest_path).map_err(|error| {
-        ModError::new(
-            mod_dir.display().to_string(),
-            MOD_MANIFEST_FILE,
-            format!("could not read manifest: {error}"),
-        )
-    })?;
-    let manifest: ModManifest = serde_json::from_str(&text).map_err(|error| {
-        ModError::new(
-            mod_dir.display().to_string(),
-            MOD_MANIFEST_FILE,
-            format!("invalid JSON: {error}"),
-        )
-    })?;
-    manifest.validate(&manifest_path)?;
+    let manifest = inventory::read_manifest_unchecked(mod_dir)?;
+    manifest.validate(&mod_dir.join(MOD_MANIFEST_FILE))?;
     Ok(DiscoveredMod {
         root: mod_dir.to_path_buf(),
         manifest,
@@ -279,51 +267,10 @@ pub fn load_mod(mod_dir: &Path) -> Result<DiscoveredMod, ModError> {
 /// the active-pack staging directory) and subdirectories without `mod.json` are
 /// ignored.
 pub fn discover_mods(mods_dir: &Path) -> Result<Vec<DiscoveredMod>, ModError> {
-    if !mods_dir.exists() {
-        return Ok(Vec::new());
-    }
-    let entries = fs::read_dir(mods_dir).map_err(|error| {
-        ModError::new(
-            mods_dir.display().to_string(),
-            ".",
-            format!("could not read mods directory: {error}"),
-        )
-    })?;
-    let mut found = Vec::new();
-    for entry in entries {
-        let entry = entry.map_err(|error| {
-            ModError::new(
-                mods_dir.display().to_string(),
-                ".",
-                format!("could not read directory entry: {error}"),
-            )
-        })?;
-        let name = entry.file_name();
-        let name_lossy = name.to_string_lossy();
-        if name_lossy.starts_with('.') || name_lossy.starts_with('_') {
-            continue;
-        }
-        let path = entry.path();
-        if !path.is_dir() || !path.join(MOD_MANIFEST_FILE).is_file() {
-            continue;
-        }
-        let loaded = load_mod(&path)?;
-        if loaded.manifest.enabled {
-            found.push(loaded);
-        }
-    }
-    found.sort_by(|a, b| {
-        a.manifest
-            .order
-            .cmp(&b.manifest.order)
-            .then_with(|| a.manifest.id.cmp(&b.manifest.id))
-            .then_with(|| a.root.cmp(&b.root))
-    });
-    reject_duplicate_mod_ids(&found)?;
-    Ok(found)
+    inventory::discover_enabled_mods(mods_dir)
 }
 
-fn reject_duplicate_mod_ids(mods: &[DiscoveredMod]) -> Result<(), ModError> {
+pub(crate) fn reject_duplicate_mod_ids(mods: &[DiscoveredMod]) -> Result<(), ModError> {
     let mut seen: BTreeMap<&str, &Path> = BTreeMap::new();
     for m in mods {
         if let Some(first) = seen.insert(m.manifest.id.as_str(), m.root.as_path()) {

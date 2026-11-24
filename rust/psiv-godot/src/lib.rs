@@ -30,6 +30,7 @@ mod input;
 mod install;
 mod job_board;
 mod menu_font;
+mod mod_ui;
 mod named_caches;
 mod pack_setup;
 mod pack_setup_style;
@@ -218,6 +219,8 @@ struct Field {
     job_board: Option<Gd<JobBoardScreen>>,
     camp_menu: Option<Gd<CampMenu>>,
     title: Option<title::TitleScreen>,
+    mod_title_state: Option<mod_ui::ModTitleState>,
+    title_mods: Option<Gd<mod_ui::TitleModsOverlay>>,
     battle_screen: Option<Gd<BattleScreen>>,
     battle_files: Option<psiv_data::BattleFiles>,
     battle_field_visibility: Option<battle::FieldVisibility>,
@@ -355,6 +358,8 @@ impl INode2D for Field {
             job_board: None,
             camp_menu: None,
             title: None,
+            mod_title_state: None,
+            title_mods: None,
             battle_screen: None,
             battle_files: None,
             battle_field_visibility: None,
@@ -401,23 +406,14 @@ impl INode2D for Field {
         if overridden {
             godot_print!("runtime pack override: {}", self.pack_dir);
         }
-        let mut pack = std::path::PathBuf::from(&self.pack_dir);
-        let mut active_mods = Vec::new();
-        match install::apply_active_mods(&install, &pack) {
-            Ok(Some(applied)) => {
-                for m in &applied.active {
-                    godot_print!("loaded mod: {} ({} v{})", m.name, m.id, m.version);
-                }
-                active_mods = applied.active;
-                pack = applied.effective_pack;
-                self.pack_dir = pack.to_string_lossy().into_owned();
-            }
-            Ok(None) => {}
-            Err(error) => {
-                godot_error!("mod load failed: {error}");
-                return;
-            }
-        }
+        let pack = std::path::PathBuf::from(&self.pack_dir);
+        let Some((pack, mod_boot)) = self.apply_mods_or_show_error(&install, pack) else {
+            return;
+        };
+        let active_mods = mod_boot
+            .applied
+            .map(|applied| applied.active)
+            .unwrap_or_default();
         let data = match GameData::load(&pack) {
             Ok(data) => data,
             Err(e) => {
@@ -452,7 +448,13 @@ impl INode2D for Field {
         // run must not touch a save directory it never asked for.
         // The run's directory policy, resolved once: every session below gets
         // the store the policy answered with.
-        let store = session_store(&active_mods);
+        let resolved_save = session_store(&active_mods);
+        let store = resolved_save.store;
+        self.mod_title_state = Some(mod_ui::ModTitleState::new(
+            mod_boot.source,
+            active_mods,
+            resolved_save.notice,
+        ));
         let starts_at_title = !title_bypassed();
         let mut session = if debug_camp {
             let fixture = if crate::boot::debug_camp_telepipe() {
@@ -750,6 +752,9 @@ impl Field {
     /// what came back: the view, the erase's log line, the failure's, and the
     /// handoff when START or CONTINUE entered the game.
     fn drive_title_frame(&mut self) {
+        if self.title_mods_modal_open() {
+            return;
+        }
         let pad = self.frame_pad();
         let Some(frame) = self.session_frame(pad, false) else {
             return;
@@ -780,6 +785,7 @@ impl Field {
                 }
                 screen.present(&view);
             }
+            self.sync_title_mods(&view);
             let ticks = view.ticks;
             let anim_tick = self.anim_tick;
             title::title_debug_shot(self, anim_tick, ticks);
@@ -847,6 +853,7 @@ impl Field {
         if let Some(screen) = self.title.take() {
             screen.dispose();
         }
+        self.dispose_title_mods();
     }
 
     /// Presents the defeat fade and, on its last frame, the title it restores.
