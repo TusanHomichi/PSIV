@@ -326,6 +326,75 @@ fn reject_duplicate_mod_ids(mods: &[DiscoveredMod]) -> Result<(), ModError> {
     Ok(())
 }
 
+/// Refuses an output directory that equals, contains, or lies inside `source`
+/// so resetting or clearing `out_dir` can never corrupt a base pack or mod.
+pub(crate) fn reject_overlapping_output(
+    out_dir: &Path,
+    source: &Path,
+    source_label: &str,
+    owner_id: &str,
+) -> Result<(), ModError> {
+    let out_resolved = resolve_path_for_overlap(out_dir);
+    let src_resolved = resolve_path_for_overlap(source);
+    if out_resolved == src_resolved
+        || out_resolved.starts_with(&src_resolved)
+        || src_resolved.starts_with(&out_resolved)
+    {
+        return Err(ModError::new(
+            owner_id,
+            out_dir.display().to_string(),
+            format!(
+                "output directory `{}` overlaps {source_label} `{}`",
+                out_dir.display(),
+                source.display()
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn resolve_path_for_overlap(path: &Path) -> PathBuf {
+    if let Ok(canon) = path.canonicalize() {
+        return canon;
+    }
+    let abs = if path.is_absolute() {
+        path.to_path_buf()
+    } else if let Ok(cwd) = std::env::current_dir() {
+        cwd.join(path)
+    } else {
+        path.to_path_buf()
+    };
+    let mut normalized = PathBuf::new();
+    for component in abs.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            other => normalized.push(other.as_os_str()),
+        }
+    }
+    let mut tail = Vec::new();
+    let mut probe = normalized.as_path();
+    loop {
+        if let Ok(canon) = probe.canonicalize() {
+            let mut resolved = canon;
+            for segment in tail.into_iter().rev() {
+                resolved.push(segment);
+            }
+            return resolved;
+        }
+        let Some(name) = probe.file_name() else {
+            return normalized;
+        };
+        tail.push(name.to_os_string());
+        let Some(parent) = probe.parent() else {
+            return normalized;
+        };
+        probe = parent;
+    }
+}
+
 /// Scaffolds a new mod folder with `mod.json`, `patches/`, and `assets/`.
 pub fn init_mod_dir(out_dir: &Path, manifest: &ModManifest) -> Result<(), ModError> {
     manifest.validate(&out_dir.join(MOD_MANIFEST_FILE))?;
@@ -384,6 +453,10 @@ pub fn apply_mods(
     let base_canonical = base_pack
         .canonicalize()
         .unwrap_or_else(|_| base_pack.to_path_buf());
+    reject_overlapping_output(out_dir, &base_canonical, "base pack", "base-pack")?;
+    for m in mods {
+        reject_overlapping_output(out_dir, &m.root, "mod directory", &m.manifest.id)?;
+    }
     reset_directory(out_dir)?;
     mirror_base_pack(&base_canonical, &base_canonical, out_dir)?;
 

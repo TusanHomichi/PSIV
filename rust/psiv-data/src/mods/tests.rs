@@ -450,3 +450,52 @@ fn diff_packs_clears_stale_patches_and_assets_on_reexport() {
 
     let _ = fs::remove_dir_all(&scratch);
 }
+
+#[test]
+fn overlapping_output_paths_are_rejected_without_touching_sources() {
+    let scratch = temp_dir("overlap-guard");
+    let base = scratch.join("base-pack");
+    let mod_dir = scratch.join("mods/alpha");
+    fs::create_dir_all(&base).unwrap();
+    fs::write(base.join("manifest.json"), "{}\n").unwrap();
+    fs::write(base.join("sentinel.txt"), "keep-me").unwrap();
+
+    let manifest = ModManifest::new("alpha", "Alpha", "1.0.0");
+    init_mod_dir(&mod_dir, &manifest).unwrap();
+    let loaded = [load_mod(&mod_dir).unwrap()];
+
+    // Equal, descendant, ancestor, and mod-root overlaps must all be refused.
+    for bad_out in [
+        base.clone(),
+        base.join("nested-overlay"),
+        scratch.clone(),
+        mod_dir.clone(),
+        mod_dir.join("sub"),
+    ] {
+        let err = apply_mods(&base, &loaded, &bad_out)
+            .expect_err("overlapping output dir must be rejected");
+        assert!(err.detail.contains("overlaps"), "{err}");
+    }
+    assert_eq!(
+        fs::read_to_string(base.join("sentinel.txt")).unwrap(),
+        "keep-me",
+        "base pack must remain completely untouched"
+    );
+
+    // diff_packs must also reject overlapping base/edited pack outputs.
+    let edited = scratch.join("edited-pack");
+    fs::create_dir_all(&edited).unwrap();
+    fs::write(edited.join("manifest.json"), "{}\n").unwrap();
+    for bad_out in [
+        base.clone(),
+        base.join("out"),
+        edited.clone(),
+        scratch.clone(),
+    ] {
+        let err = diff_packs(&base, &edited, &bad_out, &manifest)
+            .expect_err("diff_packs must reject overlapping output");
+        assert!(err.detail.contains("overlaps"), "{err}");
+    }
+
+    let _ = fs::remove_dir_all(&scratch);
+}

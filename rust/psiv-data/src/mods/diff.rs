@@ -3,7 +3,7 @@
 
 use super::{
     MOD_ASSETS_DIR, MOD_MANIFEST_FILE, MOD_PATCHES_DIR, ModError, ModManifest,
-    collect_relative_files, normalize_rel, patch::diff_json,
+    collect_relative_files, normalize_rel, patch::diff_json, reject_overlapping_output,
 };
 use std::fs;
 use std::path::Path;
@@ -47,6 +47,8 @@ pub fn diff_packs(
             ),
         ));
     }
+    reject_overlapping_output(out_mod, base_pack, "base pack", &manifest.id)?;
+    reject_overlapping_output(out_mod, edited_pack, "edited pack", &manifest.id)?;
 
     let base_files = collect_relative_files(base_pack, &manifest.id, "base-pack")?;
     let edited_files = collect_relative_files(edited_pack, &manifest.id, "edited-pack")?;
