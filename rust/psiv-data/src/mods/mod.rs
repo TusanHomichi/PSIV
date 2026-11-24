@@ -17,11 +17,16 @@
 
 mod diff;
 mod patch;
+mod profile;
 #[cfg(test)]
 mod tests;
 
 pub use diff::{DiffSummary, diff_packs};
 pub use patch::{apply_json_patch, diff_json};
+pub use profile::{
+    MOD_PROFILE_FILE, MOD_PROFILE_FORMAT_VERSION, ModProfile, ModProfileDiff, ModProfileEntry,
+    mod_save_profile_slug,
+};
 
 use crate::error::DataError;
 use crate::manifest::PACK_FORMAT_VERSION;

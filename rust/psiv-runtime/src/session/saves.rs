@@ -559,4 +559,52 @@ mod tests {
         );
         std::fs::remove_dir_all(&directory).expect("remove only our test directory");
     }
+
+    #[test]
+    fn modded_save_store_writes_profile_sidecar_and_vanilla_does_not() {
+        let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
+        let data = psiv_data::GameData::load(&pack).expect("pack loads");
+
+        let vanilla_dir =
+            std::env::temp_dir().join(format!("psiv-vanilla-sidecar-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&vanilla_dir);
+        Session::start(data.clone())
+            .with_saves(SaveStore::new(&vanilla_dir))
+            .field()
+            .expect("field boot")
+            .save_slot(0)
+            .expect("vanilla save");
+        assert!(vanilla_dir.join("slot_1.sram").is_file());
+        assert!(
+            !vanilla_dir.join(psiv_data::mods::MOD_PROFILE_FILE).exists(),
+            "vanilla save must not create mod_profile.json"
+        );
+        std::fs::remove_dir_all(&vanilla_dir).expect("remove vanilla test dir");
+
+        let modded_dir =
+            std::env::temp_dir().join(format!("psiv-modded-sidecar-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&modded_dir);
+        let profile =
+            psiv_data::mods::ModProfile::from_manifests(&[psiv_data::mods::ModManifest::new(
+                "hard-mode",
+                "Hard Mode",
+                "1.0.0",
+            )]);
+        Session::start(data)
+            .with_saves(SaveStore::new(&modded_dir).with_mod_profile(profile.clone()))
+            .field()
+            .expect("field boot")
+            .save_slot(0)
+            .expect("modded save");
+        assert!(modded_dir.join("slot_1.sram").is_file());
+        assert_eq!(
+            psiv_data::mods::ModProfile::read_from_dir(&modded_dir).unwrap(),
+            Some(profile)
+        );
+        std::fs::remove_dir_all(&modded_dir).expect("remove modded test dir");
+    }
 }

@@ -355,6 +355,13 @@ Saves written by PSIV 1.0.0 and later are guaranteed to remain loadable:
   cleanly when all zero — so both v1.0 saves and cartridge SRAM dumps continue
   to load without migration loss. Non-retail metadata (such as future per-save
   mod lists) belongs in sidecar files rather than altering `.sram` bytes.
+* **Automatic modded save isolation.** Vanilla runs save to `<user_data>/saves/`;
+  runs with active mods automatically save to
+  `<user_data>/saves/mods/<profile>/` (`rust/psiv-godot/src/save_dir.rs`,
+  `rust/psiv-data/src/mods/profile.rs`) unless `PSIV_SAVE_DIR` overrides the
+  directory. `<profile>` is derived from the active mod IDs in load order (never
+  versions, so updating a mod preserves progress). A `mod_profile.json` sidecar
+  is written atomically next to modded slots without touching `.sram` bytes.
 * **Atomic slot writes.** `save_slot`, `mark_game_cleared`, and `erase_slot`
   (`rust/psiv-runtime/src/save.rs`) write to a sibling temporary file, flush
   with `sync_all`, and atomically rename into `slot_N.sram`, so a crash or

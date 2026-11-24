@@ -262,6 +262,7 @@ impl From<RuntimeSaveError> for SessionSaveError {
 #[derive(Debug, Clone)]
 pub struct SaveStore {
     directory: PathBuf,
+    mod_profile: Option<psiv_data::mods::ModProfile>,
 }
 
 impl SaveStore {
@@ -270,7 +271,22 @@ impl SaveStore {
     pub fn new(directory: impl Into<PathBuf>) -> SaveStore {
         SaveStore {
             directory: directory.into(),
+            mod_profile: None,
         }
+    }
+
+    /// Attaches the active mod profile so saves write a `mod_profile.json`
+    /// sidecar alongside `slot_N.sram` without altering `.sram` bytes.
+    #[must_use]
+    pub fn with_mod_profile(mut self, profile: psiv_data::mods::ModProfile) -> SaveStore {
+        self.mod_profile = Some(profile);
+        self
+    }
+
+    /// The active mod profile attached to this store, if any.
+    #[must_use]
+    pub fn mod_profile(&self) -> Option<&psiv_data::mods::ModProfile> {
+        self.mod_profile.as_ref()
     }
 
     /// The directory every operation goes to.
@@ -299,12 +315,22 @@ impl SaveStore {
     }
 
     /// Writes one visible slot: the camp's SAVE.
+    ///
+    /// When the store carries a [`psiv_data::mods::ModProfile`], also updates
+    /// the directory's `mod_profile.json` sidecar atomically; `.sram` bytes
+    /// remain untouched retail format.
     pub(crate) fn write(
         &self,
         runtime: &Runtime,
         slot: usize,
     ) -> Result<PathBuf, RuntimeSaveError> {
-        runtime.save_slot(&self.directory, slot)
+        let path = runtime.save_slot(&self.directory, slot)?;
+        if let Some(profile) = &self.mod_profile {
+            profile
+                .write_to_dir(&self.directory)
+                .map_err(|error| std::io::Error::other(error.to_string()))?;
+        }
+        Ok(path)
     }
 
     /// Performs the title's destructive ERASE DATA for one visible slot.

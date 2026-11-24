@@ -45,11 +45,15 @@ first; later mods override earlier ones) and layered over the base pack into a
 hidden staging directory inside `mods/` without ever modifying `runtime-pack/`
 or `saves/`. Rebuilding the base pack from your ROM never touches `mods/`.
 
-> **Keeping modded and vanilla saves separate:** Mods never touch `saves/` on
-> load, and your `.sram` saves stay in the retail format. If you play a mod
-> that heavily changes items, maps, or story progression, pass a separate
-> `PSIV_SAVE_DIR` (or back up your `saves/` folder) so your vanilla playthrough
-> stays untouched.
+> **Automatic save isolation:** Modded runs never touch your vanilla
+> `saves/slot_1..3.sram`. Whenever one or more mods are active (and
+> `PSIV_SAVE_DIR` is not set), the game automatically saves into
+> `saves/mods/<profile>/`, where `<profile>` is derived from the active mod
+> IDs in load order (not their version numbers, so updating a mod keeps your
+> progress). A small `mod_profile.json` sidecar is written beside the modded
+> slots without altering `.sram` bytes — so you can still copy a vanilla
+> `slot_1.sram` into a mod's save folder to test a mod mid-campaign, or set
+> `PSIV_SAVE_DIR` to point anywhere you want.
 
 ## Modding with an AI assistant
 

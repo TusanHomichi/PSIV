@@ -1,10 +1,15 @@
 //! The one save-directory resolver.
 //!
-//! Every interactive launch uses Godot's per-OS user data directory. A
-//! scripted run must explicitly name a separate directory with `PSIV_SAVE_DIR`
-//! before any save access; the override also applies to interactive launches.
+//! Every interactive vanilla launch uses Godot's per-OS user data directory
+//! (`<user_data>/saves`). When one or more mods are active, interactive
+//! launches automatically isolate into `<user_data>/saves/mods/<profile>/`
+//! (keyed by mod IDs in load order, not versions) so modded runs can never
+//! overwrite vanilla saves. A scripted run must explicitly name a separate
+//! directory with `PSIV_SAVE_DIR` before any save access; an explicit
+//! `PSIV_SAVE_DIR` also overrides both vanilla and modded interactive paths.
 
-use godot::prelude::godot_error;
+use godot::prelude::{godot_error, godot_print, godot_warn};
+use psiv_data::mods::{ModManifest, ModProfile, mod_save_profile_slug};
 use psiv_runtime::SaveStore;
 
 use std::ffi::{OsStr, OsString};
@@ -39,16 +44,20 @@ impl std::fmt::Display for SaveDirError {
 
 impl std::error::Error for SaveDirError {}
 
-/// The save directory a run with `arguments` and `save_dir` uses;
-/// `default_saves` is Godot's user data directory with the saves subdirectory.
+/// The save directory a run with `arguments`, `save_dir`, and `active_mods`
+/// uses; `default_saves` is Godot's user data directory with the `saves`
+/// subdirectory.
 ///
 /// Pure: no environment or filesystem access, so the rule is directly
 /// testable. An empty `save_dir` counts as unset — `PSIV_SAVE_DIR=` must not
-/// silently become the working directory.
-pub(crate) fn resolve_save_directory<Argument: AsRef<OsStr>>(
+/// silently become the working directory. When `save_dir` is unset and
+/// `active_mods` is non-empty, returns `<default_saves>/mods/<profile_slug>` so
+/// modded saves stay isolated from vanilla `saves/slot_1..3.sram`.
+pub(crate) fn resolve_save_directory_for_mods<Argument: AsRef<OsStr>>(
     arguments: &[Argument],
     save_dir: Option<&OsStr>,
     default_saves: &Path,
+    active_mods: &[ModManifest],
 ) -> Result<PathBuf, SaveDirError> {
     if let Some(directory) = save_dir.filter(|value| !value.is_empty()) {
         return Ok(PathBuf::from(directory));
@@ -59,19 +68,35 @@ pub(crate) fn resolve_save_directory<Argument: AsRef<OsStr>>(
     if scripted {
         return Err(SaveDirError);
     }
+    if let Some(slug) = mod_save_profile_slug(active_mods) {
+        return Ok(default_saves.join("mods").join(slug));
+    }
     Ok(default_saves.to_path_buf())
+}
+
+/// Vanilla convenience wrapper over [`resolve_save_directory_for_mods`].
+#[cfg(test)]
+pub(crate) fn resolve_save_directory<Argument: AsRef<OsStr>>(
+    arguments: &[Argument],
+    save_dir: Option<&OsStr>,
+    default_saves: &Path,
+) -> Result<PathBuf, SaveDirError> {
+    resolve_save_directory_for_mods(arguments, save_dir, default_saves, &[])
 }
 
 /// The run's save directory, or the rule that refuses to guess one.
 ///
 /// The thin wrapper over `std::env`; every call site resolves through here and
 /// reports the error instead of touching a fallback path.
-pub(crate) fn save_directory() -> Result<PathBuf, SaveDirError> {
+pub(crate) fn save_directory_for_mods(
+    active_mods: &[ModManifest],
+) -> Result<PathBuf, SaveDirError> {
     let arguments: Vec<OsString> = std::env::args_os().collect();
-    resolve_save_directory(
+    resolve_save_directory_for_mods(
         &arguments,
         std::env::var_os(SAVE_DIR_ENV).as_deref(),
         &PathBuf::from(Os::singleton().get_user_data_dir().to_string()).join("saves"),
+        active_mods,
     )
 }
 
@@ -79,11 +104,43 @@ pub(crate) fn save_directory() -> Result<PathBuf, SaveDirError> {
 ///
 /// The policy is the shell's (`save_dir.rs`): a scripted run that named no
 /// directory gets no store, and the session refuses every slot operation
-/// instead of falling back to a default path. Resolved once per boot, so the
-/// fixtures and the constructors share one answer.
-pub(crate) fn session_store() -> Option<SaveStore> {
-    match save_directory() {
-        Ok(directory) => Some(SaveStore::new(directory)),
+/// instead of falling back to a default path. Modded runs isolate into
+/// `<saves>/mods/<profile>/` unless `PSIV_SAVE_DIR` overrides it, inspect any
+/// existing `mod_profile.json` sidecar for version or mod-set changes, and
+/// attach the active [`ModProfile`] so the sidecar stays current on save.
+pub(crate) fn session_store(active_mods: &[ModManifest]) -> Option<SaveStore> {
+    match save_directory_for_mods(active_mods) {
+        Ok(directory) => {
+            if active_mods.is_empty() {
+                return Some(SaveStore::new(directory));
+            }
+            godot_print!("modded save directory: {}", directory.display());
+            let profile = ModProfile::from_manifests(active_mods);
+            match ModProfile::read_from_dir(&directory) {
+                Ok(Some(previous)) => {
+                    let diff = profile.diff_against(&previous);
+                    if !diff.added.is_empty() {
+                        godot_warn!("mod save profile notice: added mods {:?}", diff.added);
+                    }
+                    if !diff.removed.is_empty() {
+                        godot_warn!("mod save profile notice: removed mods {:?}", diff.removed);
+                    }
+                    if diff.order_changed {
+                        godot_warn!("mod save profile notice: mod load order changed");
+                    }
+                    for (id, prev, curr) in &diff.version_changes {
+                        godot_print!(
+                            "mod save profile notice: mod `{id}` version changed ({prev} -> {curr})"
+                        );
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    godot_warn!("could not read existing mod save profile: {error}");
+                }
+            }
+            Some(SaveStore::new(directory).with_mod_profile(profile))
+        }
         Err(error) => {
             godot_error!("save slot scan refused: {error}");
             None
@@ -174,6 +231,52 @@ mod tests {
         .expect("named");
         assert_eq!(named, PathBuf::from(RUN_DIR));
         let refused = resolve_save_directory(&scripted(), None, Path::new(INSTALLED));
+        assert_eq!(refused, Err(SaveDirError));
+    }
+
+    #[test]
+    fn modded_interactive_run_isolates_saves_by_mod_profile() {
+        let single = [ModManifest::new("hard-mode", "Hard Mode", "1.0.0")];
+        let dir = resolve_save_directory_for_mods(
+            &["--main-pack", "psiv.pck"],
+            None,
+            Path::new(INSTALLED),
+            &single,
+        )
+        .expect("isolated");
+        assert_eq!(dir, Path::new(INSTALLED).join("mods").join("hard-mode"));
+
+        let combo = [
+            ModManifest::new("alpha", "Alpha", "1.0.0"),
+            ModManifest::new("hard-mode", "Hard Mode", "1.2.0"),
+        ];
+        let combo_dir = resolve_save_directory_for_mods(
+            &["--main-pack", "psiv.pck"],
+            None,
+            Path::new(INSTALLED),
+            &combo,
+        )
+        .expect("isolated combo");
+        assert_eq!(
+            combo_dir,
+            Path::new(INSTALLED).join("mods").join("alpha+hard-mode")
+        );
+    }
+
+    #[test]
+    fn modded_run_still_honours_explicit_save_dir_and_refuses_unconfigured_scripts() {
+        let mods = [ModManifest::new("hard-mode", "Hard Mode", "1.0.0")];
+        let explicit = resolve_save_directory_for_mods(
+            &["--main-pack", "psiv.pck"],
+            Some(OsStr::new(RUN_DIR)),
+            Path::new(INSTALLED),
+            &mods,
+        )
+        .expect("explicit override");
+        assert_eq!(explicit, PathBuf::from(RUN_DIR));
+
+        let refused =
+            resolve_save_directory_for_mods(&scripted(), None, Path::new(INSTALLED), &mods);
         assert_eq!(refused, Err(SaveDirError));
     }
 }

@@ -292,3 +292,66 @@ fn apply_mods_layers_table_patch_dialogue_and_asset_and_rejects_bad_schema() {
 
     let _ = fs::remove_dir_all(&scratch);
 }
+
+#[test]
+fn mod_save_profile_slug_is_stable_across_versions_and_isolates_combos() {
+    assert_eq!(mod_save_profile_slug(&[]), None);
+
+    let v1 = ModManifest::new("hard-mode", "Hard Mode", "1.0.0");
+    let v2 = ModManifest::new("hard-mode", "Hard Mode", "2.0.0");
+    assert_eq!(
+        mod_save_profile_slug(std::slice::from_ref(&v1)).as_deref(),
+        Some("hard-mode")
+    );
+    assert_eq!(
+        mod_save_profile_slug(std::slice::from_ref(&v1)),
+        mod_save_profile_slug(&[v2]),
+        "updating a mod version must keep the same save profile directory"
+    );
+
+    let second = ModManifest::new("new-music", "New Music", "1.0.0");
+    assert_eq!(
+        mod_save_profile_slug(&[v1.clone(), second.clone()]).as_deref(),
+        Some("hard-mode+new-music")
+    );
+    assert_ne!(
+        mod_save_profile_slug(&[v1.clone(), second.clone()]),
+        mod_save_profile_slug(&[second, v1]),
+        "load order matters for mod overlays"
+    );
+
+    let long_a = ModManifest::new("very-long-rebalance-overhaul-mod", "A", "1.0.0");
+    let long_b = ModManifest::new("another-lengthy-dialogue-rewrite", "B", "1.0.0");
+    let hashed = mod_save_profile_slug(&[long_a, long_b]).unwrap();
+    assert!(hashed.starts_with("very-long-rebala+2mods+"), "{hashed}");
+    assert!(hashed.len() <= 48, "{hashed}");
+}
+
+#[test]
+fn mod_profile_sidecar_round_trips_and_reports_version_changes() {
+    let dir = temp_dir("profile-sidecar");
+    assert_eq!(ModProfile::read_from_dir(&dir).unwrap(), None);
+
+    let p1 = ModProfile::from_manifests(&[
+        ModManifest::new("hard-mode", "Hard Mode", "1.0.0"),
+        ModManifest::new("alt-font", "Alt Font", "0.5.0"),
+    ]);
+    p1.write_to_dir(&dir).unwrap();
+    assert_eq!(ModProfile::read_from_dir(&dir).unwrap().as_ref(), Some(&p1));
+
+    let p2 = ModProfile::from_manifests(&[
+        ModManifest::new("hard-mode", "Hard Mode", "1.1.0"),
+        ModManifest::new("alt-font", "Alt Font", "0.5.0"),
+    ]);
+    let diff = p2.diff_against(&p1);
+    assert!(!diff.is_empty());
+    assert!(diff.added.is_empty());
+    assert!(diff.removed.is_empty());
+    assert!(!diff.order_changed);
+    assert_eq!(
+        diff.version_changes,
+        vec![("hard-mode".into(), "1.0.0".into(), "1.1.0".into())]
+    );
+
+    let _ = fs::remove_dir_all(&dir);
+}

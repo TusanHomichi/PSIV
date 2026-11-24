@@ -402,11 +402,13 @@ impl INode2D for Field {
             godot_print!("runtime pack override: {}", self.pack_dir);
         }
         let mut pack = std::path::PathBuf::from(&self.pack_dir);
+        let mut active_mods = Vec::new();
         match install::apply_active_mods(&install, &pack) {
             Ok(Some(applied)) => {
                 for m in &applied.active {
                     godot_print!("loaded mod: {} ({} v{})", m.name, m.id, m.version);
                 }
+                active_mods = applied.active;
                 pack = applied.effective_pack;
                 self.pack_dir = pack.to_string_lossy().into_owned();
             }
@@ -450,7 +452,7 @@ impl INode2D for Field {
         // run must not touch a save directory it never asked for.
         // The run's directory policy, resolved once: every session below gets
         // the store the policy answered with.
-        let store = session_store();
+        let store = session_store(&active_mods);
         let starts_at_title = !title_bypassed();
         let mut session = if debug_camp {
             let fixture = if crate::boot::debug_camp_telepipe() {
