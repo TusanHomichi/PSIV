@@ -691,6 +691,26 @@ fn schema_driven_validation_allows_omitted_optionals_and_rejects_nested_typos() 
         err.contains("enemies[0].pieces[0].bogus_piece_key"),
         "{err}"
     );
+
+    // Dynamic map inside a Godot-only array (`battle/art/enemy_attacks.json#enemies[*].palette_overrides`)
+    // accepts new palette-slot keys while still rejecting unknown sibling keys.
+    let mut attacks = json!({
+        "enemies": [{"id": 10, "status": "exact", "palette_overrides": {"12": 3822}}]
+    });
+    apply_json_patch(
+        &mut attacks,
+        &json!({"enemies": [{"id": 10, "status": "exact", "palette_overrides": {"12": 3822, "13": 2048}}]}),
+        "battle/art/enemy_attacks.json",
+    )
+    .unwrap();
+    assert_eq!(attacks["enemies"][0]["palette_overrides"]["13"], 2048);
+    let err = apply_json_patch(
+        &mut attacks,
+        &json!({"enemies": [{"id": 10, "status": "exact", "palette_typo": 1}]}),
+        "battle/art/enemy_attacks.json",
+    )
+    .expect_err("unknown key alongside palette_overrides must still fail");
+    assert!(err.contains("enemies[0].palette_typo"), "{err}");
 }
 
 fn minimal_valid_map_json() -> serde_json::Value {

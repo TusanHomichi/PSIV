@@ -191,6 +191,12 @@ fn is_dynamic_map(rel_file: &str, schema_path: &[&str]) -> bool {
         (file, ["map_update_images" | "art_cycle_images"]) if MAPS_JSON.matches(file) => true,
         ("dialogue/font.json", ["by_char"]) => true,
         ("dialogue/window.json", ["roles"]) => true,
+        ("title/palette_cycle.json", ["frames"]) => true,
+        ("battle/art/enemy_attacks.json", ["enemies", "*", "palette_overrides"]) => true,
+        (
+            "battle/art/enemies.json",
+            ["palette_layout", "fixed_colors" | "index_15_by_cram_line"],
+        ) => true,
         _ => false,
     }
 }
@@ -293,7 +299,7 @@ fn apply_at_slice(
             Ok(())
         }
         (Value::Array(base_arr), Value::Array(patch_arr)) if strict_base_keys => {
-            validate_replacement_array(base_arr, patch_arr, rel_file, display_path)?;
+            validate_replacement_array(base_arr, patch_arr, rel_file, schema_path, display_path)?;
             *base_arr = patch_arr.clone();
             Ok(())
         }
@@ -344,12 +350,15 @@ fn validate_replacement_array(
     base_arr: &[Value],
     patch_arr: &[Value],
     rel_file: &str,
+    schema_path: &[&str],
     display_path: &[&str],
 ) -> Result<(), String> {
     let mut elem_shape = BaseShape::Any;
     for item in base_arr {
         elem_shape.merge(item);
     }
+    let mut elem_schema: Vec<&str> = schema_path.to_vec();
+    elem_schema.push("*");
     let prefix = display_path.join(".");
     for (idx, item) in patch_arr.iter().enumerate() {
         let item_path = if prefix.is_empty() {
@@ -357,7 +366,7 @@ fn validate_replacement_array(
         } else {
             format!("{prefix}[{idx}]")
         };
-        validate_value_against_shape(&elem_shape, item, rel_file, &item_path)?;
+        validate_value_against_shape(&elem_shape, item, rel_file, &elem_schema, &item_path)?;
     }
     Ok(())
 }
@@ -366,10 +375,14 @@ fn validate_value_against_shape(
     shape: &BaseShape,
     value: &Value,
     rel_file: &str,
+    schema_path: &[&str],
     path: &str,
 ) -> Result<(), String> {
     match (shape, value) {
         (BaseShape::Object(fields), Value::Object(map)) if !fields.is_empty() => {
+            if is_dynamic_map(rel_file, schema_path) {
+                return Ok(());
+            }
             for (k, v) in map {
                 let next_path = if path.is_empty() {
                     k.clone()
@@ -381,14 +394,18 @@ fn validate_value_against_shape(
                         "unknown field `{next_path}` (not present in base `{rel_file}`)"
                     ));
                 };
-                validate_value_against_shape(child_shape, v, rel_file, &next_path)?;
+                let mut next_schema: Vec<&str> = schema_path.to_vec();
+                next_schema.push(k);
+                validate_value_against_shape(child_shape, v, rel_file, &next_schema, &next_path)?;
             }
             Ok(())
         }
         (BaseShape::Array(elem_shape), Value::Array(items)) => {
+            let mut next_schema: Vec<&str> = schema_path.to_vec();
+            next_schema.push("*");
             for (idx, item) in items.iter().enumerate() {
                 let next_path = format!("{path}[{idx}]");
-                validate_value_against_shape(elem_shape, item, rel_file, &next_path)?;
+                validate_value_against_shape(elem_shape, item, rel_file, &next_schema, &next_path)?;
             }
             Ok(())
         }
