@@ -87,6 +87,9 @@ fn collect_ignored_for_file(
         "battle/abilities.json" => Some(ignored_paths::<crate::battle::AbilitiesFile>(value)),
         "battle/formations.json" => Some(ignored_paths::<crate::battle::FormationsFile>(value)),
         "battle/levels.json" => Some(ignored_paths::<crate::battle::LevelsFile>(value)),
+        "battle/enemy_animations.json" => {
+            Some(ignored_paths::<crate::battle::EnemyAnimationsFile>(value))
+        }
         "battle/art/backgrounds.json" => {
             Some(ignored_paths::<crate::battle::backgrounds::File>(value))
         }
@@ -99,7 +102,12 @@ fn collect_ignored_for_file(
         "dialogue/font.json" => Some(ignored_paths::<crate::dialogue::FontFile>(value)),
         "dialogue/portraits.json" => Some(ignored_paths::<crate::dialogue::PortraitFile>(value)),
         "dialogue/window.json" => Some(ignored_paths::<crate::dialogue::WindowFile>(value)),
+        "manifest.json" => Some(ignored_paths::<crate::manifest::Manifest>(value)),
         "shops.json" => Some(ignored_paths::<crate::shops::ShopData>(value)),
+        "sound/index.json" => Some(ignored_paths::<crate::sound::schema::IndexFile>(value)),
+        "sound/driver.json" => Some(ignored_paths::<crate::sound::schema::DriverFile>(value)),
+        "sound/music.json" => Some(ignored_paths::<crate::sound::schema::MusicFile>(value)),
+        "sound/sfx.json" => Some(ignored_paths::<crate::sound::schema::SfxFile>(value)),
         "game_start.json" => Some(ignored_paths::<crate::new_game::File>(value)),
         "guild/guild.json" => Some(ignored_paths::<crate::guild::GuildJson>(value)),
         "fifth/fifth.json" => Some(ignored_paths::<crate::fifth::FifthJson>(value)),

@@ -594,6 +594,67 @@ fn schema_driven_validation_allows_omitted_optionals_and_rejects_nested_typos() 
     )
     .expect_err("typo inside newly inserted system_messages.messages[0] must fail");
     assert!(err.contains("system_messages.messages[0].typo"), "{err}");
+
+    // 4. `battle/enemy_animations.json` rejects typos inside replaced `animations` entries.
+    let mut anim_json = json!({
+        "format_version": 2,
+        "count": 1,
+        "source": {
+            "label": "EnemyAttackOffs",
+            "rom_offset": "0x000100",
+            "table_end": "0x000200",
+            "record_count": 1,
+            "record_bytes": 4,
+            "rom_size": 3145728,
+            "rom_sha256": "0",
+            "grand_cross": 0,
+            "reference_clone": "test",
+            "reference_grand_cross": 1,
+            "reference_role": "labels",
+            "tables": []
+        },
+        "animations": [{
+            "enemy_id": 10,
+            "symbol": "Zoran",
+            "display_name": "ZORAN",
+            "routine_offset": "0x001000",
+            "root_object_ids": [1],
+            "object_ids": [1],
+            "sfx_id": 1,
+            "sfx_name": null,
+            "dispatch": {"kind": "routine", "rom_offset": "0x001000", "object_id": null},
+            "sfx_writes": [],
+            "frame_sequence": null,
+            "movement_proven": false,
+            "flash_timing_proven": false,
+            "sprite_sheet_proven": false
+        }],
+        "census": {
+            "enemy_count": 1,
+            "distinct_attack_routines": 1,
+            "exact_sfx": 1,
+            "generic_sfx": 0,
+            "frame_sequence_records": 0,
+            "timed_frame_sequences": 0,
+            "frame_sequence_deferred": 1,
+            "movement_deferred": 1,
+            "flash_timing": 0,
+            "sprite_sheet_deferred": 1
+        }
+    });
+    assert!(
+        serde_json::from_value::<crate::battle::EnemyAnimationsFile>(anim_json.clone()).is_ok(),
+        "test fixture must parse as EnemyAnimationsFile"
+    );
+    let mut bad_entry = anim_json["animations"][0].clone();
+    bad_entry["bogus_anim_field"] = json!(true);
+    let err = apply_json_patch(
+        &mut anim_json,
+        &json!({"animations": [bad_entry]}),
+        "battle/enemy_animations.json",
+    )
+    .expect_err("typo inside replaced battle/enemy_animations.json entry must fail");
+    assert!(err.contains("animations[0].bogus_anim_field"), "{err}");
 }
 
 fn minimal_valid_map_json() -> serde_json::Value {
@@ -849,6 +910,24 @@ fn real_pack_strict_fields_and_treasure_chests_round_trip() {
         assert_eq!(err.mod_id, "bad-sprite");
         assert!(err.file.contains(&map_rel), "{err}");
         assert!(err.detail.contains("typo_field"), "{err}");
+    }
+
+    // Verify all newly wired psiv-data schemas (battle/enemy_animations.json, sound/*.json, manifest.json)
+    // parse cleanly as baselines against the real retail pack.
+    for rel in [
+        "battle/enemy_animations.json",
+        "sound/index.json",
+        "sound/driver.json",
+        "sound/music.json",
+        "sound/sfx.json",
+        "manifest.json",
+    ] {
+        let raw: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(base.join(rel)).unwrap()).unwrap();
+        assert!(
+            schema_check::prepare_baseline(rel, &raw).is_some(),
+            "expected schema_check baseline for real pack file `{rel}`"
+        );
     }
 
     let _ = fs::remove_dir_all(&scratch);
