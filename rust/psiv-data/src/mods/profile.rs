@@ -219,18 +219,20 @@ impl ModProfile {
 /// - Uses mod IDs in load order, **never** versions, so updating a mod keeps
 ///   the player's saves in the same isolated directory.
 /// - Single mod: `<id>` (already validated `[a-z0-9_-]`, 1..=64 chars; encodes
-///   reserved Windows device names defensively as `mod+<id>` if unvalidated).
+///   reserved Windows device names defensively as `~<id>` if unvalidated).
 /// - Multiple mods: `<id1>+<id2>+...` when `<= 48` bytes; otherwise
-///   `<first_prefix>+<count>mods+<16-hex-fnv1a64>`. Because `+` is disallowed
-///   in mod IDs, single-mod, joined multi-mod, and hashed multi-mod slugs live
-///   in disjoint namespaces and cannot collide.
+///   `<first_prefix>~<count>mods~<16-hex-fnv1a64>`. Because neither `+` nor `~`
+///   is allowed in mod IDs, normal single-mod (`[a-z0-9_-]+`), reserved
+///   single-mod (`~<id>`), joined multi-mod (contains `+`, no `~`), and hashed
+///   multi-mod (contains `~`, does not start with `~`) live in four
+///   mathematically disjoint namespaces and cannot collide.
 #[must_use]
 pub fn mod_save_profile_slug(active: &[ModManifest]) -> Option<String> {
     match active {
         [] => None,
         [single] => {
             if crate::mods::is_windows_reserved_name(&single.id) {
-                Some(format!("mod+{}", single.id))
+                Some(format!("~{}", single.id))
             } else {
                 Some(single.id.clone())
             }
@@ -247,7 +249,7 @@ pub fn mod_save_profile_slug(active: &[ModManifest]) -> Option<String> {
             let prefix_len = many[0].id.len().min(16);
             let prefix = &many[0].id[..prefix_len];
             let hash = fnv1a_64_ordered_ids(many);
-            Some(format!("{prefix}+{}mods+{hash:016x}", many.len()))
+            Some(format!("{prefix}~{}mods~{hash:016x}", many.len()))
         }
     }
 }

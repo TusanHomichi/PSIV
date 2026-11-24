@@ -354,7 +354,11 @@ fn mod_save_profile_slug_is_stable_across_versions_and_isolates_combos() {
     let long_a = ModManifest::new("very-long-rebalance-overhaul-mod", "A", "1.0.0");
     let long_b = ModManifest::new("another-lengthy-dialogue-rewrite", "B", "1.0.0");
     let hashed = mod_save_profile_slug(&[long_a, long_b]).unwrap();
-    assert!(hashed.starts_with("very-long-rebala+2mods+"), "{hashed}");
+    assert!(hashed.starts_with("very-long-rebala~2mods~"), "{hashed}");
+    assert!(
+        !hashed.contains('+'),
+        "hashed slug must be disjoint from joined IDs: {hashed}"
+    );
     assert!(hashed.len() <= 48, "{hashed}");
 
     // Windows reserved device names are rejected as mod IDs and defensively
@@ -362,7 +366,7 @@ fn mod_save_profile_slug_is_stable_across_versions_and_isolates_combos() {
     for reserved in ["con", "prn", "aux", "nul", "com1", "lpt9"] {
         assert!(!is_valid_mod_id(reserved), "{reserved} must be rejected");
         let slug = mod_save_profile_slug(&[ModManifest::new(reserved, "R", "1.0.0")]).unwrap();
-        assert_eq!(slug, format!("mod+{reserved}"));
+        assert_eq!(slug, format!("~{reserved}"));
     }
     assert!(is_valid_mod_id("console"));
     assert!(is_valid_mod_id("com10"));
