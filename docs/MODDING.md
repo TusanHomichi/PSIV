@@ -55,7 +55,16 @@ or `saves/`. Rebuilding the base pack from your ROM never touches `mods/`.
 > progress). A small `mod_profile.json` sidecar is written beside the modded
 > slots without altering `.sram` bytes — so you can still copy a vanilla
 > `slot_1.sram` into a mod's save folder to test a mod mid-campaign, or set
-> `PSIV_SAVE_DIR` to point anywhere you want.
+> `PSIV_SAVE_DIR` to point anywhere you want. When active mods differ from the
+> save folder's `mod_profile.json` (added, removed, reordered, or version
+> changed), the title screen surfaces an in-game notice.
+>
+> **In-game Mods indicator and manager:** Whenever one or more mods are active
+> (or discovered under `mods/`), the title screen displays active mods and a
+> **Mods** button (`M`) to inspect load order, view status, and toggle
+> `"enabled"` in `mod.json` (read-only when `PSIV_MODS` specifies explicit
+> paths). Vanilla runs with no mods installed keep the retail title screen
+> unchanged.
 
 ## Modding with an AI assistant
 
@@ -218,7 +227,9 @@ example `assets/maps/010_Piata.png`, `assets/maps/010_Piata_over.png`, or
 ## When an edit does not fit
 
 The loader refuses any mod that violates the schema and names **the mod, the
-file, and the place** — both in `psiv-pack mod check` and in `logs/godot.log`.
+file, and the place** — in `psiv-pack mod check`, in `logs/godot.log`, and on
+an in-game startup error screen with **Disable & Retry**, **Retry**, and
+**Launch Unmodified** actions.
 For example, setting `"hp": 70000` (HP is a 16-bit `u16`, at most 65535) fails
 with:
 

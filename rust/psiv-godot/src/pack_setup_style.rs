@@ -38,6 +38,8 @@ pub(super) const TEXT_WHITE: Color = Color::from_rgb(0.96, 0.98, 1.0);
 pub(super) const TEXT_BODY: Color = Color::from_rgb(0.88, 0.93, 1.0);
 pub(super) const TEXT_MUTED: Color = Color::from_rgb(0.64, 0.76, 0.95);
 pub(super) const TEXT_SHADOW: Color = Color::from_rgb(0.0, 0.02, 0.12);
+pub(super) const TEXT_ERROR: Color = Color::from_rgb(1.0, 0.56, 0.54);
+pub(super) const TEXT_GREEN: Color = Color::from_rgb(0.52, 0.95, 0.64);
 
 /// Procedural 16-bit space starfield backdrop baked at 320×200 with a
 /// checkerboard-dithered cosmic nebula band, a distant twin-star glow, a
@@ -359,6 +361,17 @@ pub(super) fn psiv_window<T: Inherits<godot::classes::Node>>(
 /// Builds a crisp shadowed label in the setup screen's retro palette.
 /// Pass `wrap = false` for single-line headers so containers size to the text.
 pub(super) fn styled_label(text: &str, size: i32, color: Color, wrap: bool) -> Gd<Label> {
+    styled_label_aligned(text, size, color, wrap, HorizontalAlignment::CENTER)
+}
+
+/// Builds a shadowed retro label with an explicit horizontal alignment.
+pub(super) fn styled_label_aligned(
+    text: &str,
+    size: i32,
+    color: Color,
+    wrap: bool,
+    align: HorizontalAlignment,
+) -> Gd<Label> {
     let mut label = Label::new_alloc();
     label.set_text(text);
     label.set_autowrap_mode(if wrap {
@@ -366,13 +379,56 @@ pub(super) fn styled_label(text: &str, size: i32, color: Color, wrap: bool) -> G
     } else {
         AutowrapMode::OFF
     });
-    label.set_horizontal_alignment(HorizontalAlignment::CENTER);
+    label.set_horizontal_alignment(align);
     label.add_theme_font_size_override("font_size", size);
     label.add_theme_color_override("font_color", color);
     label.add_theme_color_override("font_shadow_color", TEXT_SHADOW);
     label.add_theme_constant_override("shadow_offset_x", 2);
     label.add_theme_constant_override("shadow_offset_y", 2);
     label
+}
+
+/// Compact cobalt-blue PSIV badge box for HUD strips and row cards.
+pub(super) fn psiv_compact_panel<T: Inherits<godot::classes::Node>>(
+    content: &Gd<T>,
+    pad_x: f32,
+    pad_y: f32,
+    border: Color,
+) -> Gd<PanelContainer> {
+    let mut panel = PanelContainer::new_alloc();
+    panel.add_theme_stylebox_override("panel", &flat_box(COBALT_DEEP, border, 2, 4, pad_x, pad_y));
+    panel.add_child(content);
+    panel
+}
+
+/// Styles a compact secondary or row-action button in the PSIV palette.
+pub(super) fn style_compact_button(button: &mut Gd<Button>) {
+    button.add_theme_font_size_override("font_size", 15);
+    button.set_h_size_flags(SizeFlags::SHRINK_CENTER);
+
+    let normal = flat_box(COBALT_DEEP, BORDER_SILVER, 2, 4, 14.0, 6.0);
+    let active = flat_box(COBALT_BRIGHT, TEXT_GOLD, 2, 4, 14.0, 6.0);
+    let pressed = flat_box(BORDER_LIP, TEXT_CYAN, 2, 4, 14.0, 6.0);
+    let disabled = flat_box(
+        Color::from_rgb(0.06, 0.10, 0.24),
+        BORDER_STEEL,
+        2,
+        4,
+        14.0,
+        6.0,
+    );
+
+    button.add_theme_stylebox_override("normal", &normal);
+    button.add_theme_stylebox_override("hover", &active);
+    button.add_theme_stylebox_override("focus", &active);
+    button.add_theme_stylebox_override("pressed", &pressed);
+    button.add_theme_stylebox_override("disabled", &disabled);
+
+    button.add_theme_color_override("font_color", TEXT_WHITE);
+    button.add_theme_color_override("font_hover_color", TEXT_GOLD);
+    button.add_theme_color_override("font_focus_color", TEXT_GOLD);
+    button.add_theme_color_override("font_pressed_color", TEXT_CYAN);
+    button.add_theme_color_override("font_disabled_color", TEXT_MUTED);
 }
 
 /// Builds a crisp 2px metallic-blue divider line for inside a PSIV dialog box.

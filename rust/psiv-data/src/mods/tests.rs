@@ -778,3 +778,83 @@ fn apply_mods_reconciles_live_palette_map_png_replacement_on_real_pack() {
 
     let _ = fs::remove_dir_all(&scratch);
 }
+
+#[test]
+fn inspect_mods_dir_lists_enabled_disabled_and_invalid_and_set_enabled_persists() {
+    let dir = temp_dir("inventory");
+    assert!(inspect_mods_dir(&dir.join("missing")).unwrap().is_empty());
+
+    let mut alpha = ModManifest::new("alpha", "Alpha", "1.0.0");
+    alpha.order = 10;
+    let mut beta = ModManifest::new("beta", "Beta", "2.0.0");
+    beta.order = 20;
+    beta.enabled = false;
+    init_mod_dir(&dir.join("alpha"), &alpha).unwrap();
+    init_mod_dir(&dir.join("beta"), &beta).unwrap();
+
+    // Add an invalid mod with broken JSON and an outdated pack_format_version mod.
+    fs::create_dir_all(dir.join("broken")).unwrap();
+    fs::write(dir.join("broken/mod.json"), "{not-json").unwrap();
+
+    let mut outdated = ModManifest::new("old-mod", "Old Mod", "0.1.0");
+    outdated.pack_format_version = 999;
+    fs::create_dir_all(dir.join("old-mod")).unwrap();
+    fs::write(
+        dir.join("old-mod/mod.json"),
+        serde_json::to_string_pretty(&outdated).unwrap(),
+    )
+    .unwrap();
+
+    let entries = inspect_mods_dir(&dir).unwrap();
+    assert_eq!(entries.len(), 4);
+    assert!(
+        matches!(&entries[0], ModInventoryEntry::Valid(m) if m.manifest.id == "alpha" && m.manifest.enabled)
+    );
+    assert!(
+        matches!(&entries[1], ModInventoryEntry::Valid(m) if m.manifest.id == "beta" && !m.manifest.enabled)
+    );
+    assert!(
+        matches!(&entries[2], ModInventoryEntry::Invalid { root, .. } if root == &dir.join("broken"))
+    );
+    assert!(
+        matches!(&entries[3], ModInventoryEntry::Invalid { root, .. } if root == &dir.join("old-mod"))
+    );
+
+    // Disabling an outdated mod is allowed and unblocks discover_mods; re-enabling it is refused.
+    assert_eq!(
+        find_mod_dir_by_id(&dir, "old-mod"),
+        Some(dir.join("old-mod"))
+    );
+    let disabled_old = set_mod_enabled(&dir.join("old-mod"), false).unwrap();
+    assert!(!disabled_old.enabled);
+    assert_eq!(find_mod_dir_by_id(&dir, "old-mod"), None);
+    let reenable_err = set_mod_enabled(&dir.join("old-mod"), true)
+        .expect_err("enabling an incompatible pack_format_version mod must be refused");
+    assert_eq!(reenable_err.mod_id, "old-mod");
+    assert!(
+        reenable_err.detail.contains("pack format_version"),
+        "{reenable_err}"
+    );
+
+    // Toggle beta on and alpha off; verify persistence through load_mod.
+    let beta_on = set_mod_enabled(&dir.join("beta"), true).unwrap();
+    assert!(beta_on.enabled);
+    let alpha_off = set_mod_enabled(&dir.join("alpha"), false).unwrap();
+    assert!(!alpha_off.enabled);
+    assert!(load_mod(&dir.join("beta")).unwrap().manifest.enabled);
+    assert!(!load_mod(&dir.join("alpha")).unwrap().manifest.enabled);
+
+    // Negative control: unparseable JSON cannot be toggled or located as disableable.
+    assert!(set_mod_enabled(&dir.join("broken"), false).is_err());
+    assert_eq!(
+        find_mod_dir_by_id(&dir, &dir.join("broken").display().to_string()),
+        None
+    );
+
+    // Negative control: duplicate enabled IDs return None so recovery does not guess.
+    fs::remove_dir_all(dir.join("broken")).unwrap();
+    init_mod_dir(&dir.join("beta-dup"), &beta_on).unwrap();
+    assert_eq!(find_mod_dir_by_id(&dir, "beta"), None);
+
+    let _ = fs::remove_dir_all(&dir);
+}
