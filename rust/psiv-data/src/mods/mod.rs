@@ -222,7 +222,7 @@ impl fmt::Display for ModError {
 
 impl std::error::Error for ModError {}
 
-/// Checks whether `id` is a safe, portable mod slug.
+/// Checks whether `id` is a safe, portable mod slug across Unix and Windows.
 #[must_use]
 pub fn is_valid_mod_id(id: &str) -> bool {
     !id.is_empty()
@@ -230,6 +230,19 @@ pub fn is_valid_mod_id(id: &str) -> bool {
         && id
             .bytes()
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+        && !is_windows_reserved_name(id)
+}
+
+/// Whether `name` is a reserved Windows DOS device name (`CON`, `PRN`, `AUX`,
+/// `NUL`, `COM1`..`COM9`, `LPT1`..`LPT9`), which cannot be used reliably as a
+/// file or directory name on Windows.
+pub(crate) fn is_windows_reserved_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    matches!(lower.as_str(), "con" | "prn" | "aux" | "nul")
+        || matches!(
+            lower.as_bytes(),
+            [b'c', b'o', b'm', b'1'..=b'9'] | [b'l', b'p', b't', b'1'..=b'9']
+        )
 }
 
 /// Loads and validates a single mod directory's `mod.json`.

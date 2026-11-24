@@ -218,7 +218,8 @@ impl ModProfile {
 /// - Returns `None` for vanilla (`active.is_empty()`).
 /// - Uses mod IDs in load order, **never** versions, so updating a mod keeps
 ///   the player's saves in the same isolated directory.
-/// - Single mod: `<id>` (already validated `[a-z0-9_-]`, 1..=64 chars).
+/// - Single mod: `<id>` (already validated `[a-z0-9_-]`, 1..=64 chars; encodes
+///   reserved Windows device names defensively as `mod+<id>` if unvalidated).
 /// - Multiple mods: `<id1>+<id2>+...` when `<= 48` bytes; otherwise
 ///   `<first_prefix>+<count>mods+<16-hex-fnv1a64>`. Because `+` is disallowed
 ///   in mod IDs, single-mod, joined multi-mod, and hashed multi-mod slugs live
@@ -227,7 +228,13 @@ impl ModProfile {
 pub fn mod_save_profile_slug(active: &[ModManifest]) -> Option<String> {
     match active {
         [] => None,
-        [single] => Some(single.id.clone()),
+        [single] => {
+            if crate::mods::is_windows_reserved_name(&single.id) {
+                Some(format!("mod+{}", single.id))
+            } else {
+                Some(single.id.clone())
+            }
+        }
         many => {
             let joined = many
                 .iter()
