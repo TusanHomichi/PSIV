@@ -1,5 +1,65 @@
 {
   "$defs": {
+    "Cell": {
+      "additionalProperties": false,
+      "description": "A cell position as the pack spells it.",
+      "properties": {
+        "x_cell": {
+          "description": "Column, in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_cell": {
+          "description": "Row, in cells, already carrying the standing-cell shift.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x_cell",
+        "y_cell"
+      ],
+      "type": "object"
+    },
+    "CellRect": {
+      "additionalProperties": false,
+      "description": "A half-open rectangle of collision cells: `x..x + width`.",
+      "properties": {
+        "height": {
+          "description": "Height in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width": {
+          "description": "Width in cells. The packer never emits zero; it emits no rectangle.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x": {
+          "description": "Leftmost column, in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Topmost row, in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
     "ChunkDefCopy": {
       "additionalProperties": false,
       "description": "One `Chunk_Table` 16-word chunk-definition copy (`source_chunk` ->\n`dest_chunk`) resolved to every `(chunk_x, chunk_y)` cell on this map that\nreferences `dest_chunk` (`MapDataMan_Dezolis` `loc_525AC` /\n`Event_EclipseTorchUsed` `$07041E`, `#676`).",
@@ -42,6 +102,21 @@
         "tiles"
       ],
       "type": "object"
+    },
+    "ContentsType": {
+      "description": "What a chest holds. Byte 1 of the chest record selects between the two, and\nbyte 3 is read as whichever was selected.",
+      "oneOf": [
+        {
+          "const": "item",
+          "description": "Byte 3 is an inventory item id.",
+          "type": "string"
+        },
+        {
+          "const": "meseta",
+          "description": "Byte 3 is a meseta count, in hundreds.",
+          "type": "string"
+        }
+      ]
     },
     "ConveyorGroup": {
       "additionalProperties": false,
@@ -111,6 +186,31 @@
         "frames_set"
       ],
       "type": "object"
+    },
+    "Direction": {
+      "description": "One of the four facings.",
+      "oneOf": [
+        {
+          "const": "down",
+          "description": "Facing down the screen; the raw byte is 0.",
+          "type": "string"
+        },
+        {
+          "const": "up",
+          "description": "Raw byte 4.",
+          "type": "string"
+        },
+        {
+          "const": "right",
+          "description": "Raw byte 8.",
+          "type": "string"
+        },
+        {
+          "const": "left",
+          "description": "Raw byte `$C`.",
+          "type": "string"
+        }
+      ]
     },
     "EffectGate": {
       "additionalProperties": false,
@@ -350,6 +450,35 @@
       },
       "required": [
         "kind"
+      ],
+      "type": "object"
+    },
+    "Facing": {
+      "additionalProperties": false,
+      "description": "A facing direction, as `Map_Start_Facing_Dir` encodes it.",
+      "properties": {
+        "id": {
+          "description": "The raw byte: 0 down, 4 up, 8 right, `$C` left.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Direction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The decoded direction, or `None` for a byte outside those four."
+        }
+      },
+      "required": [
+        "id"
       ],
       "type": "object"
     },
@@ -800,6 +929,35 @@
       ],
       "type": "object"
     },
+    "MapId": {
+      "description": "A field-map id: an index into `FieldMapPtrs`, which the ROM addresses with\nthree hex digits (417 entries, so `0x000`..=`0x1A0`).\n\nDisplayed the way the disassembly and the extractor both write it -- `0x010`\n-- so an error message can be pasted straight into a symbol search.",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "MapRef": {
+      "additionalProperties": false,
+      "description": "A reference to another map.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/MapId",
+          "description": "The referenced map's id."
+        },
+        "symbol": {
+          "default": null,
+          "description": "Its `MapID_*` symbol, when it has one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
     "MapUpdatePatch": {
       "additionalProperties": false,
       "description": "One table entry, bound in the map's cartridge order.",
@@ -1223,6 +1381,121 @@
           "type": "string"
         }
       },
+      "type": "object"
+    },
+    "NpcNew": {
+      "additionalProperties": false,
+      "description": "A field object: townsfolk, guards, the ones that just stand there.",
+      "properties": {
+        "art_tile": {
+          "description": "First VRAM tile of the object's art.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "camera_bypass": {
+          "default": false,
+          "description": "Whether the object's type sets render-flags bit 0, bypassing both\ncamera-plane subtractions in `FieldObj_CalcSpritePos`.",
+          "type": "boolean"
+        },
+        "dialogue_id": {
+          "description": "Index into this map's dialogue tree.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "facing": {
+          "$ref": "#/$defs/Facing",
+          "description": "Which way the object faces."
+        },
+        "index": {
+          "description": "Position in this map's object list.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "interactable": {
+          "default": true,
+          "description": "Whether the object's type sets render-flags bit 3 (`$2(a3)`), which\nthe cartridge tests before BOTH the talk probe and object collision.\nA `false` here is a monster you can see, not speak to, and walk\nstraight through. Defaults `true` for packs predating the field.",
+          "type": "boolean"
+        },
+        "object_id": {
+          "description": "Byte offset into `FieldObjectsJmpTbl`; the object's behaviour routine.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "record_offset": {
+          "description": "Where the record sits in the ROM.",
+          "type": "string"
+        },
+        "sprite": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpriteRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "How to draw this object, when it has art: which sheet and sequences."
+        },
+        "sprite_reason": {
+          "default": null,
+          "description": "Why this object has no sprite (invisible trigger, vehicle-gated art,\n...) when `sprite` is `None`. Exactly one of the two is set.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "symbol": {
+          "default": null,
+          "description": "The routine's symbol, such as `NPCType2`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "x_cell": {
+          "description": "Column, in cells.\n\n`LoadMapObjects` places objects with `lsl.w #3`, so object coordinates\nare in 8-pixel units and 85 of the cartridge's 949 objects sit on a half\ncell. This is the floor -- the cell the object's collision reads from --\nand for those 85 it is lossy. [`Npc::x_pixels`] and [`Npc::y_pixels`]\nare the authoritative placement; prefer them for rendering, and use the\ncell for collision and lookup.\n\nChests and transitions are not like this: they store bytes already\nscaled by 16, so their cell is the stored byte with no division.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x_pixels": {
+          "description": "X in pixels, as the record stores it.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_cell": {
+          "description": "Row, in cells, with the standing-cell shift applied.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_pixels": {
+          "description": "Y in pixels, as the record stores it.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "record_offset",
+        "object_id",
+        "x_pixels",
+        "y_pixels",
+        "x_cell",
+        "y_cell",
+        "facing",
+        "dialogue_id",
+        "art_tile"
+      ],
       "type": "object"
     },
     "NpcPatch": {
@@ -1906,6 +2179,28 @@
       },
       "type": "object"
     },
+    "RangeRef": {
+      "additionalProperties": false,
+      "description": "An `XYRangeJmpTbl` entry, by index and name.",
+      "properties": {
+        "id": {
+          "description": "Index into `XYRangeJmpTbl`, `0..15`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "The disassembly's name for it, such as `XYExact`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "type": "object"
+    },
     "ResolvedCell": {
       "additionalProperties": false,
       "description": "A resolved collision cell for a `layout_write`.",
@@ -1956,6 +2251,201 @@
           "type": "string"
         }
       ]
+    },
+    "SpriteFacing": {
+      "description": "A sprite facing, tolerating the cartridge's one out-of-set byte.",
+      "oneOf": [
+        {
+          "const": "down",
+          "description": "Facing down.",
+          "type": "string"
+        },
+        {
+          "const": "up",
+          "description": "Facing up.",
+          "type": "string"
+        },
+        {
+          "const": "left",
+          "description": "Facing left.",
+          "type": "string"
+        },
+        {
+          "const": "right",
+          "description": "Facing right.",
+          "type": "string"
+        },
+        {
+          "const": "unknown",
+          "description": "A facing byte outside {0, 4, 8, $C}; drawn as down.",
+          "type": "string"
+        }
+      ]
+    },
+    "SpriteRef": {
+      "additionalProperties": false,
+      "description": "An object's binding to a sprite sheet.",
+      "properties": {
+        "facing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpriteFacing"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The object's facing, resolved for convenience. `Unknown` covers the\ncensus's one odd byte (AiedoPub object 2, facing `$10`) — preserved,\nnot rejected; renderers treat it as down."
+        },
+        "idle_sequence": {
+          "description": "Sequence to play at rest.",
+          "type": "string"
+        },
+        "sheet": {
+          "description": "Sheet id inside the index file named by `sheets`.",
+          "type": "string"
+        },
+        "sheets": {
+          "description": "The index file, pack-root-relative (`sprites/npcs.json`).",
+          "type": "string"
+        },
+        "walk_sequence": {
+          "description": "Sequence to play while moving.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sheet",
+        "sheets",
+        "idle_sequence",
+        "walk_sequence"
+      ],
+      "type": "object"
+    },
+    "TransitionTable": {
+      "description": "Which ROM transition table the warp came from (1 = normal, 2 = map change).",
+      "enum": [
+        1,
+        2
+      ],
+      "type": "integer"
+    },
+    "TreasureNew": {
+      "additionalProperties": false,
+      "description": "A treasure chest.",
+      "properties": {
+        "chest_flag": {
+          "description": "The save flag that remembers this chest was opened.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "contents_type": {
+          "$ref": "#/$defs/ContentsType",
+          "description": "Which of [`Treasure::item_id`] and [`Treasure::meseta`] is meaningful."
+        },
+        "index": {
+          "description": "Position in this map's chest list.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "item_id": {
+          "default": null,
+          "description": "Set when `contents_type` is [`ContentsType::Item`].",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "item_symbol": {
+          "default": null,
+          "description": "The item's symbol, when it holds an item.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "meseta": {
+          "default": null,
+          "description": "Set when `contents_type` is [`ContentsType::Meseta`]. Already multiplied\nout: the ROM stores hundreds.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "object_symbol": {
+          "default": null,
+          "description": "The chest object's symbol.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "record_offset": {
+          "description": "Where the record sits in the ROM.",
+          "type": "string"
+        },
+        "sprite": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpriteRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Original closed/open lid art in the shared field-object sheet index."
+        },
+        "white_chest": {
+          "description": "Whether this is one of the white chests.",
+          "type": "boolean"
+        },
+        "x_cell": {
+          "description": "Column, in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x_pixels": {
+          "description": "X in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_cell": {
+          "description": "Row, in cells, with the standing-cell shift applied.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_pixels": {
+          "description": "Y in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "record_offset",
+        "x_cell",
+        "y_cell",
+        "x_pixels",
+        "y_pixels",
+        "white_chest",
+        "contents_type",
+        "chest_flag"
+      ],
+      "type": "object"
     },
     "TreasurePatch": {
       "additionalProperties": false,
@@ -2194,6 +2684,81 @@
       ],
       "type": "object"
     },
+    "WarpNew": {
+      "additionalProperties": false,
+      "description": "A map transition.\n\nThe ROM stores a source coordinate and an `XYRangeJmpTbl` index, not a\nrectangle; the packer transcribes the fifteen routines into [`Warp::rect`]\nand clips it to the map, because five of them are open-ended half-planes.",
+      "properties": {
+        "character_alignment": {
+          "description": "The record's `character_alignment` byte; not decoded yet.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "destination": {
+          "$ref": "#/$defs/Cell",
+          "description": "Where the player lands on the target map, in that map's cells."
+        },
+        "facing": {
+          "$ref": "#/$defs/Facing",
+          "description": "Which way the player faces on arrival."
+        },
+        "index": {
+          "description": "Position in this map's warp list.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "range": {
+          "$ref": "#/$defs/RangeRef",
+          "description": "The `XYRangeJmpTbl` entry that produced [`Warp::rect`]."
+        },
+        "record_offset": {
+          "description": "Where the record sits in the ROM, for tracing back.",
+          "type": "string"
+        },
+        "rect": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CellRect"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The trigger area in cells, clipped to the map.\n\n`None` when the range produces no area at all -- `Null` never fires, and\na clipped half-plane can fall entirely outside the map. Such a warp is\ndead data, not an error; the manifest counts them."
+        },
+        "source": {
+          "$ref": "#/$defs/WarpSource",
+          "description": "The record's coordinate, raw and resolved."
+        },
+        "table": {
+          "$ref": "#/$defs/TransitionTable",
+          "description": "Which table the record came from."
+        },
+        "target": {
+          "$ref": "#/$defs/MapRef",
+          "description": "The map this transition leads to."
+        },
+        "trigger": {
+          "description": "The collision the player must be standing on for this table to be\nwalked: `any_walkable_tile` or `map_change_tile`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "table",
+        "trigger",
+        "record_offset",
+        "range",
+        "source",
+        "target",
+        "destination",
+        "facing",
+        "character_alignment"
+      ],
+      "type": "object"
+    },
     "WarpPatch": {
       "additionalProperties": false,
       "description": "A map transition.\n\nThe ROM stores a source coordinate and an `XYRangeJmpTbl` index, not a\nrectangle; the packer transcribes the fifteen routines into [`Warp::rect`]\nand clips it to the map, because five of them are open-ended half-planes.",
@@ -2394,6 +2959,43 @@
           "type": "string"
         }
       },
+      "type": "object"
+    },
+    "WarpSource": {
+      "additionalProperties": false,
+      "description": "A transition's source coordinate, raw and resolved.",
+      "properties": {
+        "x_byte": {
+          "description": "The raw X byte from the record.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x_cell": {
+          "description": "Column, in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_byte": {
+          "description": "The raw Y byte from the record, one row above the cell it means.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_cell": {
+          "description": "Row, in cells, with the standing-cell shift applied.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x_byte",
+        "y_byte",
+        "x_cell",
+        "y_cell"
+      ],
       "type": "object"
     }
   },
@@ -2840,9 +3442,26 @@
           "additionalProperties": {
             "$ref": "#/$defs/NpcPatch"
           },
-          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "description": "Sparse ID-keyed patch map keyed by `index`, plus optional `$add` list for adding new records.",
+          "properties": {
+            "$add": {
+              "description": "Explicit list of complete new records to append (each must carry a unique `index`).",
+              "items": {
+                "$ref": "#/$defs/NpcNew"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
           "propertyNames": {
-            "pattern": "^(0|[1-9][0-9]*)$"
+            "anyOf": [
+              {
+                "const": "$add"
+              },
+              {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              }
+            ]
           },
           "type": "object"
         },
@@ -3073,9 +3692,26 @@
           "additionalProperties": {
             "$ref": "#/$defs/TreasurePatch"
           },
-          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "description": "Sparse ID-keyed patch map keyed by `index`, plus optional `$add` list for adding new records.",
+          "properties": {
+            "$add": {
+              "description": "Explicit list of complete new records to append (each must carry a unique `index`).",
+              "items": {
+                "$ref": "#/$defs/TreasureNew"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
           "propertyNames": {
-            "pattern": "^(0|[1-9][0-9]*)$"
+            "anyOf": [
+              {
+                "const": "$add"
+              },
+              {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              }
+            ]
           },
           "type": "object"
         },
@@ -3208,9 +3844,26 @@
           "additionalProperties": {
             "$ref": "#/$defs/WarpPatch"
           },
-          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "description": "Sparse ID-keyed patch map keyed by `index`, plus optional `$add` list for adding new records.",
+          "properties": {
+            "$add": {
+              "description": "Explicit list of complete new records to append (each must carry a unique `index`).",
+              "items": {
+                "$ref": "#/$defs/WarpNew"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
           "propertyNames": {
-            "pattern": "^(0|[1-9][0-9]*)$"
+            "anyOf": [
+              {
+                "const": "$add"
+              },
+              {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              }
+            ]
           },
           "type": "object"
         },

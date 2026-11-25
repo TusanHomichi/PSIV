@@ -22,6 +22,7 @@ mod grid;
 #[cfg(test)]
 mod guide_tests;
 mod inventory;
+mod keyed;
 mod map_art;
 mod overlay;
 #[cfg(test)]
@@ -30,11 +31,14 @@ mod patch;
 mod profile;
 mod schema_check;
 mod schema_gen;
+mod schema_gen_keyed;
 #[cfg(test)]
 mod schema_tests;
 mod tables;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_additive;
 #[cfg(test)]
 mod tests_shareability;
 #[cfg(test)]

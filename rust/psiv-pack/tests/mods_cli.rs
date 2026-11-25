@@ -260,8 +260,8 @@ fn modding_guide_examples_pass_psiv_pack_mod_check() {
     }
     assert_eq!(
         json_blocks.len(),
-        4,
-        "expected manifest + enemy + dialogue + map collision JSON examples in docs/MODDING.md"
+        5,
+        "expected manifest + enemy + dialogue + map collision + additive formation JSON examples in docs/MODDING.md"
     );
 
     let binary = env!("CARGO_BIN_EXE_psiv-pack");
@@ -275,6 +275,11 @@ fn modding_guide_examples_pass_psiv_pack_mod_check() {
     fs::write(mod_dir.join("patches/battle/enemies.json"), &json_blocks[1]).unwrap();
     fs::write(mod_dir.join("patches/dialogue/trees.json"), &json_blocks[2]).unwrap();
     fs::write(mod_dir.join("patches/maps/010_Piata.json"), &json_blocks[3]).unwrap();
+    fs::write(
+        mod_dir.join("patches/battle/formations.json"),
+        &json_blocks[4],
+    )
+    .unwrap();
 
     let ok = Command::new(binary)
         .args(["mod", "check"])
@@ -289,7 +294,7 @@ fn modding_guide_examples_pass_psiv_pack_mod_check() {
     );
     let stdout = String::from_utf8_lossy(&ok.stdout);
     assert!(
-        stdout.contains("ok: 1 mod(s), 3 patched file(s)"),
+        stdout.contains("ok: 1 mod(s), 4 patched file(s)"),
         "{stdout}"
     );
 
@@ -555,4 +560,161 @@ fn mod_diff_refuses_derived_copies_by_default_and_supports_sparse_cells_and_opt_
     }
 
     let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn mod_diff_and_check_round_trip_additive_records() {
+    let Some(pack) = real_pack() else {
+        eprintln!("runtime-pack absent; skipping psiv-pack additive CLI test");
+        return;
+    };
+
+    let binary = env!("CARGO_BIN_EXE_psiv-pack");
+    let scratch =
+        std::env::temp_dir().join(format!("psiv-pack-mod-additive-cli-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&scratch);
+    fs::create_dir_all(&scratch).unwrap();
+
+    let base_game = psiv_data::GameData::load(&pack).unwrap();
+    let base_battle = psiv_data::BattleFiles::load(&pack).unwrap();
+    let piata = base_game.map(psiv_data::MapId(0x010)).unwrap();
+    let tree_id = piata.dialogue_tree;
+    let next_dlg_id = base_game
+        .dialogue()
+        .unwrap()
+        .tree(tree_id)
+        .unwrap()
+        .entries
+        .len();
+    let next_form_id = base_battle.formations.formations.len();
+    let next_chest_idx = piata.treasure_chests.len();
+
+    let mod_dir = scratch.join("add-cli");
+    let init = Command::new(binary)
+        .args(["mod", "init"])
+        .arg(&mod_dir)
+        .args(["--id", "add-cli", "--name", "Add CLI"])
+        .output()
+        .unwrap();
+    assert!(init.status.success());
+
+    fs::create_dir_all(mod_dir.join("patches/dialogue")).unwrap();
+    fs::create_dir_all(mod_dir.join("patches/maps")).unwrap();
+    fs::create_dir_all(mod_dir.join("patches/battle")).unwrap();
+    fs::write(
+        mod_dir.join("patches/dialogue/trees.json"),
+        format!(
+            r#"{{"trees":{{"{tree_id}":{{"entries":{{"$add":[{{"id":{next_dlg_id},"lines":["CLI added line!"]}}]}}}}}}}}"#
+        ),
+    )
+    .unwrap();
+    fs::write(
+        mod_dir.join("patches/maps/010_Piata.json"),
+        format!(
+            r#"{{"treasure_chests":{{"$add":[{{"index":{next_chest_idx},"record_offset":"0x0","x_cell":2,"y_cell":3,"x_pixels":32,"y_pixels":32,"white_chest":false,"object_symbol":"TreasureChest","sprite":null,"contents_type":"item","item_id":125,"item_symbol":"Monomate","meseta":null,"chest_flag":250}}]}}}}"#
+        ),
+    )
+    .unwrap();
+    fs::write(
+        mod_dir.join("patches/battle/formations.json"),
+        format!(
+            r#"{{"formations":{{"$add":[{{"id":{next_form_id},"ambush_chance":0,"run_chance":0,"can_run":true,"drop_rate":0,"drop_item":null,"count":1,"count_matches_entries":true,"enemies":[{{"slot":1,"enemy_id":10,"position":14}}]}}]}}}}"#
+        ),
+    )
+    .unwrap();
+
+    let check = Command::new(binary)
+        .args(["mod", "check"])
+        .arg(&pack)
+        .arg(&mod_dir)
+        .output()
+        .unwrap();
+    assert!(
+        check.status.success(),
+        "mod check failed on additive mod: {}",
+        String::from_utf8_lossy(&check.stderr)
+    );
+
+    let loaded = psiv_data::mods::load_mod(&mod_dir).unwrap();
+    let overlay = psiv_data::mods::PackOverlay::load(&pack, &[loaded]).unwrap();
+    let edited_copy = scratch.join("edited-pack");
+    materialize_pack_copy(&pack, &overlay, &edited_copy);
+
+    let exported = scratch.join("exported-add");
+    let diff = Command::new(binary)
+        .args(["mod", "diff"])
+        .arg(&pack)
+        .arg(&edited_copy)
+        .arg(&exported)
+        .args(["--id", "exported-add", "--name", "Exported Add"])
+        .output()
+        .unwrap();
+    assert!(
+        diff.status.success(),
+        "strict mod diff failed on additive records: {}",
+        String::from_utf8_lossy(&diff.stderr)
+    );
+
+    let recheck = Command::new(binary)
+        .args(["mod", "check"])
+        .arg(&pack)
+        .arg(&exported)
+        .output()
+        .unwrap();
+    assert!(
+        recheck.status.success(),
+        "recheck of diffed additive mod failed: {}",
+        String::from_utf8_lossy(&recheck.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn additive_keyed_record_patch_and_diff_work_without_rom() {
+    let base = serde_json::json!({
+        "formation_count": 1,
+        "formations": [{
+            "id": 0,
+            "ambush_chance": 0,
+            "run_chance": 0,
+            "can_run": true,
+            "drop_rate": 0,
+            "drop_item": null,
+            "count": 1,
+            "count_matches_entries": true,
+            "enemies": [{"slot": 1, "enemy_id": 10, "position": 14}]
+        }]
+    });
+    let patch = serde_json::json!({
+        "formations": {
+            "$add": [{
+                "id": 504,
+                "ambush_chance": 0,
+                "run_chance": 0,
+                "can_run": true,
+                "drop_rate": 0,
+                "drop_item": null,
+                "count": 1,
+                "count_matches_entries": true,
+                "enemies": [{"slot": 1, "enemy_id": 10, "position": 14}]
+            }]
+        }
+    });
+
+    let mut applied = base.clone();
+    psiv_data::mods::apply_json_patch(&mut applied, &patch, "battle/formations.json")
+        .expect("additive formation patch must apply");
+    assert_eq!(applied["formation_count"], 2);
+    assert_eq!(applied["formations"].as_array().unwrap().len(), 2);
+
+    let diff = psiv_data::mods::diff_json(&base, &applied, "battle/formations.json")
+        .expect("diffing appended formation must emit $add")
+        .expect("diff must be non-empty");
+    assert!(diff["formations"]["$add"].is_array(), "{diff}");
+
+    let mut reapplied = base;
+    psiv_data::mods::apply_json_patch(&mut reapplied, &diff, "battle/formations.json")
+        .expect("diffed $add patch must reapply");
+    assert_eq!(reapplied, applied);
 }

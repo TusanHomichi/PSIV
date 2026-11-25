@@ -498,6 +498,89 @@
         }
       ]
     },
+    "DialogueEntryNew": {
+      "description": "Complete new dialogue entry (either full `text`/`segments`/`pages` record or concise `lines` shorthand).",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "One entry: what an NPC says, from the byte after the previous `$FF` to the\nnext one.",
+          "properties": {
+            "id": {
+              "description": "Entry id within its tree.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "pages": {
+              "description": "What the cartridge's text loop would show, window by window. The\nrenderer derives the same thing from `segments` at runtime; this is the\nextractor's own answer, which makes it the oracle the runtime is tested\nagainst.",
+              "items": {
+                "$ref": "#/$defs/Page"
+              },
+              "type": "array"
+            },
+            "segments": {
+              "description": "The byte stream regrouped: text runs and control codes in order.",
+              "items": {
+                "$ref": "#/$defs/Segment"
+              },
+              "type": "array"
+            },
+            "text": {
+              "description": "The decoded text with `$FC` newlines as `\\n` and control codes\ndropped; for logs and searching, never for layout.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "text",
+            "segments",
+            "pages"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Concise new dialogue entry using `lines` shorthand (automatically expanded into `segments`, `pages`, and `text`).",
+          "properties": {
+            "id": {
+              "description": "Entry id within its tree.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "lines": {
+              "description": "Dialogue lines shorthand: a single page of lines (`[\"Line 1\", \"Line 2\"]`) or multiple pages (`[[\"P1 L1\", \"P1 L2\"], [\"P2\"]]`).",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                },
+                {
+                  "items": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "lines"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "DialogueEntryPatch": {
       "additionalProperties": false,
       "dependentRequired": {
@@ -520,7 +603,7 @@
           "type": "boolean"
         },
         "lines": {
-          "description": "Dialogue patch shorthand: replaces entry text cleanly as a single page of lines (`[\"Line 1\", \"Line 2\"]`) or multiple pages (`[[\"P1 L1\", \"P1 L2\"], [\"P2\"]]`).",
+          "description": "Dialogue lines shorthand: a single page of lines (`[\"Line 1\", \"Line 2\"]`) or multiple pages (`[[\"P1 L1\", \"P1 L2\"], [\"P2\"]]`).",
           "oneOf": [
             {
               "items": {
@@ -591,9 +674,26 @@
               "additionalProperties": {
                 "$ref": "#/$defs/DialogueEntryPatch"
               },
-              "description": "Sparse ID-keyed patch map keyed by `id`.",
+              "description": "Sparse ID-keyed patch map keyed by `id`, plus optional `$add` list for adding new records.",
+              "properties": {
+                "$add": {
+                  "description": "Explicit list of complete new records to append (each must carry a unique `id`).",
+                  "items": {
+                    "$ref": "#/$defs/DialogueEntryNew"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                }
+              },
               "propertyNames": {
-                "pattern": "^(0|[1-9][0-9]*)$"
+                "anyOf": [
+                  {
+                    "const": "$add"
+                  },
+                  {
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  }
+                ]
               },
               "type": "object"
             },

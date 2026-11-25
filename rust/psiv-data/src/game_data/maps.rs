@@ -56,16 +56,74 @@ pub(super) fn validate_map(record: &MapRecord) -> Result<(), DataError> {
         ));
     }
 
+    let mut seen_npcs = std::collections::BTreeSet::new();
     for (index, npc) in record.npcs.iter().enumerate() {
-        check_in_bounds(id, dims, npc.pos(), &format!("npcs[{index}]"))?;
+        if !seen_npcs.insert(npc.index) {
+            return Err(DataError::validation(
+                id,
+                format!("npcs[{index}].index"),
+                format!("duplicate npc index {}", npc.index),
+            ));
+        }
+        if crate::field_objects::field_object_symbol(npc.object_id).is_none() {
+            return Err(DataError::validation(
+                id,
+                format!("npcs[{index}].object_id"),
+                format!(
+                    "npc index {}: unknown field object_id {} (not in FieldObjectsJmpTbl)",
+                    npc.index, npc.object_id
+                ),
+            ));
+        }
+        check_in_bounds(
+            id,
+            dims,
+            npc.pos(),
+            &format!("npcs[{index}] (index {})", npc.index),
+        )?;
+        check_pixels_in_bounds(
+            id,
+            dims,
+            npc.x_pixels,
+            npc.y_pixels,
+            &format!("npcs[{index}] (index {})", npc.index),
+        )?;
     }
 
+    let mut seen_chests = std::collections::BTreeSet::new();
     for (index, chest) in record.treasure_chests.iter().enumerate() {
-        check_in_bounds(id, dims, chest.pos(), &format!("treasure_chests[{index}]"))?;
+        if !seen_chests.insert(chest.index) {
+            return Err(DataError::validation(
+                id,
+                format!("treasure_chests[{index}].index"),
+                format!("duplicate treasure chest index {}", chest.index),
+            ));
+        }
+        check_in_bounds(
+            id,
+            dims,
+            chest.pos(),
+            &format!("treasure_chests[{index}] (index {})", chest.index),
+        )?;
+        check_pixels_in_bounds(
+            id,
+            dims,
+            chest.x_pixels,
+            chest.y_pixels,
+            &format!("treasure_chests[{index}] (index {})", chest.index),
+        )?;
         validate_treasure_contents(id, index, chest)?;
     }
 
+    let mut seen_warps = std::collections::BTreeSet::new();
     for (index, warp) in record.warps.iter().enumerate() {
+        if !seen_warps.insert(warp.index) {
+            return Err(DataError::validation(
+                id,
+                format!("warps[{index}].index"),
+                format!("duplicate warp index {}", warp.index),
+            ));
+        }
         validate_warp_geometry(id, dims, index, warp)?;
     }
 
@@ -278,6 +336,26 @@ pub(super) fn check_in_bounds(
             format!(
                 "cell ({}, {}) is outside the {}x{} map",
                 pos.x, pos.y, dims.width_cells, dims.height_cells
+            ),
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn check_pixels_in_bounds(
+    id: MapId,
+    dims: &Dimensions,
+    x_pixels: u32,
+    y_pixels: u32,
+    field: &str,
+) -> Result<(), DataError> {
+    if x_pixels >= dims.width_pixels || y_pixels >= dims.height_pixels {
+        return Err(DataError::validation(
+            id,
+            field.to_string(),
+            format!(
+                "pixel ({x_pixels}, {y_pixels}) is outside the {}x{}px map",
+                dims.width_pixels, dims.height_pixels
             ),
         ));
     }

@@ -164,7 +164,19 @@ in sync by unit tests and `psiv-pack mod schema docs/schemas --check`). Under
 - **ID-keyed record arrays** accept either an ID-keyed object
   (`{"10": {"hp": 99}}`) or an array of partial objects carrying that key
   (`[{"id": 10, "hp": 99}]`), with strict unknown-field rejection
-  (`additionalProperties: false`).
+  (`additionalProperties: false`). Targeting an unknown ID in an edit patch
+  always fails closed so a typo never silently creates a broken record.
+- **Explicit additive record creation (`"$add"`)** is supported in the
+  data-driven tables below:
+  - `dialogue/trees.json` → `trees.*.entries` (keyed by `id`; accepts complete
+    entries or `{"id": <n>, "lines": [...]}` shorthand);
+  - `maps/<id>_<symbol>.json` → `npcs`, `treasure_chests`, `warps` (keyed by
+    `index`);
+  - `battle/formations.json` → `formations` (keyed by `id`).
+  New records live in an explicit `"$add": [ ... ]` list inside the table's
+  object patch, must carry all required fields (enforced by both the published
+  JSON Schemas and the runtime loader), and automatically keep table-level
+  counts (`formation_count`, `entry_count`) consistent.
 - **2D tile/cell grids** (`collision.rows`, `vehicle_battle.rows`,
   `layout_variants.*.collision.rows`, `layout_variants.*.vehicle_battle.rows`,
   and `battle/formations.json` `position_grids.*.cells`) accept a sparse cell
@@ -278,6 +290,58 @@ where `row` is `y` (`0..height_cells`), `col` is `x` (`0..width_cells`), and
 Out-of-bounds coordinates, invalid codes (`> 15`), duplicate `(row, col)`
 targets, and unknown fields are rejected fail-closed.
 
+## Example 4: add new records (`"$add"`)
+
+To append a new record to an additive-capable ID-keyed table — `trees.*.entries`
+in `dialogue/trees.json`, `npcs` / `treasure_chests` / `warps` in
+`maps/<id>_<symbol>.json`, or `formations` in `battle/formations.json` — place
+complete records under an explicit `"$add"` array inside the table patch. For
+example, `patches/battle/formations.json` can add formation `504` (two Zoran
+Bults) without copying the retail formation list or hardcoding `formation_count`:
+
+```json
+{
+  "formations": {
+    "$add": [
+      {
+        "id": 504,
+        "ambush_chance": 0,
+        "run_chance": 0,
+        "can_run": true,
+        "drop_rate": 0,
+        "drop_item": null,
+        "count": 2,
+        "count_matches_entries": true,
+        "enemies": [
+          { "slot": 1, "enemy_id": 10, "position": 14 },
+          { "slot": 2, "enemy_id": 10, "position": 26 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Additive rules across mods and `psiv-pack mod diff`:
+
+- **Fail-closed edits vs. additions:** editing a nonexistent ID (e.g.
+  `{"504": {"run_chance": 8}}`) still fails closed; only `"$add"` creates a new
+  record, and every added record must satisfy the full schema and all
+  cross-references (existing enemy/item/dialogue/sprite/map IDs and in-bounds
+  map coordinates).
+- **Deterministic multi-mod ordering and conflicts:** added records append after
+  base records in `(mod load order, $add array order)`. Positional tables
+  (`trees.*.entries`, `npcs`, `treasure_chests`, `warps`) require sequential
+  dense IDs/indexes matching their resulting list position. A later mod may edit
+  a record added by an earlier mod using normal `"<id>": {...}` syntax, while
+  adding an ID that already exists in the base pack or was already added by
+  another active mod fails closed naming the mod, file, and conflicting ID.
+- **Automatic count reconciliation & diff round-trip:** `formation_count` and
+  dialogue `entry_count` update automatically when records are added, and
+  `psiv-pack mod diff` exports appended records cleanly under `"$add"` (using
+  `lines` shorthand for plain new dialogue entries) so exported mods stay
+  shareable and composable.
+
 ## Replacing map and sprite art
 
 Place replacement PNGs under `assets/` at the same pack-relative path (for
@@ -330,8 +394,11 @@ psiv-pack mod check runtime-pack mods/my-mod
 By default, `psiv-pack mod diff` fails closed so exported mods never leak
 cartridge-derived base data:
 
-- **Allowed by default:** sparse ID-keyed table edits, sparse cell-level grid
-  edits (`collision.rows`, `vehicle_battle.rows`, `layout_variants.*.collision.rows`,
+- **Allowed by default:** sparse ID-keyed table edits, newly appended records in
+  additive-capable tables (`"$add"` in `dialogue/trees.json` `trees.*.entries`,
+  `maps/*.json` `npcs`/`treasure_chests`/`warps`, and `battle/formations.json`
+  `formations`), sparse cell-level grid edits (`collision.rows`,
+  `vehicle_battle.rows`, `layout_variants.*.collision.rows`,
   `position_grids.*.cells`), dialogue text edits (exported as `replace` /
   `lines` shorthands), scalar/object field edits, and **brand-new** asset files
   whose path does not exist in `runtime-pack/`.

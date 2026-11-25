@@ -108,6 +108,8 @@ fn classify_block(block: &GuideJsonBlock) -> GuideTarget {
         GuideTarget::Manifest
     } else if block.context.contains("patches/battle/enemies.json") {
         GuideTarget::Patch("battle/enemies.json")
+    } else if block.context.contains("patches/battle/formations.json") {
+        GuideTarget::Patch("battle/formations.json")
     } else if block.context.contains("dialogue/trees.json") {
         GuideTarget::Patch("dialogue/trees.json")
     } else if block.context.contains("patches/maps/010_Piata.json") {
@@ -278,13 +280,34 @@ fn synthetic_map_json() -> Value {
     })
 }
 
+fn synthetic_formations_json() -> Value {
+    json!({
+        "format_version": PACK_FORMAT_VERSION,
+        "formation_count": 1,
+        "boss_formation_count": 0,
+        "formations": [{
+            "id": 0,
+            "ambush_chance": 0,
+            "run_chance": 0,
+            "can_run": true,
+            "drop_rate": 0,
+            "drop_item": null,
+            "count": 1,
+            "count_matches_entries": true,
+            "enemies": [{"slot": 1, "enemy_id": 10, "position": 14}]
+        }],
+        "boss_formations": [],
+        "inline_formations": []
+    })
+}
+
 #[test]
 fn modding_guide_examples_parse_and_validate_against_schema() {
     let markdown = fs::read_to_string(modding_md_path()).expect("read docs/MODDING.md");
     let blocks = extract_json_blocks(&markdown);
     assert!(
-        blocks.len() >= 4,
-        "expected manifest + enemy + dialogue + map collision JSON examples in docs/MODDING.md, found {}",
+        blocks.len() >= 5,
+        "expected manifest + enemy + dialogue + map collision + additive formation JSON examples in docs/MODDING.md, found {}",
         blocks.len()
     );
 
@@ -292,6 +315,7 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
     let mut enemy_patch: Option<Value> = None;
     let mut dialogue_patch: Option<Value> = None;
     let mut map_patch: Option<Value> = None;
+    let mut formation_patch: Option<Value> = None;
 
     for block in &blocks {
         let parsed: Value = serde_json::from_str(&block.body).unwrap_or_else(|err| {
@@ -317,6 +341,25 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
                     serde_json::from_value(base).expect("patched EnemiesFile must satisfy schema");
                 assert_eq!(typed.enemies[0].hp, 99);
                 enemy_patch = Some(parsed);
+            }
+            GuideTarget::Patch("battle/formations.json") => {
+                let mut base = synthetic_formations_json();
+                apply_json_patch(&mut base, &parsed, "battle/formations.json")
+                    .expect("MODDING.md formation patch must apply");
+                let typed: crate::battle::FormationsFile = serde_json::from_value(base.clone())
+                    .expect("patched FormationsFile must satisfy schema");
+                assert_eq!(typed.formation_count, 2);
+                assert_eq!(typed.formations.len(), 2);
+                assert_eq!(typed.formations[1].id, Some(504));
+                let diff = diff_json(
+                    &synthetic_formations_json(),
+                    &base,
+                    "battle/formations.json",
+                )
+                .expect("strict diff_json must accept appended formation")
+                .expect("non-empty formation diff");
+                assert_eq!(diff, parsed);
+                formation_patch = Some(parsed);
             }
             GuideTarget::Patch("dialogue/trees.json") => {
                 let mut base = synthetic_trees_json();
@@ -367,6 +410,8 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
     let dialogue_patch =
         dialogue_patch.expect("docs/MODDING.md missing dialogue/trees.json example");
     let map_patch = map_patch.expect("docs/MODDING.md missing maps/010_Piata.json example");
+    let formation_patch =
+        formation_patch.expect("docs/MODDING.md missing battle/formations.json example");
 
     // Negative control (always runs, even without runtime-pack): the bad HP value
     // documented under `## When an edit does not fit` must fail EnemiesFile parsing.
@@ -399,6 +444,11 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
     )
     .unwrap();
     fs::write(
+        mod_dir.join("patches/battle/formations.json"),
+        serde_json::to_string_pretty(&formation_patch).unwrap(),
+    )
+    .unwrap();
+    fs::write(
         mod_dir.join("patches/dialogue/trees.json"),
         serde_json::to_string_pretty(&dialogue_patch).unwrap(),
     )
@@ -416,6 +466,7 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
         overlay.patched_files(),
         &[
             "battle/enemies.json",
+            "battle/formations.json",
             "dialogue/trees.json",
             "maps/010_Piata.json"
         ]
@@ -424,6 +475,13 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
     let battle = BattleFiles::load_overlay(&overlay).unwrap();
     let zoran = battle.enemies.enemies.iter().find(|e| e.id == 10).unwrap();
     assert_eq!(zoran.hp, 99);
+    assert!(
+        battle
+            .formations
+            .formations
+            .iter()
+            .any(|f| f.id == Some(504))
+    );
     let game = GameData::load_overlay(&overlay).unwrap();
     let piata = game.map(crate::MapId(0x010)).unwrap();
     assert_eq!(
@@ -441,7 +499,7 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
         .unwrap();
     assert!(entry.text.contains("Glad to see you in one piece!"));
 
-    // Strict default diff_packs must round-trip all three guide examples cleanly.
+    // Strict default diff_packs must round-trip all four guide examples cleanly.
     let edited_copy = scratch.join("edited-guide");
     tests::materialize_overlay_for_diff_test(&overlay, &edited_copy);
     let exported = scratch.join("exported-guide");
@@ -456,6 +514,7 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
         exported_summary.patches,
         vec![
             "battle/enemies.json",
+            "battle/formations.json",
             "dialogue/trees.json",
             "maps/010_Piata.json"
         ]

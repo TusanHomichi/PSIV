@@ -37,7 +37,7 @@ fn write_file(root: &Path, rel: &str, bytes: &[u8]) {
 /// Writes a minimal, fully valid synthetic pack that passes `GameData::load`
 /// and `BattleFiles::load`, including dialogue, live-palette map redirects,
 /// and enemy battle tables.
-fn write_synthetic_pack(base: &Path) {
+pub(super) fn write_synthetic_pack(base: &Path) {
     let version = PACK_FORMAT_VERSION;
     let piata = MapJson::default();
     let academy = MapJson::academy();
@@ -47,8 +47,11 @@ fn write_synthetic_pack(base: &Path) {
         manifest_text(version, &[&piata, &academy], SKIPPED_MOTAVIA, "").as_bytes(),
     );
 
-    // Inject live-palette `map_update_images` redirects into Piata's map JSON.
+    // Inject live-palette `map_update_images` redirects and align dialogue_tree /
+    // dialogue_id with the synthetic tree 1 below.
     let mut piata_json: serde_json::Value = serde_json::from_str(&piata.text()).unwrap();
+    piata_json["dialogue_tree"] = json!(1);
+    piata_json["npcs"][0]["dialogue_id"] = json!(0);
     piata_json["map_update_images"] = json!({
         "maps/010_Piata.png": "maps/010_Piata_indices.png",
         "maps/010_Piata_over.png": "maps/010_Piata_over_indices.png"
@@ -60,7 +63,15 @@ fn write_synthetic_pack(base: &Path) {
             .unwrap()
             .as_bytes(),
     );
-    write_file(base, &academy.json_name(), academy.text().as_bytes());
+    let mut academy_json: serde_json::Value = serde_json::from_str(&academy.text()).unwrap();
+    academy_json["dialogue_tree"] = json!(1);
+    write_file(
+        base,
+        &academy.json_name(),
+        serde_json::to_string_pretty(&academy_json)
+            .unwrap()
+            .as_bytes(),
+    );
     write_file(base, "maps/010_Piata.png", b"base-piata-png");
     write_file(base, "maps/010_Piata_indices.png", b"base-piata-idx");
     write_file(base, "maps/010_Piata_over.png", b"base-piata-over");
@@ -402,9 +413,34 @@ fn write_synthetic_pack(base: &Path) {
         "battle/equipment.json",
         json!({
             "format_version": version,
-            "count": 0,
-            "types": [],
-            "items": []
+            "count": 1,
+            "types": [{
+                "type": 1,
+                "name": "consumable",
+                "slot": null,
+                "two_handed": false,
+                "is_weapon": false,
+                "multi_target": false,
+                "equippable": false,
+                "element_role": null
+            }],
+            "items": [{
+                "id": 125,
+                "symbol": "Monomate",
+                "display_name": "MONOMATE",
+                "meseta_cost": 10,
+                "type": {"id": 1, "name": "consumable"},
+                "bonuses": {
+                    "strength": 0, "mental": 0, "agility": 0, "dexterity": 0,
+                    "attack": 0, "defense": 0, "magic_defense": 0
+                },
+                "element": {"id": 0, "name": "none", "role": null},
+                "is_weapon": false,
+                "multi_target": false,
+                "two_handed": false,
+                "post_attack_effect_id": null,
+                "equippable_by_mask": "0x0000"
+            }]
         })
         .to_string()
         .as_bytes(),

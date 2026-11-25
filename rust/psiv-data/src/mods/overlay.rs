@@ -14,11 +14,13 @@
 
 use super::{
     DiscoveredMod, MOD_ASSETS_DIR, MOD_PATCHES_DIR, ModError, ModManifest, collect_relative_files,
-    map_art, normalize_rel, patch, reject_duplicate_mod_ids,
+    map_art, normalize_rel,
+    patch::{self, AddedRecordOwners, TouchedRecords},
+    reject_duplicate_mod_ids,
 };
 use crate::error::DataError;
-use crate::{BattleFiles, GameData};
-use std::collections::BTreeMap;
+use crate::{BattleFiles, ContentsType, GameData, MapId};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -62,6 +64,8 @@ pub struct PackOverlay {
     overrides: BTreeMap<String, FileOverride>,
     provenance: BTreeMap<String, String>,
     asset_layers: BTreeMap<String, usize>,
+    added_record_owners: AddedRecordOwners,
+    touched_records: TouchedRecords,
 }
 
 impl PackOverlay {
@@ -76,6 +80,8 @@ impl PackOverlay {
             overrides: BTreeMap::new(),
             provenance: BTreeMap::new(),
             asset_layers: BTreeMap::new(),
+            added_record_owners: AddedRecordOwners::new(),
+            touched_records: TouchedRecords::new(),
         }
     }
 
@@ -122,6 +128,8 @@ impl PackOverlay {
             overrides: BTreeMap::new(),
             provenance: BTreeMap::new(),
             asset_layers: BTreeMap::new(),
+            added_record_owners: AddedRecordOwners::new(),
+            touched_records: TouchedRecords::new(),
         };
         let mut patched_set: BTreeMap<String, ()> = BTreeMap::new();
 
@@ -180,11 +188,17 @@ impl PackOverlay {
                                 format!("invalid patch JSON: {error}"),
                             )
                         })?;
-                    patch::apply_json_patch(&mut base_json, &patch_json, &rel_str).map_err(
-                        |detail| {
-                            ModError::new(mod_id, format!("{MOD_PATCHES_DIR}/{rel_str}"), detail)
-                        },
-                    )?;
+                    patch::apply_json_patch_tracked(
+                        &mut base_json,
+                        &patch_json,
+                        &rel_str,
+                        mod_id,
+                        &mut overlay.added_record_owners,
+                        &mut overlay.touched_records,
+                    )
+                    .map_err(|detail| {
+                        ModError::new(mod_id, format!("{MOD_PATCHES_DIR}/{rel_str}"), detail)
+                    })?;
                     let rendered = serde_json::to_string(&base_json).map_err(|error| {
                         ModError::new(
                             mod_id,
@@ -228,8 +242,9 @@ impl PackOverlay {
         Ok(overlay)
     }
 
-    /// Runs the full fail-closed schema loaders against this overlay and
-    /// attributes any defect to the offending mod, file, and location.
+    /// Runs the full fail-closed schema loaders and cross-table reference
+    /// checks against this overlay and attributes any defect to the offending
+    /// mod, file, and location.
     pub fn validate(&self) -> Result<ValidatedPack, ModError> {
         let game_data =
             GameData::load_overlay(self).map_err(|error| self.attribute_data_error(&error))?;
@@ -241,6 +256,8 @@ impl PackOverlay {
         } else {
             None
         };
+        self.validate_cross_pack_refs(&game_data, battle_files.as_ref())
+            .map_err(|error| self.attribute_data_error_with_maps(&error, Some(&game_data)))?;
         let command_ui_art = if self.is_file(crate::battle::COMMAND_UI_ART_PATH) {
             Some(
                 crate::battle::CommandUiArt::load_overlay(self)
@@ -263,6 +280,81 @@ impl PackOverlay {
             command_ui_art,
             damage_digit_art,
         })
+    }
+
+    /// Validates cross-pack references spanning `maps/*.json`,
+    /// `battle/equipment.json`, and `dialogue/trees.json`.
+    fn validate_cross_pack_refs(
+        &self,
+        game_data: &GameData,
+        battle_files: Option<&BattleFiles>,
+    ) -> Result<(), DataError> {
+        if let Some(battle) = battle_files {
+            let valid_items: BTreeSet<u16> = battle
+                .equipment
+                .items
+                .iter()
+                .map(|item| u16::from(item.id))
+                .collect();
+            for (map_id, record) in game_data.maps() {
+                for (pos, chest) in record.treasure_chests.iter().enumerate() {
+                    if chest.contents_type == ContentsType::Item
+                        && let Some(item_id) = chest.item_id
+                        && !valid_items.contains(&item_id)
+                    {
+                        return Err(DataError::validation(
+                            map_id,
+                            format!("treasure_chests[{pos}].item_id"),
+                            format!(
+                                "treasure chest index {} references unknown item_id {item_id} (not in battle/equipment.json)",
+                                chest.index
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+
+        // Strict check for any mod-added or mod-edited NPC dialogue reference
+        // (even on retail MileHouse maps).
+        if let Some(dialogue) = game_data.dialogue() {
+            for (map_id, record) in game_data.maps() {
+                let Some(rel_file) = game_data
+                    .manifest()
+                    .entry(map_id)
+                    .map(|entry| entry.json.as_str())
+                else {
+                    continue;
+                };
+                for (pos, npc) in record.npcs.iter().enumerate() {
+                    let key = (
+                        rel_file.to_owned(),
+                        "npcs".to_owned(),
+                        npc.index.to_string(),
+                    );
+                    if !self.touched_records.contains(&key) {
+                        continue;
+                    }
+                    if dialogue
+                        .entry(record.dialogue_tree, npc.dialogue_id)
+                        .is_none()
+                    {
+                        let count = dialogue
+                            .tree(record.dialogue_tree)
+                            .map_or(0, |t| t.entries.len());
+                        return Err(DataError::validation(
+                            map_id,
+                            format!("npcs[{pos}].dialogue_id"),
+                            format!(
+                                "npc index {} references dialogue_id {} in tree {}, which has {count} entries",
+                                npc.index, npc.dialogue_id, record.dialogue_tree
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// The unmodified base pack directory.
@@ -414,14 +506,24 @@ impl PackOverlay {
     }
 
     fn attribute_data_error(&self, error: &DataError) -> ModError {
+        self.attribute_data_error_with_maps(error, None)
+    }
+
+    fn attribute_data_error_with_maps(
+        &self,
+        error: &DataError,
+        game_data: Option<&GameData>,
+    ) -> ModError {
         let message = error.to_string();
-        let rel_file = extract_error_file(error, &self.base_pack).unwrap_or_else(|| {
-            self.provenance
-                .keys()
-                .find(|rel| message.contains(rel.as_str()))
-                .cloned()
-                .unwrap_or_else(|| "pack".to_owned())
-        });
+        let rel_file = extract_error_file(error, &self.base_pack)
+            .or_else(|| self.resolve_map_or_sprite_error_file(error, game_data))
+            .unwrap_or_else(|| {
+                self.provenance
+                    .keys()
+                    .find(|rel| message.contains(rel.as_str()))
+                    .cloned()
+                    .unwrap_or_else(|| "pack".to_owned())
+            });
         let mod_id = self
             .provenance
             .get(&rel_file)
@@ -440,6 +542,40 @@ impl PackOverlay {
             });
         ModError::new(mod_id, rel_file, message)
     }
+
+    fn resolve_map_or_sprite_error_file(
+        &self,
+        error: &DataError,
+        game_data: Option<&GameData>,
+    ) -> Option<String> {
+        let map_id = match error {
+            DataError::Validation { map, .. } => Some(*map),
+            DataError::Sprite { who, .. } => parse_map_id_from_who(who),
+            _ => None,
+        };
+        if let Some(map_id) = map_id {
+            if let Some(gd) = game_data
+                && let Some(entry) = gd.manifest().entry(map_id)
+            {
+                return Some(entry.json.clone());
+            }
+            if let Ok(manifest) = self.read_json_data::<crate::Manifest>("manifest.json")
+                && let Some(entry) = manifest.entry(map_id)
+            {
+                return Some(entry.json.clone());
+            }
+        }
+        None
+    }
+}
+
+fn parse_map_id_from_who(who: &str) -> Option<MapId> {
+    let rest = who.strip_prefix("map ")?;
+    let token = rest.split_whitespace().next()?;
+    let hex = token
+        .strip_prefix("0x")
+        .or_else(|| token.strip_prefix("0X"))?;
+    u16::from_str_radix(hex, 16).ok().map(MapId)
 }
 
 /// Normalizes a pack-relative path to forward-slash form, rejecting empty,

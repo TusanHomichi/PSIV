@@ -35,6 +35,55 @@ pub(crate) struct KeyedArraySpec {
     pub file: FilePattern,
     pub path: &'static [&'static str],
     pub key_field: &'static str,
+    /// Whether this table supports explicit additive record creation via `"$add"`.
+    pub allow_add: bool,
+    /// Whether appended records must carry a dense 0-based positional key
+    /// matching their resulting array index (`base_arr.len() + offset`).
+    pub dense_key: bool,
+}
+
+impl KeyedArraySpec {
+    const fn edit_only(
+        file: FilePattern,
+        path: &'static [&'static str],
+        key_field: &'static str,
+    ) -> Self {
+        Self {
+            file,
+            path,
+            key_field,
+            allow_add: false,
+            dense_key: false,
+        }
+    }
+
+    const fn additive(
+        file: FilePattern,
+        path: &'static [&'static str],
+        key_field: &'static str,
+    ) -> Self {
+        Self {
+            file,
+            path,
+            key_field,
+            allow_add: true,
+            dense_key: false,
+        }
+    }
+
+    const fn additive_dense(
+        file: FilePattern,
+        path: &'static [&'static str],
+        key_field: &'static str,
+    ) -> Self {
+        Self {
+            file,
+            path,
+            key_field,
+            allow_add: true,
+            dense_key: true,
+        }
+    }
 }
 
 pub(crate) const MAPS_JSON: FilePattern = FilePattern::Prefix {
@@ -50,326 +99,267 @@ pub(crate) const SPRITES_JSON: FilePattern = FilePattern::Prefix {
 /// Every pack table array that supports sparse ID-keyed patching and diffing.
 pub(crate) const KEYED_ARRAYS: &[KeyedArraySpec] = &[
     // Battle tables
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/enemies.json"),
-        path: &["enemies"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/equipment.json"),
-        path: &["items"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/equipment.json"),
-        path: &["types"],
-        key_field: "name",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/characters.json"),
-        path: &["characters"],
-        key_field: "character_id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/abilities.json"),
-        path: &["techniques"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/abilities.json"),
-        path: &["skills"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/abilities.json"),
-        path: &["enemy_skills"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/abilities.json"),
-        path: &["item_effects"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/abilities.json"),
-        path: &["combos"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/formations.json"),
-        path: &["formations"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/formations.json"),
-        path: &["formations", "*", "enemies"],
-        key_field: "slot",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/formations.json"),
-        path: &["boss_formations"],
-        key_field: "event_battle_index",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/formations.json"),
-        path: &["boss_formations", "*", "enemies"],
-        key_field: "slot",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/formations.json"),
-        path: &["inline_formations"],
-        key_field: "label",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/formations.json"),
-        path: &["inline_formations", "*", "enemies"],
-        key_field: "slot",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/formations.json"),
-        path: &["encounter_groups", "groups"],
-        key_field: "group",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/formations.json"),
-        path: &["map_bindings"],
-        key_field: "map_id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/formations.json"),
-        path: &["position_grids"],
-        key_field: "name",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/levels.json"),
-        path: &["characters"],
-        key_field: "character_id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/levels.json"),
-        path: &["characters", "*", "levels"],
-        key_field: "level",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/enemy_animations.json"),
-        path: &["animations"],
-        key_field: "enemy_id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/art/backgrounds.json"),
-        path: &["backgrounds"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/art/command_ui.json"),
-        path: &["tiles"],
-        key_field: "vram_tile",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/art/damage_digits.json"),
-        path: &["tiles"],
-        key_field: "vram_tile",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/art/fusion.json"),
-        path: &["frames"],
-        key_field: "index",
-    },
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/enemies.json"),
+        &["enemies"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/equipment.json"),
+        &["items"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/equipment.json"),
+        &["types"],
+        "name",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/characters.json"),
+        &["characters"],
+        "character_id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/abilities.json"),
+        &["techniques"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/abilities.json"),
+        &["skills"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/abilities.json"),
+        &["enemy_skills"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/abilities.json"),
+        &["item_effects"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/abilities.json"),
+        &["combos"],
+        "id",
+    ),
+    KeyedArraySpec::additive(
+        FilePattern::Exact("battle/formations.json"),
+        &["formations"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/formations.json"),
+        &["formations", "*", "enemies"],
+        "slot",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/formations.json"),
+        &["boss_formations"],
+        "event_battle_index",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/formations.json"),
+        &["boss_formations", "*", "enemies"],
+        "slot",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/formations.json"),
+        &["inline_formations"],
+        "label",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/formations.json"),
+        &["inline_formations", "*", "enemies"],
+        "slot",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/formations.json"),
+        &["encounter_groups", "groups"],
+        "group",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/formations.json"),
+        &["map_bindings"],
+        "map_id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/formations.json"),
+        &["position_grids"],
+        "name",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/levels.json"),
+        &["characters"],
+        "character_id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/levels.json"),
+        &["characters", "*", "levels"],
+        "level",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/enemy_animations.json"),
+        &["animations"],
+        "enemy_id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/art/backgrounds.json"),
+        &["backgrounds"],
+        "index",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/art/command_ui.json"),
+        &["tiles"],
+        "vram_tile",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/art/damage_digits.json"),
+        &["tiles"],
+        "vram_tile",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("battle/art/fusion.json"),
+        &["frames"],
+        "index",
+    ),
     // Shops & inns
-    KeyedArraySpec {
-        file: FilePattern::Exact("shops.json"),
-        path: &["inventories"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("shops.json"),
-        path: &["inns"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("shops.json"),
-        path: &["counters"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("shops.json"),
-        path: &["portraits"],
-        key_field: "png",
-    },
+    KeyedArraySpec::edit_only(FilePattern::Exact("shops.json"), &["inventories"], "index"),
+    KeyedArraySpec::edit_only(FilePattern::Exact("shops.json"), &["inns"], "index"),
+    KeyedArraySpec::edit_only(FilePattern::Exact("shops.json"), &["counters"], "id"),
+    KeyedArraySpec::edit_only(FilePattern::Exact("shops.json"), &["portraits"], "png"),
     // Dialogue & windows
-    KeyedArraySpec {
-        file: FilePattern::Exact("dialogue/trees.json"),
-        path: &["trees"],
-        key_field: "tree",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("dialogue/trees.json"),
-        path: &["trees", "*", "entries"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("dialogue/trees.json"),
-        path: &["talk_options", "entries"],
-        key_field: "flag",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("dialogue/trees.json"),
-        path: &["system_messages", "messages"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("dialogue/portraits.json"),
-        path: &["portraits"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("dialogue/window.json"),
-        path: &["windows"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("dialogue/window.json"),
-        path: &["menu_windows"],
-        key_field: "index",
-    },
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("dialogue/trees.json"),
+        &["trees"],
+        "tree",
+    ),
+    KeyedArraySpec::additive_dense(
+        FilePattern::Exact("dialogue/trees.json"),
+        &["trees", "*", "entries"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("dialogue/trees.json"),
+        &["talk_options", "entries"],
+        "flag",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("dialogue/trees.json"),
+        &["system_messages", "messages"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("dialogue/portraits.json"),
+        &["portraits"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("dialogue/window.json"),
+        &["windows"],
+        "index",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("dialogue/window.json"),
+        &["menu_windows"],
+        "index",
+    ),
     // Field maps
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["npcs"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["warps"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["treasure_chests"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["interaction_areas"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["map_updates"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["layout_variants"],
-        key_field: "png",
-    },
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["patch_tiles", "tiles"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["overworld_patches"],
-        key_field: "event_flag",
-    },
+    KeyedArraySpec::additive_dense(MAPS_JSON, &["npcs"], "index"),
+    KeyedArraySpec::additive_dense(MAPS_JSON, &["warps"], "index"),
+    KeyedArraySpec::additive_dense(MAPS_JSON, &["treasure_chests"], "index"),
+    KeyedArraySpec::edit_only(MAPS_JSON, &["interaction_areas"], "index"),
+    KeyedArraySpec::edit_only(MAPS_JSON, &["map_updates"], "index"),
+    KeyedArraySpec::edit_only(MAPS_JSON, &["layout_variants"], "png"),
+    KeyedArraySpec::edit_only(MAPS_JSON, &["patch_tiles", "tiles"], "index"),
+    KeyedArraySpec::edit_only(MAPS_JSON, &["overworld_patches"], "event_flag"),
     // Travel, title, ship menu, presentation
-    KeyedArraySpec {
-        file: FilePattern::Exact("travel.json"),
-        path: &["towns"],
-        key_field: "town_flag",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("travel.json"),
-        path: &["dungeons"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("travel.json"),
-        path: &["world_maps"],
-        key_field: "name",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("title/sound_test.json"),
-        path: &["tracks"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("ship_menu/ship_menu.json"),
-        path: &["windows"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("ship_menu/ship_menu.json"),
-        path: &["place_windows"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("presentation/panels.json"),
-        path: &["panels"],
-        key_field: "id",
-    },
+    KeyedArraySpec::edit_only(FilePattern::Exact("travel.json"), &["towns"], "town_flag"),
+    KeyedArraySpec::edit_only(FilePattern::Exact("travel.json"), &["dungeons"], "index"),
+    KeyedArraySpec::edit_only(FilePattern::Exact("travel.json"), &["world_maps"], "name"),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("title/sound_test.json"),
+        &["tracks"],
+        "index",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("ship_menu/ship_menu.json"),
+        &["windows"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("ship_menu/ship_menu.json"),
+        &["place_windows"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("presentation/panels.json"),
+        &["panels"],
+        "id",
+    ),
     // Sound tables
-    KeyedArraySpec {
-        file: FilePattern::Exact("sound/music.json"),
-        path: &["records", "records"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("sound/music.json"),
-        path: &["records", "records", "*", "tracks"],
-        key_field: "track_id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("sound/music.json"),
-        path: &["records", "records", "*", "voices"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("sound/sfx.json"),
-        path: &["records", "regular", "records"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("sound/sfx.json"),
-        path: &["records", "regular", "records", "*", "tracks"],
-        key_field: "track_id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("sound/sfx.json"),
-        path: &["records", "regular", "records", "*", "voices"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("sound/sfx.json"),
-        path: &["records", "special", "records"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("sound/sfx.json"),
-        path: &["records", "special", "records", "*", "tracks"],
-        key_field: "track_id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("sound/sfx.json"),
-        path: &["records", "special", "records", "*", "voices"],
-        key_field: "index",
-    },
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("sound/music.json"),
+        &["records", "records"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("sound/music.json"),
+        &["records", "records", "*", "tracks"],
+        "track_id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("sound/music.json"),
+        &["records", "records", "*", "voices"],
+        "index",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("sound/sfx.json"),
+        &["records", "regular", "records"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("sound/sfx.json"),
+        &["records", "regular", "records", "*", "tracks"],
+        "track_id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("sound/sfx.json"),
+        &["records", "regular", "records", "*", "voices"],
+        "index",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("sound/sfx.json"),
+        &["records", "special", "records"],
+        "id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("sound/sfx.json"),
+        &["records", "special", "records", "*", "tracks"],
+        "track_id",
+    ),
+    KeyedArraySpec::edit_only(
+        FilePattern::Exact("sound/sfx.json"),
+        &["records", "special", "records", "*", "voices"],
+        "index",
+    ),
     // Sprite sheets
-    KeyedArraySpec {
-        file: SPRITES_JSON,
-        path: &["sheets"],
-        key_field: "id",
-    },
+    KeyedArraySpec::edit_only(SPRITES_JSON, &["sheets"], "id"),
 ];
+
+/// Returns the specification when `path` inside `rel_file` addresses a known
+/// ID-keyed record array.
+pub(crate) fn keyed_array_spec(rel_file: &str, path: &[&str]) -> Option<&'static KeyedArraySpec> {
+    KEYED_ARRAYS
+        .iter()
+        .find(|spec| spec.file.matches(rel_file) && spec.path == path)
+}
 
 /// Returns the stable ID field name when `path` inside `rel_file` addresses a
 /// known ID-keyed record array.
 pub(crate) fn array_key_field(rel_file: &str, path: &[&str]) -> Option<&'static str> {
-    KEYED_ARRAYS
-        .iter()
-        .find(|spec| spec.file.matches(rel_file) && spec.path == path)
-        .map(|spec| spec.key_field)
+    keyed_array_spec(rel_file, path).map(|spec| spec.key_field)
 }
 
 /// Returns `true` when `(rel_file, schema_path)` addresses a JSON object that
