@@ -240,10 +240,14 @@ impl GameData {
     }
 }
 
-/// US retail cartridge silent villager objects in MileHouse1 (`0x020`, NPCs 2/3)
-/// and MileHouse2 (`0x022`, NPCs 2/3) carry `dialogue_id = 0x6E (110)`, pointing
-/// at the trailing `$FF` slot of 110-entry `DialogueTree4`. Mod-added or
-/// mod-edited NPCs are checked strictly without this exemption in `PackOverlay`.
+/// US retail fallen/dead villager objects in `Map_MileHouse1` (`0x020`,
+/// `ps4.asm:198852-198860`, `:198872`; US ROM `$131B50` `FieldObj_NPCType22` /
+/// `$131B5A` `loc_49406`) and `Map_MileHouse2` (`0x022`,
+/// `ps4.asm:199216-199224`, `:199236`; US ROM `$1322CE` `FieldObj_NPCType20` /
+/// `$1322D8` `loc_49442`) carry `dialogue_id = $6E (110)` against 110-entry
+/// `DialogueTree4` (US ROM `$1E1980`, entries `0..=109`). See
+/// `docs/scenes/DIALOGUE_TREE_SELECTION.md`. Mod-added or mod-edited NPCs are
+/// checked strictly without this exemption in `PackOverlay`.
 fn is_retail_silent_mile_npc(
     map_id: crate::MapId,
     dialogue_tree: u8,

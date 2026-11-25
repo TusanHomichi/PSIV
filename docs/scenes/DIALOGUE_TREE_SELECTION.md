@@ -120,6 +120,28 @@ columns have been removed in favor of the pack's `dialogue_tree` field and
 this generated census. Type-0 selection is a separate concern: Piata's map
 tree 2 and Academy's tree 1 differ from their type-0 tree 28 on World_Index 0.
 
+### Retail out-of-range NPC dialogue IDs in Mile houses
+
+Two US retail maps carry fallen/dead villager objects whose `dialogue_id` byte
+is `$6E` (`110`), one past the last entry of their bound `DialogueTree4` (US
+`$1E1980`, 110 entries `0..=109`):
+
+- `Map_MileHouse1` (`$020`, `ps4.asm:198802-198872`, binds `DialogueTree4`):
+  object index 2 at US `$131B50` (`ps4.asm:198852-198855`, `FieldObj_NPCType22`
+  `$00D8`, bytes `00 D8 00 6E 04 02 00 42 00 3C`) and object index 3 at US
+  `$131B5A` (`ps4.asm:198857-198860`, `loc_49406` `$0350`, bytes
+  `03 50 08 6E 04 37 00 3A 00 38`).
+- `Map_MileHouse2` (`$022`, `ps4.asm:199166-199236`, binds `DialogueTree4`):
+  object index 2 at US `$1322CE` (`ps4.asm:199216-199219`, `FieldObj_NPCType20`
+  `$00D0`, bytes `00 D0 08 6E 04 02 00 36 00 3E`) and object index 3 at US
+  `$1322D8` (`ps4.asm:199221-199224`, `loc_49442` `$0354`, bytes
+  `03 54 00 6E 04 37 00 42 00 38`).
+
+`GameData` base-pack validation (`rust/psiv-data/src/game_data/load.rs`)
+exempts only those four unmodified `(map_id, dialogue_tree=4, npc_index, 110)`
+records; mod-added or mod-edited NPCs and maps repointed away from tree 4 are
+validated strictly without this exemption.
+
 <!-- BEGIN GENERATED SELECTION CENSUS -->
 | Map | NPC/default scene tree | Type-0 areas | W0 | W1 | W2 | W3 | W4 | W5 |
 | --- | ---: | ---: | --- | --- | --- | --- | --- | --- |

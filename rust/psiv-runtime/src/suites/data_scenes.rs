@@ -257,7 +257,7 @@ fn synthetic_pack() -> GameData {
                     "dialogue_id": 1, "art_tile": 792, "sprite_reason": "synthetic"
                 }},
                 {{
-                    "index": 1, "record_offset": "0x11C744", "object_id": 61,
+                    "index": 1, "record_offset": "0x11C744", "object_id": 64,
                     "symbol": "NPCType3", "x_pixels": 48, "y_pixels": 16,
                     "x_cell": 3, "y_cell": 1,
                     "facing": {{"id": 0, "name": "down"}},
