@@ -402,7 +402,7 @@ pub static PSYCO_WAND: Scene = Scene {
         // the next load, gated on flag `$67` — which this scene sets at its
         // end.
         SceneOp::WriteMapChunks {
-            chunks: &[(9, 5, 0x8F), (9, 6, 0x90)],
+            chunks: std::borrow::Cow::Borrowed(&[(9, 5, 0x8F), (9, 6, 0x90)]),
         },
         SceneOp::Presentation {
             op: PresentationOp::ReloadMapChunks,
@@ -551,43 +551,43 @@ pub static ZIO_DEFEATED: Scene = Scene {
         // map-update frames at FG `(14..=16, 12)`).
         SceneOp::PlaySound { id: 0xE0 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xAD), (15, 12, 0xAE), (16, 12, 0xAF)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xAD), (15, 12, 0xAE), (16, 12, 0xAF)]),
         },
         SceneOp::Wait { ticks: 8 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB0), (15, 12, 0xB1), (16, 12, 0xB2)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB0), (15, 12, 0xB1), (16, 12, 0xB2)]),
         },
         SceneOp::Wait { ticks: 8 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB3), (15, 12, 0xB4), (16, 12, 0xB5)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB3), (15, 12, 0xB4), (16, 12, 0xB5)]),
         },
         SceneOp::Wait { ticks: 8 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB6), (15, 12, 0xB7), (16, 12, 0xB8)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB6), (15, 12, 0xB7), (16, 12, 0xB8)]),
         },
         SceneOp::Wait { ticks: 8 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB9), (15, 12, 0xBA), (16, 12, 0xBB)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB9), (15, 12, 0xBA), (16, 12, 0xBB)]),
         },
         SceneOp::Wait { ticks: 8 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB9), (15, 12, 0xBC), (16, 12, 0xBB)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB9), (15, 12, 0xBC), (16, 12, 0xBB)]),
         },
         SceneOp::Wait { ticks: 8 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB9), (15, 12, 0xBD), (16, 12, 0xBB)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB9), (15, 12, 0xBD), (16, 12, 0xBB)]),
         },
         SceneOp::Wait { ticks: 8 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB9), (15, 12, 0xBE), (16, 12, 0xBB)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB9), (15, 12, 0xBE), (16, 12, 0xBB)]),
         },
         SceneOp::Wait { ticks: 8 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB9), (15, 12, 0xBF), (16, 12, 0xBB)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB9), (15, 12, 0xBF), (16, 12, 0xBB)]),
         },
         SceneOp::Wait { ticks: 8 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB9), (15, 12, 0xC0), (16, 12, 0xBB)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB9), (15, 12, 0xC0), (16, 12, 0xBB)]),
         },
         SceneOp::Wait { ticks: 8 },
         SceneOp::Wait { ticks: 60 },
@@ -603,43 +603,43 @@ pub static ZIO_DEFEATED: Scene = Scene {
         // map-update frames at FG `(14..=16, 12)`).
         SceneOp::PlaySound { id: 0xE0 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB9), (15, 12, 0xC0), (16, 12, 0xBB)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB9), (15, 12, 0xC0), (16, 12, 0xBB)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB9), (15, 12, 0xBF), (16, 12, 0xBB)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB9), (15, 12, 0xBF), (16, 12, 0xBB)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB9), (15, 12, 0xBE), (16, 12, 0xBB)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB9), (15, 12, 0xBE), (16, 12, 0xBB)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB9), (15, 12, 0xBD), (16, 12, 0xBB)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB9), (15, 12, 0xBD), (16, 12, 0xBB)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB9), (15, 12, 0xBC), (16, 12, 0xBB)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB9), (15, 12, 0xBC), (16, 12, 0xBB)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB9), (15, 12, 0xBA), (16, 12, 0xBB)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB9), (15, 12, 0xBA), (16, 12, 0xBB)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB6), (15, 12, 0xB7), (16, 12, 0xB8)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB6), (15, 12, 0xB7), (16, 12, 0xB8)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB3), (15, 12, 0xB4), (16, 12, 0xB5)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB3), (15, 12, 0xB4), (16, 12, 0xB5)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xB0), (15, 12, 0xB1), (16, 12, 0xB2)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xB0), (15, 12, 0xB1), (16, 12, 0xB2)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(14, 12, 0xAD), (15, 12, 0xAE), (16, 12, 0xAF)],
+            chunks: std::borrow::Cow::Borrowed(&[(14, 12, 0xAD), (15, 12, 0xAE), (16, 12, 0xAF)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::Wait { ticks: 60 },
@@ -694,7 +694,7 @@ pub static ZIO_DEFEATED: Scene = Scene {
         // subroutine sets on the way out). The subroutine's objects and
         // countdown are presentation and are covered by the panels below.
         SceneOp::WriteMapChunks {
-            chunks: &[(26, 45, 0x3F)],
+            chunks: std::borrow::Cow::Borrowed(&[(26, 45, 0x3F)]),
         },
         // The routine's last act: `moveq #EventFlag_MotaSpaceport, d0 / jmp
         // EventFlags_Set` (`ps4.asm:144834-144835`). It comes before the

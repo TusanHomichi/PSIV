@@ -1,4 +1,6 @@
 //! Ordinary BioPlant traversal events, transcribed from the US cartridge.
+use std::borrow::Cow;
+
 use crate::{ActorRef, EventIndex, Flag, Scene, SceneOp};
 
 /// `$06B92E..$06B9AD`: animate the two Birth Valley door chunks, then set
@@ -10,17 +12,17 @@ pub static BIOPLANT_DOOR: Scene = Scene {
         SceneOp::PlaySound { id: 0xE2 },
         SceneOp::WriteActorMapChunks {
             actor: ActorRef::PartyMember(0),
-            chunks: &[(0, 0, 0x42), (0, 32, 0x44)],
+            chunks: Cow::Borrowed(&[(0, 0, 0x42), (0, 32, 0x44)]),
         },
         SceneOp::WaitFrames { frames: 17 },
         SceneOp::WriteActorMapChunks {
             actor: ActorRef::PartyMember(0),
-            chunks: &[(0, 0, 0x43), (0, 32, 0x45)],
+            chunks: Cow::Borrowed(&[(0, 0, 0x43), (0, 32, 0x45)]),
         },
         SceneOp::WaitFrames { frames: 17 },
         SceneOp::WriteActorMapChunks {
             actor: ActorRef::PartyMember(0),
-            chunks: &[(0, 0, 0x29), (0, 32, 0x2A)],
+            chunks: Cow::Borrowed(&[(0, 0, 0x29), (0, 32, 0x2A)]),
         },
         SceneOp::WaitFrames { frames: 17 },
         SceneOp::SetFlag {
@@ -42,22 +44,22 @@ pub static ELEVATOR_DOOR: Scene = Scene {
         SceneOp::PlaySound { id: 0xE5 },
         SceneOp::WriteActorMapChunks {
             actor: LEADER,
-            chunks: &[(0, 0, 0x50)],
+            chunks: Cow::Borrowed(&[(0, 0, 0x50)]),
         },
         SceneOp::WaitFrames { frames: 1 },
         SceneOp::WriteActorMapChunks {
             actor: LEADER,
-            chunks: &[(0, 0, 0x51)],
+            chunks: Cow::Borrowed(&[(0, 0, 0x51)]),
         },
         SceneOp::WaitFrames { frames: 1 },
         SceneOp::WriteActorMapChunks {
             actor: LEADER,
-            chunks: &[(0, 0, 0x52)],
+            chunks: Cow::Borrowed(&[(0, 0, 0x52)]),
         },
         SceneOp::WaitFrames { frames: 1 },
         SceneOp::WriteActorMapChunks {
             actor: LEADER,
-            chunks: &[(0, 0, 0x53)],
+            chunks: Cow::Borrowed(&[(0, 0, 0x53)]),
         },
         SceneOp::WaitFrames { frames: 1 },
     ],
@@ -76,7 +78,7 @@ pub static ELEVATOR_RIDE: Scene = Scene {
         SceneOp::TakeMapTransition,
         SceneOp::WriteActorMapChunks {
             actor: LEADER,
-            chunks: &[(0, 16, 0x53)],
+            chunks: Cow::Borrowed(&[(0, 16, 0x53)]),
         },
         SceneOp::WaitFrames { frames: 1 },
         SceneOp::FadeIn,
@@ -90,22 +92,22 @@ pub static ELEVATOR_RIDE: Scene = Scene {
         SceneOp::PlaySound { id: 0xE5 },
         SceneOp::WriteActorMapChunks {
             actor: LEADER,
-            chunks: &[(0, -16, 0x52)],
+            chunks: Cow::Borrowed(&[(0, -16, 0x52)]),
         },
         SceneOp::WaitFrames { frames: 1 },
         SceneOp::WriteActorMapChunks {
             actor: LEADER,
-            chunks: &[(0, -16, 0x51)],
+            chunks: Cow::Borrowed(&[(0, -16, 0x51)]),
         },
         SceneOp::WaitFrames { frames: 1 },
         SceneOp::WriteActorMapChunks {
             actor: LEADER,
-            chunks: &[(0, -16, 0x50)],
+            chunks: Cow::Borrowed(&[(0, -16, 0x50)]),
         },
         SceneOp::WaitFrames { frames: 1 },
         SceneOp::WriteActorMapChunks {
             actor: LEADER,
-            chunks: &[(0, -16, 0x4F)],
+            chunks: Cow::Borrowed(&[(0, -16, 0x4F)]),
         },
         SceneOp::WaitFrames { frames: 1 },
     ],

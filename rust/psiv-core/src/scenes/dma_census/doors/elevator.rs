@@ -43,7 +43,7 @@ pub(super) fn problems(rom: &[u8], ops: &[SceneOp]) -> Vec<String> {
         if rom[at] != 1
             || !matches!(ops.get(op), Some(SceneOp::WriteActorMapChunks {
                 actor: ActorRef::PartyMember(0), chunks,
-            }) if *chunks == [(0, -16, chunk)])
+            }) if chunks.as_ref() == [(0, -16, chunk)])
             || ops.get(op + 1) != Some(&SceneOp::WaitFrames { frames: 1 })
         {
             errors.push(format!(

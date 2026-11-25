@@ -479,8 +479,8 @@ pub static LASHIEC_APPEARANCE: Scene = Scene {
 pub static LASHIEC_DEFEATED: Scene = Scene {
     name: "Cutscene_LashiecDefeated",
     event: EventIndex(0x8016),
-    ops: &with_planet_screen::<40>(
-        &[
+    ops: &with_planet_screen!(
+        [
             SceneOp::InitVramAndCram,
             SceneOp::FadeIn,
             SceneOp::PanelCreate { id: 0x107 },
@@ -522,7 +522,7 @@ pub static LASHIEC_DEFEATED: Scene = Scene {
             SceneOp::SetWorldIndex { world: 1 },
             // $077B68: loc_64C1E owns the planet screen and its In/Out pair.
         ],
-        &[
+        [
             SceneOp::LoadMap {
                 map: 0x162,
                 prev_map: 0xFFFF,

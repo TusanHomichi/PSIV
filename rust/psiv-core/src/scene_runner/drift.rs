@@ -124,11 +124,7 @@ impl SceneRunner {
     }
 
     /// Starts a drift: every object's position is seeded from where it stands.
-    pub(super) fn start_drift(
-        &mut self,
-        drifts: &'static [NpcDrift],
-        frames: u16,
-    ) -> Option<ActorRef> {
+    pub(super) fn start_drift(&mut self, drifts: &[NpcDrift], frames: u16) -> Option<ActorRef> {
         let mut drifters = Vec::with_capacity(drifts.len());
         for &drift in drifts {
             let actor = ActorRef::Npc(drift.npc);

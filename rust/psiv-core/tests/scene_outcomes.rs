@@ -619,7 +619,7 @@ fn control_a_leader_walk_fails_the_party_move_check() {
                 dy: 0x20,
                 wait: true,
             },
-            other => *other,
+            other => other.clone(),
         })
         .collect();
     assert_ne!(ops.as_slice(), scene.ops, "the scene no longer has the op");

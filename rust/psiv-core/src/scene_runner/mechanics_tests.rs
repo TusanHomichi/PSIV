@@ -107,7 +107,7 @@ impl Played {
     }
 
     pub(super) fn leader(&self) -> ScriptedActor {
-        *self.runner.actor(ActorRef::PartyMember(0)).unwrap()
+        self.runner.actor(ActorRef::PartyMember(0)).unwrap().clone()
     }
 
     fn writes(&self) -> Vec<Vec<(u32, u32, u16)>> {

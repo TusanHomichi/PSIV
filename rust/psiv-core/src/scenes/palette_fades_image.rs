@@ -324,15 +324,15 @@ fn a_wrong_fade_record_is_reported() {
         assert!(mismatches(std::slice::from_ref(scene)).is_empty(), "{name}");
         let mut swapped = 0;
         for (index, op) in scene.ops.iter().enumerate() {
-            let SceneOp::Presentation { op } = *op else {
+            let SceneOp::Presentation { op } = op else {
                 continue;
             };
             for swap in swaps {
-                let Some(wrong) = swap(op) else {
+                let Some(wrong) = swap(op.clone()) else {
                     continue;
                 };
                 let mut ops = scene.ops.to_vec();
-                ops[index] = SceneOp::Presentation { op: wrong };
+                ops[index] = SceneOp::Presentation { op: wrong.clone() };
                 let altered = crate::Scene {
                     ops: Box::leak(ops.into_boxed_slice()),
                     ..*scene

@@ -30,24 +30,27 @@ const THIEF_Y: i32 = 0x270;
 /// `VInt_Prepare`: one beat of the thief's spin (`loc_7365E`). The helper
 /// ends in a `VInt_Prepare` of its own in the US build (`$05A972`), so the
 /// beat is three frames; `Face` takes none.
-const fn spin(facing: Direction) -> [SceneOp; 2] {
-    [
-        SceneOp::Face {
-            actor: ActorRef::Npc(THIEF),
-            facing,
-        },
-        SceneOp::WaitFrames { frames: 3 },
-    ]
+const fn spin_face(facing: Direction) -> SceneOp {
+    SceneOp::Face {
+        actor: ActorRef::Npc(THIEF),
+        facing,
+    }
+}
+
+const fn spin_wait() -> SceneOp {
+    SceneOp::WaitFrames { frames: 3 }
 }
 
 /// `d1` counts 0 to 3 and wraps, so the facings run down, up, right, left.
-const SPIN_TURN: [SceneOp; 8] = {
-    let [a, b] = spin(Direction::Down);
-    let [c, d] = spin(Direction::Up);
-    let [e, f] = spin(Direction::Right);
-    let [g, h] = spin(Direction::Left);
-    [a, b, c, d, e, f, g, h]
-};
+const fn spin_turn_op(index: usize) -> SceneOp {
+    match index {
+        0 => spin_face(Direction::Down),
+        2 => spin_face(Direction::Up),
+        4 => spin_face(Direction::Right),
+        6 => spin_face(Direction::Left),
+        _ => spin_wait(),
+    }
+}
 
 /// `$0096`, `Event_PenguinFeedStolen`, retail `$0735F6..$0736E9`
 /// (`ps4.asm:153259-153328`): map trigger `$7B` in `ZosaItemShop` fires it
@@ -88,46 +91,46 @@ pub static PENGUIN_FEED_STOLEN: Scene = Scene {
             wait: true,
         },
         // 7-46: `$073656..$07368B`: twenty beats of three frames.
-        SPIN_TURN[0],
-        SPIN_TURN[1],
-        SPIN_TURN[2],
-        SPIN_TURN[3],
-        SPIN_TURN[4],
-        SPIN_TURN[5],
-        SPIN_TURN[6],
-        SPIN_TURN[7],
-        SPIN_TURN[0],
-        SPIN_TURN[1],
-        SPIN_TURN[2],
-        SPIN_TURN[3],
-        SPIN_TURN[4],
-        SPIN_TURN[5],
-        SPIN_TURN[6],
-        SPIN_TURN[7],
-        SPIN_TURN[0],
-        SPIN_TURN[1],
-        SPIN_TURN[2],
-        SPIN_TURN[3],
-        SPIN_TURN[4],
-        SPIN_TURN[5],
-        SPIN_TURN[6],
-        SPIN_TURN[7],
-        SPIN_TURN[0],
-        SPIN_TURN[1],
-        SPIN_TURN[2],
-        SPIN_TURN[3],
-        SPIN_TURN[4],
-        SPIN_TURN[5],
-        SPIN_TURN[6],
-        SPIN_TURN[7],
-        SPIN_TURN[0],
-        SPIN_TURN[1],
-        SPIN_TURN[2],
-        SPIN_TURN[3],
-        SPIN_TURN[4],
-        SPIN_TURN[5],
-        SPIN_TURN[6],
-        SPIN_TURN[7],
+        spin_turn_op(0),
+        spin_turn_op(1),
+        spin_turn_op(2),
+        spin_turn_op(3),
+        spin_turn_op(4),
+        spin_turn_op(5),
+        spin_turn_op(6),
+        spin_turn_op(7),
+        spin_turn_op(0),
+        spin_turn_op(1),
+        spin_turn_op(2),
+        spin_turn_op(3),
+        spin_turn_op(4),
+        spin_turn_op(5),
+        spin_turn_op(6),
+        spin_turn_op(7),
+        spin_turn_op(0),
+        spin_turn_op(1),
+        spin_turn_op(2),
+        spin_turn_op(3),
+        spin_turn_op(4),
+        spin_turn_op(5),
+        spin_turn_op(6),
+        spin_turn_op(7),
+        spin_turn_op(0),
+        spin_turn_op(1),
+        spin_turn_op(2),
+        spin_turn_op(3),
+        spin_turn_op(4),
+        spin_turn_op(5),
+        spin_turn_op(6),
+        spin_turn_op(7),
+        spin_turn_op(0),
+        spin_turn_op(1),
+        spin_turn_op(2),
+        spin_turn_op(3),
+        spin_turn_op(4),
+        spin_turn_op(5),
+        spin_turn_op(6),
+        spin_turn_op(7),
         // 47-49: `$07368C..$07369B`: facing 0 and the helper's own
         // `VInt_Prepare`, then `DoMainUpdatesLoop($1D)`.
         SceneOp::Face {

@@ -179,9 +179,10 @@ fn fade_trace(ops: &'static [SceneOp], fade: u16) -> Vec<(Vec<SceneEffect>, bool
 }
 
 fn tick_of(ticks: &[(Vec<SceneEffect>, bool)], op: SceneOp) -> usize {
+    let target = SceneEffect::Presentation { op: op.clone() };
     ticks
         .iter()
-        .position(|(effects, _)| effects.contains(&SceneEffect::Presentation { op }))
+        .position(|(effects, _)| effects.contains(&target))
         .unwrap_or_else(|| panic!("{op:?} never emitted"))
 }
 

@@ -326,7 +326,7 @@ impl SceneRunner {
                     self.blocked = Blocked::Actor(actor);
                 }
             }
-            SceneOp::MoveActorCommand {
+            op @ SceneOp::MoveActorCommand {
                 actor,
                 command,
                 wait,
@@ -380,7 +380,7 @@ impl SceneRunner {
                 };
                 let position = crate::PixelPos::from_cell(walker.cell);
                 let mut writes = Vec::with_capacity(chunks.len());
-                for &(dx, dy, id) in chunks {
+                for &(dx, dy, id) in chunks.as_ref() {
                     let x = position.x + dx;
                     let y = position.y + dy;
                     if x < 0 || y < 0 {
@@ -393,7 +393,7 @@ impl SceneRunner {
             }
             SceneOp::WriteMapChunks { chunks } => {
                 effects.push(SceneEffect::MapChunksWritten {
-                    chunks: chunks.to_vec(),
+                    chunks: chunks.into_owned(),
                 });
                 self.pc += 1;
             }
@@ -453,7 +453,7 @@ impl SceneRunner {
             // positions and walk state travel with the object contents, which
             // is how `Event_GameStart` puts Alys (and her doorstep position)
             // in front after the party-slot rewrite.
-            SceneOp::SwapCharSlots { a, b } => {
+            op @ SceneOp::SwapCharSlots { a, b } => {
                 let ia = self
                     .actors
                     .iter()
@@ -472,30 +472,32 @@ impl SceneRunner {
                 self.pc += 1;
             }
             SceneOp::OverlapCharacters => {
-                let Some(leader) = self.actor(ActorRef::PartyMember(0)).copied() else {
+                let Some((cell, facing)) = self
+                    .actor(ActorRef::PartyMember(0))
+                    .map(|leader| (leader.cell, leader.facing))
+                else {
                     return Some(SceneFault::UnknownActor {
                         actor: ActorRef::PartyMember(0),
                     });
                 };
                 for slot in 1..PARTY_SLOTS {
                     if let Some(actor) = self.actor_mut(ActorRef::PartyMember(slot)) {
-                        *actor = ScriptedActor::new(
-                            ActorRef::PartyMember(slot),
-                            leader.cell,
-                            leader.facing,
-                        );
+                        *actor = ScriptedActor::new(ActorRef::PartyMember(slot), cell, facing);
                     }
                 }
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
             SceneOp::AlignVehicleBoarding { index } => {
-                let Some(leader) = self.actor(ActorRef::PartyMember(0)).copied() else {
+                let Some(leader_cell) = self
+                    .actor(ActorRef::PartyMember(0))
+                    .map(|leader| leader.cell)
+                else {
                     return Some(SceneFault::UnknownActor {
                         actor: ActorRef::PartyMember(0),
                     });
                 };
-                let snap = crate::vehicle::boarding_snap(leader.cell);
+                let snap = crate::vehicle::boarding_snap(leader_cell);
                 for slot in 0..PARTY_SLOTS {
                     if let Some(actor) = self.actor_mut(ActorRef::PartyMember(slot)) {
                         actor.park(snap.cell, actor.facing);
@@ -528,7 +530,7 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
-            SceneOp::SetStepOffset { value } => {
+            op @ SceneOp::SetStepOffset { value } => {
                 self.set_step_offset(value);
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
@@ -536,7 +538,7 @@ impl SceneRunner {
             // Bit 0 turns the party follow chain off, bit 1 flips walk
             // ordering to Y-first; the camera-lock bit stays a runtime
             // concern, so the op is consumed here AND forwarded.
-            SceneOp::SetFollowMode { bits } => {
+            op @ SceneOp::SetFollowMode { bits } => {
                 self.follow_chain = bits & 0b1 == 0;
                 self.y_first = bits & 0b10 != 0;
                 effects.push(SceneEffect::Presentation { op });
@@ -562,7 +564,7 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Ticks(1);
             }
-            SceneOp::WaitFrames { frames } | SceneOp::StepFieldObject { frames, .. } => {
+            op @ (SceneOp::WaitFrames { frames } | SceneOp::StepFieldObject { frames, .. }) => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 if frames > 0 {
@@ -786,7 +788,7 @@ impl SceneRunner {
                 }
             }
             SceneOp::DriftNpcs { drifts, frames } => {
-                if let Some(actor) = self.start_drift(drifts, frames) {
+                if let Some(actor) = self.start_drift(&drifts, frames) {
                     return Some(SceneFault::UnknownActor { actor });
                 }
                 self.pc += 1;
@@ -813,20 +815,20 @@ impl SceneRunner {
                 effects.push(SceneEffect::CharSlotCopied { from, to });
                 self.pc += 1;
             }
-            SceneOp::SetArtTile { actor, .. } => {
+            op @ SceneOp::SetArtTile { actor, .. } => {
                 if self.actor(actor).is_none() {
                     return Some(SceneFault::UnknownActor { actor });
                 }
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
-            SceneOp::RemoveItem { item } => {
+            op @ SceneOp::RemoveItem { item } => {
                 let _ = state.inventory_mut().take_unchecked(item);
                 effects.push(SceneEffect::InventoryChanged);
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
-            SceneOp::Presentation {
+            op @ SceneOp::Presentation {
                 op:
                     crate::PresentationOp::FadeToRed { lines: delay }
                     | crate::PresentationOp::FadeFromRed { lines: delay },
@@ -843,7 +845,7 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Ticks(1);
             }
-            SceneOp::Presentation {
+            op @ SceneOp::Presentation {
                 op: crate::PresentationOp::BarrierBeamUpdates { frames, .. },
             } => {
                 effects.push(SceneEffect::Presentation { op });
@@ -864,9 +866,11 @@ impl SceneRunner {
                     | crate::PresentationOp::CounterPaletteCycle { .. }
                     | crate::PresentationOp::PaletteGrowIn { .. }),
             } => {
-                effects.push(SceneEffect::Presentation { op });
-                self.pc += 1;
                 let frames = palette.palette_loop_frames().unwrap_or(0);
+                effects.push(SceneEffect::Presentation {
+                    op: SceneOp::Presentation { op: palette },
+                });
+                self.pc += 1;
                 if frames > 0 {
                     self.blocked = Blocked::Ticks(frames);
                 }
@@ -896,7 +900,7 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Credits;
             }
-            SceneOp::Presentation {
+            op @ SceneOp::Presentation {
                 op: crate::PresentationOp::AddMacro { slot },
             } => {
                 if let Ok(id) = u8::try_from(slot) {
@@ -925,7 +929,7 @@ impl SceneRunner {
                     return Some(fault);
                 }
             }
-            SceneOp::JobBoard(step) => {
+            op @ SceneOp::JobBoard(step) => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 use crate::scene::JobBoardStep as Step;

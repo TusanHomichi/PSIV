@@ -93,7 +93,6 @@ fn le_roof_again_shows_the_galaxy_until_its_first_init_vram() {
 fn a_picture_needs_its_cells_after_its_art_before_the_dma() {
     let without: Vec<SceneOp> = ops(0x801C)
         .iter()
-        .copied()
         .filter(|op| {
             !matches!(
                 op,
@@ -102,6 +101,7 @@ fn a_picture_needs_its_cells_after_its_art_before_the_dma() {
                 }
             )
         })
+        .cloned()
         .collect();
     assert_eq!(shown(&without), []);
 
@@ -115,7 +115,7 @@ fn a_picture_needs_its_cells_after_its_art_before_the_dma() {
         rom_addr: GALAXY_ART.0,
         tile: GALAXY_ART.1,
     };
-    let early = run(&[cells, art, SceneOp::DmaPlanes]);
+    let early = run(&[cells.clone(), art.clone(), SceneOp::DmaPlanes]);
     assert_eq!(
         early[0].0,
         PictureChange::ArtMissing {
@@ -133,7 +133,7 @@ fn a_picture_needs_its_cells_after_its_art_before_the_dma() {
         },
     };
     assert_eq!(
-        run(&[art, other, SceneOp::DmaPlanes])[1].0,
+        run(&[art.clone(), other, SceneOp::DmaPlanes])[1].0,
         PictureChange::None
     );
 

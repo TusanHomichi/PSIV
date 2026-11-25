@@ -126,7 +126,7 @@ pub(super) fn problems(rom: &[u8], name: &str, ops: &[SceneOp]) -> Vec<String> {
         let op = door.first + index * 2;
         let writes = match ops.get(op) {
             Some(SceneOp::WriteMapChunks { chunks }) if door.silence => {
-                *chunks
+                chunks.as_ref()
                     == [
                         (15, 8, u16::from(rom[at + 1])),
                         (16, 8, u16::from(rom[at + 2])),
@@ -136,7 +136,7 @@ pub(super) fn problems(rom: &[u8], name: &str, ops: &[SceneOp]) -> Vec<String> {
             }
             Some(SceneOp::WriteActorMapChunks { actor, chunks }) if !door.silence => {
                 *actor == leader
-                    && *chunks
+                    && chunks.as_ref()
                         == [
                             (0, -32, u16::from(rom[at + 1])),
                             (0, 0, u16::from(rom[at + 2])),
@@ -163,7 +163,7 @@ pub(super) fn problems(rom: &[u8], name: &str, ops: &[SceneOp]) -> Vec<String> {
         // block / completes_map_update_loop; runtime field_tick).
         let above = if name.ends_with('1') { 0x3E } else { 0x34 };
         let arrival_write = matches!(ops.get(2), Some(SceneOp::WriteActorMapChunks { actor, chunks })
-            if *actor == leader && *chunks == [(0, 0, 0x3C), (0, -16, above)]);
+            if *actor == leader && chunks.as_ref() == [(0, 0, 0x3C), (0, -16, above)]);
         if jsr_target(rom, door.calls[0]) != Some(DMA_HELPERS[0])
             || !arrival_write
             || ops.get(3) != Some(&SceneOp::WaitFrames { frames: 1 })

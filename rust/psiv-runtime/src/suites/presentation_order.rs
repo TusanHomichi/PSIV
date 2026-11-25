@@ -49,7 +49,7 @@ fn presentation_events_keep_scene_order_and_tick_boundaries() {
         let events = runtime.tick(Input::Neutral);
         for (position, event) in events.iter().enumerate() {
             if let RuntimeEvent::ScenePresentation { op, .. } = event {
-                seen.push((tick, position, *op));
+                seen.push((tick, position, op.clone()));
             }
             if matches!(event, RuntimeEvent::SceneChoiceRequested) {
                 runtime.dialogue_choice(true);

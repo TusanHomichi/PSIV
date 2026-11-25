@@ -1,6 +1,8 @@
 //! The nine `$338` objects: US `$04FAE0`, `FieldObj_Animate2` `$04472E`,
 //! and sequences `$050396/$0503A8/$0503BA`. Only an object pass advances them.
 
+use std::borrow::Cow;
+
 /// `$6` selects a long pointer in `$502C2`; each sequence has four mappings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
@@ -39,7 +41,7 @@ pub struct EclipseTorchSpawn {
 }
 
 /// A read-only draw snapshot and the deterministic routine's private state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EclipseTorchObject {
     spawn: EclipseTorchSpawn,
     animation: crate::ActorAnimation,
@@ -57,11 +59,11 @@ impl EclipseTorchObject {
                 word: spawn.sequence as u16,
                 index: 0,
                 duration: spawn.sequence.initial_delay(),
-                durations: match spawn.sequence {
+                durations: Cow::Borrowed(match spawn.sequence {
                     EclipseTorchSequence::Fast => &[7; 4],
                     EclipseTorchSequence::Medium => &[11; 4],
                     EclipseTorchSequence::Slow => &[15; 4],
-                },
+                }),
             },
             initialized: false,
             active: true,

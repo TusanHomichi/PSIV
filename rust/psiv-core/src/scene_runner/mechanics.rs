@@ -202,14 +202,17 @@ impl SceneRunner {
                 self.pc += 1;
             }
             SceneOp::PlacePartyY { dy } => {
-                let Some(leader) = self.actor(ActorRef::PartyMember(0)).copied() else {
+                let Some((leader_cell, leader_slide_y)) = self
+                    .actor(ActorRef::PartyMember(0))
+                    .map(|leader| (leader.cell, leader.slide.1))
+                else {
                     return Some(SceneFault::UnknownActor {
                         actor: ActorRef::PartyMember(0),
                     });
                 };
                 // The leader's `curr_y_pos` word: the cell's pixel row plus
                 // any slide into it. `addi.w` wraps at the word.
-                let y = PixelPos::from_cell(leader.cell).y + leader.slide.1;
+                let y = PixelPos::from_cell(leader_cell).y + leader_slide_y;
                 let y = i32::from((y as u16).wrapping_add(dy));
                 let row = (y.div_euclid(CELL_PIXELS) + 1) as u16;
                 // `CalcPartyNumber` (`$05A6A4`) counts `Current_Party_Slots`

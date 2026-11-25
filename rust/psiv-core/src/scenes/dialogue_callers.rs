@@ -402,7 +402,9 @@ const fn run(entry: u16, window: DialogueWindow) -> SceneOp {
 }
 
 fn swap(from: SceneOp, to: SceneOp) -> impl Fn(&SceneOp) -> SceneOp {
-    move |op| if *op == from { to } else { *op }
+    move |op| {
+        if *op == from { to.clone() } else { op.clone() }
+    }
 }
 
 #[test]
@@ -528,7 +530,7 @@ fn control_a_dynamic_caller_with_no_window_is_reported() {
             source: *source,
             window: DialogueWindow::Cutscene,
         },
-        other => *other,
+        other => other.clone(),
     });
     let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
     assert_eq!(problems.len(), 2, "{problems:#?}");
@@ -565,7 +567,7 @@ fn control_a_table_driven_line_is_a_window_the_census_counts() {
         SceneOp::FifthCharacter(FifthOp::RunLine { .. } | FifthOp::RunLeaverLine) => {
             SceneOp::Wait { ticks: 1 }
         }
-        other => *other,
+        other => other.clone(),
     });
     let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
     assert_eq!(

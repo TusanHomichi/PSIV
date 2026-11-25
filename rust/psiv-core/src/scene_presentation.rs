@@ -5,6 +5,8 @@
 //! directly; the headless runtime keeps those writes observable without
 //! making the field core own VRAM.
 
+use std::borrow::Cow;
+
 use crate::scene::ActorRef;
 use crate::state::CharId;
 
@@ -49,7 +51,7 @@ pub enum CameraSubject {
 }
 
 /// One renderer-owned operation preserved by a scene transcription.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PresentationOp {
     /// Zio's object-update loop, distinct from the map-only palette waits.
     BarrierBeamUpdates {
@@ -411,7 +413,7 @@ pub enum PresentationOp {
         words_per_frame: u8,
         /// The `dbf` waits, already corrected to frame counts (each raw
         /// `loc_782D2` byte plus one).
-        delays: &'static [u8],
+        delays: Cow<'static, [u8]>,
     },
     /// Zio Fort's barrier ramp: `steps` writes of three consecutive palette
     /// words taken from one ROM table, `frame_delay` frames apart. The
@@ -523,7 +525,7 @@ pub enum PresentationOp {
         /// Character whose temporary object is the reference point.
         reference: CharId,
         /// Characters passed through the helper, in retail order.
-        companions: &'static [CharId],
+        companions: Cow<'static, [CharId]>,
     },
     /// Load the three non-panel assets used by the retail credits renderer.
     EndingCreditsAssets {
@@ -639,18 +641,18 @@ impl PresentationOp {
     /// frames its `dbf` spends). `None` for every other record.
     #[must_use]
     pub fn palette_loop_frames(&self) -> Option<u16> {
-        match *self {
+        match self {
             Self::PaletteRampFromTable {
                 steps, frame_delay, ..
             }
             | Self::PaletteCycleFromTable {
                 steps, frame_delay, ..
-            } => Some(u16::from(steps) * frame_delay),
+            } => Some(u16::from(*steps) * *frame_delay),
             Self::RykrosPaletteCycle { delays, .. } => {
                 Some(delays.iter().map(|&delay| u16::from(delay)).sum())
             }
-            Self::CounterPaletteCycle { frames, .. } => Some(frames),
-            Self::PaletteGrowIn { passes, .. } => Some(passes),
+            Self::CounterPaletteCycle { frames, .. } => Some(*frames),
+            Self::PaletteGrowIn { passes, .. } => Some(*passes),
             _ => None,
         }
     }

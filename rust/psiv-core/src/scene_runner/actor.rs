@@ -14,6 +14,8 @@
 //! walks in whole cell-steps at the same rate as the party, and turns to face
 //! the way it walks. [`ScriptedActor`] is exactly that.
 
+use std::borrow::Cow;
+
 use crate::field::StepFrames;
 use crate::geom::{CELL_PIXELS, Cell, Direction};
 use crate::map::FieldMap;
@@ -22,7 +24,7 @@ use crate::scene::ActorRef;
 /// A field object's explicit `FieldObj_Animate2` sequence state.
 /// `DriftNpcs` advances it after each position update. Camera/map-only waits
 /// leave it alone. A subsequent `Face` write replaces it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActorAnimation {
     /// Byte offset in `mappings_addr` (the word at object `$6`).
     pub word: u16,
@@ -31,7 +33,7 @@ pub struct ActorAnimation {
     /// Current `mappings_duration`, before the next decrement.
     pub duration: u8,
     /// Duration bytes from the selected ROM sequence.
-    pub durations: &'static [u8],
+    pub durations: Cow<'static, [u8]>,
 }
 impl ActorAnimation {
     pub(crate) fn tick(&mut self) {
@@ -48,7 +50,7 @@ impl ActorAnimation {
 ///
 /// Movement is the auto-input model: close the X gap first, then the Y gap,
 /// one whole cell-step at a time.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScriptedActor {
     /// Who this is.
     pub actor: ActorRef,

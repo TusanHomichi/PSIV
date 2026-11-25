@@ -83,7 +83,7 @@ fn tick(rt: &mut Runtime, headless: bool, frame: usize) -> Vec<RuntimeEvent> {
 
 fn op(event: &RuntimeEvent) -> Option<SceneOp> {
     if let RuntimeEvent::ScenePresentation { op, .. } = event {
-        Some(*op)
+        Some(op.clone())
     } else {
         None
     }
@@ -99,8 +99,7 @@ fn rika(headless: bool, omit_reload: Option<usize>) -> bool {
     let ops = scene
         .ops
         .iter()
-        .copied()
-        .filter(|op| {
+        .filter(|&op| {
             if *op != SceneOp::ReloadMapPalette {
                 return true;
             }
@@ -108,6 +107,7 @@ fn rika(headless: bool, omit_reload: Option<usize>) -> bool {
             reload += 1;
             keep
         })
+        .cloned()
         .collect::<Vec<_>>();
     assert_eq!(reload, 2);
     let scene = Box::leak(Box::new(Scene {

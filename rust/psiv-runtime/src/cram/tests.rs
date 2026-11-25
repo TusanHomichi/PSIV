@@ -361,7 +361,7 @@ fn the_rykros_cycle_writes_a_frame_then_waits_its_delay() {
         source_rom_addr: 0x0007_82DA,
         destination_ram: 0xFFFF_FB2E,
         words_per_frame: 9,
-        delays: DELAYS,
+        delays: std::borrow::Cow::Borrowed(DELAYS),
     });
     let trace = run(&mut cram, cycle, 0, 5, &palettes);
     // `$FFFFFB2E` is word 23: frame 0 writes table words 0..9 at 23..32.

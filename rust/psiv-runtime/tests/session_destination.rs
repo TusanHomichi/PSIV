@@ -604,7 +604,7 @@ fn both_flights_return_control_on_tape_35s_exact_frame() {
             for event in &frame.events {
                 match event {
                     RuntimeEvent::MapChanged { map, .. } => maps.push((offset, map.id().0)),
-                    RuntimeEvent::ScenePresentation { op, .. } => ops.push((offset, *op)),
+                    RuntimeEvent::ScenePresentation { op, .. } => ops.push((offset, op.clone())),
                     RuntimeEvent::SceneEnded => control = Some(offset),
                     _ => {}
                 }
@@ -825,7 +825,7 @@ fn answers_fade_once_after_the_windows_close_and_before_the_map_handoff() {
                                 }
                         ) =>
                     {
-                        teardown.push((offset, *op))
+                        teardown.push((offset, op.clone()))
                     }
                     RuntimeEvent::MapChanged { .. } => loads.push(offset),
                     _ => {}

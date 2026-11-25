@@ -171,7 +171,7 @@ fn palette_records(log: &[SceneEffect]) -> Vec<PresentationOp> {
                             op @ (PresentationOp::SetPaletteWords { .. }
                             | PresentationOp::PaletteCycleFromTable { .. }),
                     },
-            } => Some(*op),
+            } => Some(op.clone()),
             _ => None,
         })
         .collect()

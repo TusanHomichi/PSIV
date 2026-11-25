@@ -23,6 +23,10 @@ pub use credits::EndingCreditsView;
 mod battle_load;
 pub use battle_load::BattleLoadView;
 mod battle_entry;
+mod data_scene;
+pub use data_scene::{
+    CompiledDataScene, DataSceneLoadError, compile_data_scene, compile_data_scene_json,
+};
 mod dialogue;
 mod effects;
 mod encounters;
@@ -283,6 +287,9 @@ pub struct Runtime {
     /// Remaining frames of `PresentationOp::GaruberkEyeArtCycle` (`loc_6F91E` /
     /// `loc_6F9BC`), stepping `effects.updates.tile_art_frame` on even frames.
     garuberk_eye_frames: u16,
+    /// Internal data-driven scene overrides and custom event registrations
+    /// (#793). Checked before the compiled retail registry on event dispatch.
+    scene_overrides: std::collections::BTreeMap<EventIndex, std::sync::Arc<[psiv_core::SceneOp]>>,
 }
 
 /// An `Event_MoveCamera` pan in flight (`camera.rs`): twelve-bit targets,

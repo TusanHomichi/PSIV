@@ -81,7 +81,7 @@ pub(super) fn ride(rt: &mut Runtime, candidate: Option<&'static [SceneOp]>) -> R
                 ..
             } = event
             {
-                result.fades.push((tick, *op));
+                result.fades.push((tick, op.clone()));
                 if *op == SceneOp::FadeOut {
                     result.out_frames = largest(&words).max(1);
                 } else {

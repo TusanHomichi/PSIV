@@ -476,12 +476,12 @@ static RUNE_FLAELI_OPS: &[SceneOp] = &[
     SceneOp::WaitFrames { frames: 10 },
     // loc_6DBAC: BG chunks (15,14)=$0C,$0D; (15,15)=$14,$15.
     SceneOp::RestoreMapChunks {
-        chunks: &[
+        chunks: std::borrow::Cow::Borrowed(&[
             (15, 14, 0x0C),
             (16, 14, 0x0D),
             (15, 15, 0x14),
             (16, 15, 0x15),
-        ],
+        ]),
     },
     SceneOp::WaitFrames { frames: 134 },
     SceneOp::Presentation {

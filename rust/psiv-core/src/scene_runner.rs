@@ -16,6 +16,8 @@
 //! reports the window closed with [`SceneInput::DialogueClosed`]. The engine
 //! neither draws nor times the window; it only knows the script is waiting.
 
+use std::sync::Arc;
+
 use crate::error::MapError;
 use crate::field::StepFrames;
 use crate::geom::Cell;
@@ -85,13 +87,39 @@ enum Blocked {
     Done,
 }
 
+/// Backing storage for a [`SceneRunner`]'s op list: zero-allocation `'static`
+/// slice for compiled retail scenes, or shared owned slice for dynamically
+/// loaded data scenes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SceneOps {
+    Static(&'static [SceneOp]),
+    Owned(Arc<[SceneOp]>),
+}
+
+impl SceneOps {
+    fn as_slice(&self) -> &[SceneOp] {
+        match self {
+            Self::Static(ops) => ops,
+            Self::Owned(ops) => ops,
+        }
+    }
+
+    fn get(&self, index: usize) -> Option<&SceneOp> {
+        self.as_slice().get(index)
+    }
+
+    fn len(&self) -> usize {
+        self.as_slice().len()
+    }
+}
+
 /// Runs one scene.
 ///
 /// Construct it with the scene's op list and its cast, then [`SceneRunner::tick`]
 /// once per frame until [`SceneRunner::is_finished`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SceneRunner {
-    scene: &'static [SceneOp],
+    scene: SceneOps,
     pc: usize,
     actors: Vec<ScriptedActor>,
     party_slots: [Option<CharId>; PARTY_SLOTS],
@@ -167,6 +195,31 @@ impl SceneRunner {
         cast: Vec<ScriptedActor>,
         step_frames: StepFrames,
     ) -> SceneRunner {
+        Self::with_ops(SceneOps::Static(scene), cast, step_frames)
+    }
+
+    /// Starts a dynamically loaded (data-defined) scene from a shared owned op
+    /// buffer, using the exact same runner state machine as compiled scenes.
+    #[must_use]
+    pub fn from_owned(
+        scene: Arc<[SceneOp]>,
+        cast: Vec<ScriptedActor>,
+        step_frames: StepFrames,
+    ) -> SceneRunner {
+        Self::with_ops(SceneOps::Owned(scene), cast, step_frames)
+    }
+
+    /// Starts a dynamically loaded scene from an owned `Vec<SceneOp>`.
+    #[must_use]
+    pub fn from_vec(
+        scene: Vec<SceneOp>,
+        cast: Vec<ScriptedActor>,
+        step_frames: StepFrames,
+    ) -> SceneRunner {
+        Self::from_owned(Arc::from(scene), cast, step_frames)
+    }
+
+    fn with_ops(scene: SceneOps, cast: Vec<ScriptedActor>, step_frames: StepFrames) -> SceneRunner {
         SceneRunner {
             scene,
             pc: 0,
@@ -486,8 +539,9 @@ impl SceneRunner {
         self.actors = cast
             .into_iter()
             .map(|entry| {
-                let mut current = self.actor(entry.actor).copied().unwrap_or(entry);
-                current.actor = entry.actor;
+                let actor = entry.actor;
+                let mut current = self.actor(actor).cloned().unwrap_or(entry);
+                current.actor = actor;
                 current
             })
             .collect();
@@ -673,8 +727,8 @@ impl SceneRunner {
         };
         // A choice's answer decides the jump, so it is applied here where the
         // input is still in hand.
-        if let (SceneInput::Choice(answer), Some(SceneOp::BranchChoice { if_yes, if_no })) =
-            (input, self.scene.get(self.pc).copied())
+        if let (SceneInput::Choice(answer), Some(&SceneOp::BranchChoice { if_yes, if_no })) =
+            (input, self.scene.get(self.pc))
             && self.blocked == Blocked::No
         {
             self.pc = if answer { if_yes } else { if_no };
@@ -683,8 +737,8 @@ impl SceneRunner {
         // Cancel after the `cancel_skip` ops that follow (`ps4.asm:133692`).
         if let (
             SceneInput::DestinationChosen | SceneInput::DestinationCancelled,
-            Some(SceneOp::DestinationMenu { cancel_skip, .. }),
-        ) = (input, self.scene.get(self.pc).copied())
+            Some(&SceneOp::DestinationMenu { cancel_skip, .. }),
+        ) = (input, self.scene.get(self.pc))
             && self.blocked == Blocked::No
         {
             self.pc += 1;
@@ -706,7 +760,7 @@ impl SceneRunner {
             }
             budget -= 1;
 
-            let Some(op) = self.scene.get(self.pc).copied() else {
+            let Some(op) = self.scene.get(self.pc).cloned() else {
                 // Running off the end is an implicit End rather than a fault:
                 // a scene that simply stops has finished.
                 effects.push(SceneEffect::Finished);

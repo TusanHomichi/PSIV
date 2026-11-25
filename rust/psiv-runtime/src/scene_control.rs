@@ -10,12 +10,53 @@ use psiv_core::{
 use crate::Runtime;
 
 impl Runtime {
-    /// Installs a transcribed scene and parks the field until its runner
+    /// Validates and registers a data-defined scene program for `program.event_id`,
+    /// overriding any compiled retail scene with the same event index or adding
+    /// a new custom event index (#793).
+    ///
+    /// Kept test-only during the bounded spike until a public mod-folder scene
+    /// contract is greenlit; callers outside tests can still validate scenes
+    /// through [`crate::compile_data_scene`].
+    #[cfg(test)]
+    pub(crate) fn register_data_scene(
+        &mut self,
+        program: &psiv_data::DataSceneProgram,
+    ) -> Result<(), crate::DataSceneLoadError> {
+        let compiled = crate::compile_data_scene(program, &self.data)?;
+        self.scene_overrides.insert(compiled.event, compiled.ops);
+        Ok(())
+    }
+
+    /// Parses, validates, and registers a JSON data-defined scene program (#793).
+    #[cfg(test)]
+    pub(crate) fn register_data_scene_json(
+        &mut self,
+        json: &str,
+    ) -> Result<(), crate::DataSceneLoadError> {
+        let compiled = crate::compile_data_scene_json(json, &self.data)?;
+        self.scene_overrides.insert(compiled.event, compiled.ops);
+        Ok(())
+    }
+
+    /// Removes a previously registered data-driven scene override for `event`,
+    /// restoring compiled retail dispatch if one exists.
+    #[cfg(test)]
+    pub(crate) fn clear_data_scene_override(&mut self, event: EventIndex) -> bool {
+        self.scene_overrides.remove(&event).is_some()
+    }
+
+    /// Installs a scene (checking registered data-driven overrides first, then
+    /// the compiled retail registry) and parks the field until its runner
     /// produces a completion input. The renderer is notified separately by
     /// the caller because the source of a scene matters to its diagnostics.
     pub(crate) fn install_scene(&mut self, event: EventIndex) -> bool {
         if self.scene.is_some() {
             return false;
+        }
+        if let Some(ops) = self.scene_overrides.get(&event).cloned() {
+            let cast = self.build_cast();
+            let runner = SceneRunner::from_owned(ops, cast, self.party.leader().step_frames());
+            return self.finish_install_runner(runner, event);
         }
         let Some(scene) = scene_for(event) else {
             return false;
@@ -78,9 +119,13 @@ impl Runtime {
         // The runner walks with the party's own step timing, so scripted-walk
         // interpolation (renderer, camera driver) shares one clock with field
         // walking.
-        let Ok(mut runner) = runner_for(scene, cast, self.party.leader().step_frames()) else {
+        let Ok(runner) = runner_for(scene, cast, self.party.leader().step_frames()) else {
             return false;
         };
+        self.finish_install_runner(runner, event)
+    }
+
+    fn finish_install_runner(&mut self, mut runner: SceneRunner, event: EventIndex) -> bool {
         if let Some(jobs) = self.guild_jobs() {
             runner.set_guild_jobs(jobs);
         }
@@ -178,7 +223,7 @@ impl Runtime {
             .actors()
             .iter()
             .filter(|actor| routine.is_none_or(|npc| actor.actor != ActorRef::Npc(npc)))
-            .copied()
+            .cloned()
             .collect()
     }
 

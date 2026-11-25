@@ -108,7 +108,7 @@ fn zio_defeated_preserves_chaz(hp: u16, status: u8) {
     let loads: Vec<_> = log
         .iter()
         .filter_map(|e| match e {
-            SceneEffect::MapRequested { op } => Some(*op),
+            SceneEffect::MapRequested { op } => Some(op.clone()),
             _ => None,
         })
         .collect();

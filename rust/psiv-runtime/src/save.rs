@@ -211,6 +211,7 @@ pub(super) fn construct_runtime(
         scene_tail: None,
         credits: None,
         garuberk_eye_frames: 0,
+        scene_overrides: Default::default(),
     };
     runtime.sync_vehicle_selector()?;
     runtime.apply_travel_entry();

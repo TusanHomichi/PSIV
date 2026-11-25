@@ -9,6 +9,8 @@
 //! presentation records.  Persistent edges — maps, flags, party, inventory
 //! and battles — remain ordinary scene operations.
 
+use std::borrow::Cow;
+
 use super::{CHAZ, INSIDE_SPACESHIP_ROUTE, RAJA, RIKA, RUNE, WREN, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
@@ -380,23 +382,23 @@ pub static CRASH_LANDING: Scene = Scene {
         // $076E58..$076E6B: five frames; $076E16/$076E50 runs six
         // RunMapUpdates + DMAPlane_B_VInt passes after every frame.
         SceneOp::WriteMapChunks {
-            chunks: &[(47, 9, 0x50), (48, 9, 0x51), (47, 10, 0x58), (48, 10, 0x59)],
+            chunks: Cow::Borrowed(&[(47, 9, 0x50), (48, 9, 0x51), (47, 10, 0x58), (48, 10, 0x59)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(47, 9, 0x52), (48, 9, 0x53), (47, 10, 0x58), (48, 10, 0x59)],
+            chunks: Cow::Borrowed(&[(47, 9, 0x52), (48, 9, 0x53), (47, 10, 0x58), (48, 10, 0x59)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(47, 9, 0x54), (48, 9, 0x55), (47, 10, 0x5A), (48, 10, 0x5B)],
+            chunks: Cow::Borrowed(&[(47, 9, 0x54), (48, 9, 0x55), (47, 10, 0x5A), (48, 10, 0x5B)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(47, 9, 0x56), (48, 9, 0x57), (47, 10, 0x5C), (48, 10, 0x5D)],
+            chunks: Cow::Borrowed(&[(47, 9, 0x56), (48, 9, 0x57), (47, 10, 0x5C), (48, 10, 0x5D)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::WriteMapChunks {
-            chunks: &[(47, 9, 0x56), (48, 9, 0x57), (47, 10, 0x5E), (48, 10, 0x5F)],
+            chunks: Cow::Borrowed(&[(47, 9, 0x56), (48, 9, 0x57), (47, 10, 0x5E), (48, 10, 0x5F)]),
         },
         SceneOp::Wait { ticks: 6 },
         SceneOp::Wait { ticks: 60 },
@@ -641,7 +643,7 @@ pub static LANDALE: Scene = Scene {
         // makes warp 9 of Dezolis fire on the live map.
         SceneOp::Wait { ticks: 308 },
         SceneOp::WriteMapChunks {
-            chunks: &[(6, 36, 0x2C)],
+            chunks: std::borrow::Cow::Borrowed(&[(6, 36, 0x2C)]),
         },
         SceneOp::Wait { ticks: 61 },
         SceneOp::ObjectAnimation {
@@ -724,8 +726,8 @@ pub static DARK_FORCE_1: Scene = Scene {
 pub static DARK_FORCE_1_DEFEATED: Scene = Scene {
     name: "Cutscene_DarkForce1Defeated",
     event: EventIndex(0x8011),
-    ops: &super::flight::with_planet_screen::<37>(
-        &[
+    ops: &super::flight::with_planet_screen!(
+        [
             SceneOp::InitVramAndCram,
             SceneOp::FadeIn,
             SceneOp::PanelCreate { id: 0x8E },
@@ -746,7 +748,7 @@ pub static DARK_FORCE_1_DEFEATED: Scene = Scene {
             // $07722A calls loc_64C1E: its fade-in/out belong here, before
             // Zelan F1, rather than to a fictitious linear caller range.
         ],
-        &[
+        [
             SceneOp::LoadMap {
                 map: 0x18E,
                 prev_map: 0xFFFF,
@@ -826,8 +828,11 @@ pub static JUZA: Scene = Scene {
 // The open rows in `$06FBC4` are the baked layout: restoring them removes
 // the closed overlay.
 const JUZA_STAIRS_OPEN: SceneOp = SceneOp::RestoreMapChunks {
-    chunks: &[(12, 9, 0x23), (13, 9, 0x1A), (12, 10, 0x19), (13, 10, 0x1B)],
+    chunks: Cow::Borrowed(&[(12, 9, 0x23), (13, 9, 0x1A), (12, 10, 0x19), (13, 10, 0x1B)]),
 };
+
+const JUZA_STAIRS_CLOSED: &[(u32, u32, u16)] =
+    &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)];
 
 /// `$0041`, `Event_JuzaDefeated`, retail `$06FB5E..$06FBED`.
 ///
@@ -851,25 +856,25 @@ pub static JUZA_DEFEATED: Scene = Scene {
         // (`$06FBB0`, DBF d0). CPU refresh at `$06FBA6` belongs to #546;
         // these waits spend only the explicit DMA loop, with no updates.
         SceneOp::WriteMapChunks {
-            chunks: &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)],
+            chunks: Cow::Borrowed(JUZA_STAIRS_CLOSED),
         },
         SceneOp::WaitFrames { frames: 7 },
         JUZA_STAIRS_OPEN,
         SceneOp::WaitFrames { frames: 7 },
         SceneOp::WriteMapChunks {
-            chunks: &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)],
+            chunks: Cow::Borrowed(JUZA_STAIRS_CLOSED),
         },
         SceneOp::WaitFrames { frames: 7 },
         JUZA_STAIRS_OPEN,
         SceneOp::WaitFrames { frames: 7 },
         SceneOp::WriteMapChunks {
-            chunks: &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)],
+            chunks: Cow::Borrowed(JUZA_STAIRS_CLOSED),
         },
         SceneOp::WaitFrames { frames: 7 },
         JUZA_STAIRS_OPEN,
         SceneOp::WaitFrames { frames: 7 },
         SceneOp::WriteMapChunks {
-            chunks: &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)],
+            chunks: Cow::Borrowed(JUZA_STAIRS_CLOSED),
         },
         SceneOp::WaitFrames { frames: 7 },
         JUZA_STAIRS_OPEN,

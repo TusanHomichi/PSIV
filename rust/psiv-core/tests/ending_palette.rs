@@ -181,7 +181,7 @@ fn the_credits_ramp_reads_primary_from_d5_and_secondary_from_step_nine() {
 
 fn presentation(op: &SceneOp) -> Option<PresentationOp> {
     match op {
-        SceneOp::Presentation { op } => Some(*op),
+        SceneOp::Presentation { op } => Some(op.clone()),
         _ => None,
     }
 }
