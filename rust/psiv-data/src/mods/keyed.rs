@@ -135,13 +135,15 @@ pub(crate) fn apply_keyed_array(
                     ));
                 }
 
-                let materialized = if is_tree_dialogue_entry(rel_file, &child_schema) {
-                    let expected_id = base_arr.len() + prepared.len();
-                    if id_key != expected_id.to_string() {
+                if spec.dense_key {
+                    let expected_key = base_arr.len() + prepared.len();
+                    if id_key != expected_key.to_string() {
                         return Err(format!(
-                            "{table_label}.{ADD_RECORDS_KEY}[{idx}]: dialogue entry ids are dense; expected id={expected_id}, got id={id_key}"
+                            "{table_label}.{ADD_RECORDS_KEY}[{idx}]: `{key_field}` is dense/positional; expected {key_field}={expected_key}, got {key_field}={id_key}"
                         ));
                     }
+                }
+                let materialized = if is_tree_dialogue_entry(rel_file, &child_schema) {
                     expand_new_dialogue_entry(raw_item, &table_label, &id_key)?
                 } else {
                     raw_item.clone()
@@ -272,18 +274,18 @@ pub(crate) fn diff_keyed_array(
                         "{label}: adding new record {key_field}={key} is not supported in sparse ID-keyed patches"
                     ));
                 }
-                let exported = if is_tree_dialogue_entry(rel_file, &child_schema) {
-                    let expected_id = base_arr.len() + added_items.len();
-                    if key != expected_id.to_string() {
+                if spec.dense_key {
+                    let expected_key = base_arr.len() + added_items.len();
+                    if key != expected_key.to_string() {
                         return Err(format!(
-                            "{label}: newly added dialogue entry ids must stay dense; expected id={expected_id}, got id={key}"
+                            "{label}: newly added records must keep dense/positional `{key_field}`={expected_key}, got {key_field}={key}"
                         ));
                     }
-                    if let Value::Object(obj) = edited_item {
-                        synthesize_new_dialogue_entry(obj)
-                    } else {
-                        edited_item.clone()
-                    }
+                }
+                let exported = if is_tree_dialogue_entry(rel_file, &child_schema)
+                    && let Value::Object(obj) = edited_item
+                {
+                    synthesize_new_dialogue_entry(obj)
                 } else {
                     edited_item.clone()
                 };

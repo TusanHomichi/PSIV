@@ -444,11 +444,11 @@ fn additive_negative_controls_fail_closed_naming_mod_file_and_record_id() {
     let err = run_single_mod(
         "incomplete-npc",
         "patches/maps/010_Piata.json",
-        json!({"npcs": {"$add": [{"index": 7, "object_id": 60}]}}),
+        json!({"npcs": {"$add": [{"index": 1, "object_id": 60}]}}),
     );
     assert_eq!(err.mod_id, "incomplete-npc");
     assert!(err.file.contains("maps/010_Piata.json"), "{err}");
-    assert!(err.detail.contains("index=7"), "{err}");
+    assert!(err.detail.contains("index=1"), "{err}");
     assert!(err.detail.contains("missing field"), "{err}");
 
     // 5. Dangling enemy_id on added formation fails closed naming mod, file, and formation id.
@@ -479,26 +479,26 @@ fn additive_negative_controls_fail_closed_naming_mod_file_and_record_id() {
     let err = run_single_mod(
         "bad-chest-item",
         "patches/maps/010_Piata.json",
-        json!({"treasure_chests": {"$add": [sample_chest(9, 250)]}}),
+        json!({"treasure_chests": {"$add": [sample_chest(1, 250)]}}),
     );
     assert_eq!(err.mod_id, "bad-chest-item");
     assert_eq!(err.file, "maps/010_Piata.json");
-    assert!(err.detail.contains("index 9"), "{err}");
+    assert!(err.detail.contains("index 1"), "{err}");
     assert!(err.detail.contains("250"), "{err}");
 
     // 8. Dangling dialogue_id on added NPC fails closed naming mod, map file, and npc index.
     let err = run_single_mod(
         "bad-npc-dialogue",
         "patches/maps/010_Piata.json",
-        json!({"npcs": {"$add": [sample_npc(8, 99)]}}),
+        json!({"npcs": {"$add": [sample_npc(1, 99)]}}),
     );
     assert_eq!(err.mod_id, "bad-npc-dialogue");
     assert_eq!(err.file, "maps/010_Piata.json");
-    assert!(err.detail.contains("index 8"), "{err}");
+    assert!(err.detail.contains("index 1"), "{err}");
     assert!(err.detail.contains("99"), "{err}");
 
     // 9. Missing sprite sheet on added NPC fails closed naming mod, map file, and npc index.
-    let mut bad_sprite_npc = sample_npc(6, 0);
+    let mut bad_sprite_npc = sample_npc(1, 0);
     bad_sprite_npc["sprite_reason"] = json!(null);
     bad_sprite_npc["sprite"] = json!({
         "sheet": "NoSuchSheet",
@@ -514,11 +514,11 @@ fn additive_negative_controls_fail_closed_naming_mod_file_and_record_id() {
     );
     assert_eq!(err.mod_id, "bad-npc-sprite");
     assert_eq!(err.file, "maps/010_Piata.json");
-    assert!(err.detail.contains("npc 6"), "{err}");
+    assert!(err.detail.contains("npc 1"), "{err}");
     assert!(err.detail.contains("NoSuchSheet"), "{err}");
 
     // 10. Invalid object_id on added NPC fails closed naming mod, map file, and npc index.
-    let mut bad_obj_npc = sample_npc(5, 0);
+    let mut bad_obj_npc = sample_npc(1, 0);
     bad_obj_npc["object_id"] = json!(9999);
     let err = run_single_mod(
         "bad-npc-obj",
@@ -527,11 +527,11 @@ fn additive_negative_controls_fail_closed_naming_mod_file_and_record_id() {
     );
     assert_eq!(err.mod_id, "bad-npc-obj");
     assert_eq!(err.file, "maps/010_Piata.json");
-    assert!(err.detail.contains("index 5"), "{err}");
+    assert!(err.detail.contains("index 1"), "{err}");
     assert!(err.detail.contains("9999"), "{err}");
 
     // 11. Out-of-bounds map coordinates on added NPC fails closed naming mod, map file, and npc index.
-    let mut oob_npc = sample_npc(4, 0);
+    let mut oob_npc = sample_npc(1, 0);
     oob_npc["x_cell"] = json!(99);
     let err = run_single_mod(
         "oob-npc",
@@ -540,17 +540,17 @@ fn additive_negative_controls_fail_closed_naming_mod_file_and_record_id() {
     );
     assert_eq!(err.mod_id, "oob-npc");
     assert_eq!(err.file, "maps/010_Piata.json");
-    assert!(err.detail.contains("index 4"), "{err}");
+    assert!(err.detail.contains("index 1"), "{err}");
 
     // 12. Invalid destination map ID on added warp fails closed naming mod, map file, and warp index.
     let err = run_single_mod(
         "bad-warp-target",
         "patches/maps/010_Piata.json",
-        json!({"warps": {"$add": [sample_warp(3, 999, 1, 1)]}}),
+        json!({"warps": {"$add": [sample_warp(1, 999, 1, 1)]}}),
     );
     assert_eq!(err.mod_id, "bad-warp-target");
     assert_eq!(err.file, "maps/010_Piata.json");
-    assert!(err.detail.contains("index 3"), "{err}");
+    assert!(err.detail.contains("index 1"), "{err}");
     assert!(
         err.detail.contains("0x3e7") || err.detail.contains("0x3E7"),
         "{err}"
@@ -565,7 +565,7 @@ fn additive_negative_controls_fail_closed_naming_mod_file_and_record_id() {
     write_json(
         &mod_a,
         "patches/maps/010_Piata.json",
-        &json!({"treasure_chests": {"$add": [sample_chest(11, 250)]}}),
+        &json!({"treasure_chests": {"$add": [sample_chest(1, 250)]}}),
     );
     let mod_b = scratch.join("attr-b");
     let mut man_b = ModManifest::new("attr-b", "Attr B", "1.0.0");
@@ -583,7 +583,7 @@ fn additive_negative_controls_fail_closed_naming_mod_file_and_record_id() {
     .expect_err("broken chest item_id must fail");
     assert_eq!(attr_err.mod_id, "attr-a");
     assert_eq!(attr_err.file, "maps/010_Piata.json");
-    assert!(attr_err.detail.contains("index 11"), "{attr_err}");
+    assert!(attr_err.detail.contains("index 1"), "{attr_err}");
 
     // 14. Diffing a mid-list insertion or deletion or reorder still fails closed.
     let base_map = json!({"npcs": [sample_npc(0, 0)]});
@@ -681,6 +681,29 @@ fn additive_negative_controls_fail_closed_naming_mod_file_and_record_id() {
     let mile_err = PackOverlay::load_validated(&mile_base, &[])
         .expect_err("MileHouse1 with dialogue_tree != 4 must reject dangling dialogue_id 110");
     assert!(mile_err.detail.contains("dialogue_id 110"), "{mile_err}");
+
+    // 17. Non-positional indexes on map npcs, treasure_chests, and warps fail closed in both
+    //     apply_json_patch and diff_json.
+    for (field, bad_record, base_record) in [
+        ("npcs", sample_npc(5, 0), sample_npc(0, 0)),
+        (
+            "treasure_chests",
+            sample_chest(5, 125),
+            sample_chest(0, 125),
+        ),
+        ("warps", sample_warp(5, 17, 1, 1), sample_warp(0, 17, 1, 1)),
+    ] {
+        let mut target = json!({ field: [base_record.clone()] });
+        let patch = json!({ field: { "$add": [bad_record.clone()] } });
+        let err = apply_json_patch(&mut target, &patch, "maps/010_Piata.json")
+            .expect_err("non-positional map index must fail patch apply");
+        assert!(err.contains("expected index=1"), "{field}: {err}");
+
+        let edited = json!({ field: [base_record, bad_record] });
+        let diff_err = diff_json(&target, &edited, "maps/010_Piata.json")
+            .expect_err("non-positional map index must fail diff");
+        assert!(diff_err.contains("`index`=1"), "{field}: {diff_err}");
+    }
 
     let _ = fs::remove_dir_all(&scratch);
 }

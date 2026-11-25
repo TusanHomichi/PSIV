@@ -330,8 +330,10 @@ Additive rules across mods and `psiv-pack mod diff`:
   cross-references (existing enemy/item/dialogue/sprite/map IDs and in-bounds
   map coordinates).
 - **Deterministic multi-mod ordering and conflicts:** added records append after
-  base records in `(mod load order, $add array order)`. A later mod may edit a
-  record added by an earlier mod using normal `"<id>": {...}` syntax, while
+  base records in `(mod load order, $add array order)`. Positional tables
+  (`trees.*.entries`, `npcs`, `treasure_chests`, `warps`) require sequential
+  dense IDs/indexes matching their resulting list position. A later mod may edit
+  a record added by an earlier mod using normal `"<id>": {...}` syntax, while
   adding an ID that already exists in the base pack or was already added by
   another active mod fails closed naming the mod, file, and conflicting ID.
 - **Automatic count reconciliation & diff round-trip:** `formation_count` and

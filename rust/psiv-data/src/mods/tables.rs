@@ -37,6 +37,9 @@ pub(crate) struct KeyedArraySpec {
     pub key_field: &'static str,
     /// Whether this table supports explicit additive record creation via `"$add"`.
     pub allow_add: bool,
+    /// Whether appended records must carry a dense 0-based positional key
+    /// matching their resulting array index (`base_arr.len() + offset`).
+    pub dense_key: bool,
 }
 
 impl KeyedArraySpec {
@@ -50,6 +53,7 @@ impl KeyedArraySpec {
             path,
             key_field,
             allow_add: false,
+            dense_key: false,
         }
     }
 
@@ -63,6 +67,21 @@ impl KeyedArraySpec {
             path,
             key_field,
             allow_add: true,
+            dense_key: false,
+        }
+    }
+
+    const fn additive_dense(
+        file: FilePattern,
+        path: &'static [&'static str],
+        key_field: &'static str,
+    ) -> Self {
+        Self {
+            file,
+            path,
+            key_field,
+            allow_add: true,
+            dense_key: true,
         }
     }
 }
@@ -216,7 +235,7 @@ pub(crate) const KEYED_ARRAYS: &[KeyedArraySpec] = &[
         &["trees"],
         "tree",
     ),
-    KeyedArraySpec::additive(
+    KeyedArraySpec::additive_dense(
         FilePattern::Exact("dialogue/trees.json"),
         &["trees", "*", "entries"],
         "id",
@@ -247,9 +266,9 @@ pub(crate) const KEYED_ARRAYS: &[KeyedArraySpec] = &[
         "index",
     ),
     // Field maps
-    KeyedArraySpec::additive(MAPS_JSON, &["npcs"], "index"),
-    KeyedArraySpec::additive(MAPS_JSON, &["warps"], "index"),
-    KeyedArraySpec::additive(MAPS_JSON, &["treasure_chests"], "index"),
+    KeyedArraySpec::additive_dense(MAPS_JSON, &["npcs"], "index"),
+    KeyedArraySpec::additive_dense(MAPS_JSON, &["warps"], "index"),
+    KeyedArraySpec::additive_dense(MAPS_JSON, &["treasure_chests"], "index"),
     KeyedArraySpec::edit_only(MAPS_JSON, &["interaction_areas"], "index"),
     KeyedArraySpec::edit_only(MAPS_JSON, &["map_updates"], "index"),
     KeyedArraySpec::edit_only(MAPS_JSON, &["layout_variants"], "png"),
