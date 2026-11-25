@@ -216,27 +216,27 @@ class RomSignatures(unittest.TestCase):
         py_list = "FOO_SIGNATURE = [0x01, 0x02, 0x03, 0x04]\n"
         py_tuple = "FOO_SIGNATURE = (0x01, 0x02, 0x03, 0x04)\n"
         py_bytearray = "FOO_SIGNATURE = bytearray([0x01, 0x02, 0x03, 0x04])\n"
-        self.assertEqual(len(rom_signatures_in("rust/psiv-pack/src/x.rs", rust_const)), 1)
+        self.assertEqual(len(rom_signatures_in("rust/psiv-pack/src/rom.rs", rust_const)), 1)
         for sample in (py_const, py_bytes_seq, py_list, py_tuple, py_bytearray):
-            self.assertEqual(len(rom_signatures_in("psiv_tools/x.py", sample)), 1, sample)
+            self.assertEqual(len(rom_signatures_in("psiv_tools/m68k.py", sample)), 1, sample)
 
     def test_find_exactly_and_hex_literals_fail(self):
         rust_search = 'let hits = find_exactly(rom, "deadbeefcafe", 1, "x");\n'
-        issues = rom_signatures_in("rust/psiv-pack/src/x.rs", rust_search)
+        issues = rom_signatures_in("rust/psiv-pack/src/rom.rs", rust_search)
         self.assertEqual(len(issues), 2, issues)
         spaced = 'ANCHOR = "DE AD BE EF CA FE"\n'
-        self.assertEqual(len(rom_signatures_in("psiv_tools/x.py", spaced)), 1)
+        self.assertEqual(len(rom_signatures_in("psiv_tools/m68k.py", spaced)), 1)
 
     def test_digests_png_magic_and_short_opcodes_pass(self):
         sha = "a" * 64
         rust_pin = f'const SIGNATURE_PIN: (usize, &str) = (12, "{sha}");\n'
-        self.assertEqual(rom_signatures_in("rust/psiv-pack/src/x.rs", rust_pin), [])
+        self.assertEqual(rom_signatures_in("rust/psiv-pack/src/rom.rs", rust_pin), [])
         png_rust = 'const SIGNATURE: &[u8; 8] = b"\\x89PNG\\r\\n\\x1a\\n";\n'
         self.assertEqual(rom_signatures_in("rust/psiv-pack/src/png.rs", png_rust), [])
         png_py = 'PNG_SIGNATURE = b"\\x89PNG\\r\\n\\x1a\\n"\n'
         self.assertEqual(rom_signatures_in("psiv_tools/png.py", png_py), [])
         short_opcode = 'if rom[at:at + 4] == bytes.fromhex("70004e75"):\n'
-        self.assertEqual(rom_signatures_in("psiv_tools/x.py", short_opcode), [])
+        self.assertEqual(rom_signatures_in("psiv_tools/m68k.py", short_opcode), [])
         bitstring = 'let bits = "1000001010110100";\n'
         self.assertEqual(rom_signatures_in("rust/psiv-pack/src/decode/enigma.rs", bitstring), [])
 
