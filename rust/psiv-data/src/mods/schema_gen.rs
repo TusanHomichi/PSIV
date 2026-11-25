@@ -14,7 +14,8 @@ use super::dialogue_patch::is_dialogue_entry;
 use super::grid::{CellValueKind, cell_grid_spec};
 use super::profile::{MOD_PROFILE_FORMAT_VERSION, ModProfile};
 use super::schema_check::for_each_patchable_table;
-use super::tables::{array_key_field, is_dynamic_map};
+use super::schema_gen_keyed::build_keyed_array_schema;
+use super::tables::{is_dynamic_map, keyed_array_spec};
 use super::{ModError, ModManifest, WINDOWS_RESERVED_NAMES};
 use crate::dialogue::DIALOGUE_FORMAT_VERSION;
 use crate::manifest::PACK_FORMAT_VERSION;
@@ -397,7 +398,7 @@ fn expected_table_format_version(sample_rel_file: &str) -> Option<u32> {
     }
 }
 
-fn key_field_is_integer(item_schema: &Value, key_field: &str) -> bool {
+pub(super) fn key_field_is_integer(item_schema: &Value, key_field: &str) -> bool {
     let Some(prop) = item_schema
         .as_object()
         .and_then(|o| o.get("properties"))
@@ -434,7 +435,7 @@ fn attach_defs(obj: &mut Map<String, Value>, out_defs: BTreeMap<String, Value>) 
     }
 }
 
-fn resolve_ref<'a>(node: &'a Value, raw_defs: &'a Map<String, Value>) -> Option<Value> {
+pub(super) fn resolve_ref<'a>(node: &'a Value, raw_defs: &'a Map<String, Value>) -> Option<Value> {
     let obj = node.as_object()?;
     let ref_str = obj.get("$ref")?.as_str()?;
     let def_name = ref_str.strip_prefix("#/$defs/")?;
@@ -450,7 +451,7 @@ fn resolve_ref<'a>(node: &'a Value, raw_defs: &'a Map<String, Value>) -> Option<
     Some(merged)
 }
 
-fn is_null_schema(v: &Value) -> bool {
+pub(super) fn is_null_schema(v: &Value) -> bool {
     v.as_object()
         .and_then(|obj| obj.get("type"))
         .and_then(Value::as_str)
@@ -520,11 +521,11 @@ fn make_nullable(schema: Value) -> Value {
     }
 }
 
-/// Transforms a schema node in **complete-record** mode (used for `mod_profile.json`
-/// and for elements of unkeyed arrays that `apply_json_patch` replaces wholesale).
-/// Preserves `required` fields and enforces `additionalProperties: false` on every
-/// modeled struct.
-fn transform_complete(
+/// Transforms a schema node in **complete-record** mode (used for `mod_profile.json`,
+/// additive `"$add"` records, and elements of unkeyed arrays that `apply_json_patch`
+/// replaces wholesale). Preserves `required` fields and enforces
+/// `additionalProperties: false` on every modeled struct.
+pub(super) fn transform_complete(
     node: &Value,
     raw_defs: &Map<String, Value>,
     out_defs: &mut BTreeMap<String, Value>,
@@ -580,7 +581,7 @@ fn transform_complete(
 }
 
 /// Transforms a schema node in **sparse-patch** mode for `patches/<rel_file>`.
-fn transform_sparse(
+pub(super) fn transform_sparse(
     node: &Value,
     rel_file: &str,
     path: &mut Vec<String>,
@@ -615,71 +616,31 @@ fn transform_sparse(
         return nullable;
     }
 
-    let (key_field, grid_spec, dialogue_entry, dynamic_map) = {
+    let (keyed_spec, grid_spec, dialogue_entry, dynamic_map) = {
         let path_refs: Vec<&str> = path.iter().map(String::as_str).collect();
         (
-            array_key_field(rel_file, &path_refs),
+            keyed_array_spec(rel_file, &path_refs),
             cell_grid_spec(rel_file, &path_refs),
             is_dialogue_entry(rel_file, &path_refs),
             is_dynamic_map(rel_file, &path_refs),
         )
     };
 
-    // 1. Keyed array (`KEYED_ARRAYS`): accepts either ID-keyed object or array of keyed partial objects.
+    // 1. Keyed array (`KEYED_ARRAYS`): accepts either ID-keyed object (with optional
+    // `"$add"` on additive-capable tables) or edit-only array of keyed partial objects.
     let (is_arr, arr_nullable) = is_array_schema(obj);
     if is_arr {
-        if let Some(key_field) = key_field {
-            let item_schema = obj.get("items").unwrap_or(&Value::Bool(true));
-            let base_def_name = item_schema
-                .as_object()
-                .and_then(|o| o.get("$ref"))
-                .and_then(Value::as_str)
-                .and_then(|r| r.strip_prefix("#/$defs/"));
-            path.push("*".to_owned());
-            let sparse_item =
-                transform_sparse(item_schema, rel_file, path, raw_defs, out_defs, visited);
-            path.pop();
-
-            let key_is_int = key_field_is_integer(&sparse_item, key_field);
-            let item_ref = if let Some(base_name) = base_def_name {
-                let def_name = register_patch_def(out_defs, base_name, &sparse_item);
-                json!({ "$ref": format!("#/$defs/{def_name}") })
-            } else {
-                sparse_item
-            };
-
-            let property_names = if key_is_int {
-                json!({ "pattern": "^(0|[1-9][0-9]*)$" })
-            } else {
-                json!({ "minLength": 1 })
-            };
-            let object_form = json!({
-                "type": "object",
-                "description": format!("Sparse ID-keyed patch map keyed by `{key_field}`."),
-                "propertyNames": property_names,
-                "additionalProperties": item_ref
-            });
-
-            let mut array_item = item_ref;
-            if let Some(item_obj) = array_item.as_object_mut() {
-                item_obj.insert("required".to_owned(), json!([key_field]));
-            }
-            let array_form = json!({
-                "type": "array",
-                "description": format!("Array of partial record patches, each carrying `{key_field}`."),
-                "items": array_item
-            });
-
-            let mut branches = vec![object_form, array_form];
-            if arr_nullable {
-                branches.push(json!({ "type": "null" }));
-            }
-            let mut out = Map::new();
-            if let Some(desc) = obj.get("description") {
-                out.insert("description".to_owned(), desc.clone());
-            }
-            out.insert("oneOf".to_owned(), Value::Array(branches));
-            return Value::Object(out);
+        if let Some(spec) = keyed_spec {
+            return build_keyed_array_schema(
+                obj,
+                arr_nullable,
+                rel_file,
+                path,
+                spec,
+                raw_defs,
+                out_defs,
+                visited,
+            );
         }
 
         if let Some(grid_spec) = grid_spec {
@@ -802,6 +763,27 @@ fn transform_sparse(
     Value::Object(out)
 }
 
+pub(super) fn dialogue_lines_schema() -> Value {
+    json!({
+        "description": "Dialogue lines shorthand: a single page of lines (`[\"Line 1\", \"Line 2\"]`) or multiple pages (`[[\"P1 L1\", \"P1 L2\"], [\"P2\"]]`).",
+        "oneOf": [
+            {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string" }
+            },
+            {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                }
+            }
+        ]
+    })
+}
+
 fn inject_dialogue_shorthands(props: &mut Map<String, Value>, entry_obj: &mut Map<String, Value>) {
     props.insert(
         "replace".to_owned(),
@@ -820,27 +802,7 @@ fn inject_dialogue_shorthands(props: &mut Map<String, Value>, entry_obj: &mut Ma
             }
         }),
     );
-    props.insert(
-        "lines".to_owned(),
-        json!({
-            "description": "Dialogue patch shorthand: replaces entry text cleanly as a single page of lines (`[\"Line 1\", \"Line 2\"]`) or multiple pages (`[[\"P1 L1\", \"P1 L2\"], [\"P2\"]]`).",
-            "oneOf": [
-                {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": { "type": "string" }
-                },
-                {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "type": "array",
-                        "items": { "type": "string" }
-                    }
-                }
-            ]
-        }),
-    );
+    props.insert("lines".to_owned(), dialogue_lines_schema());
     props.insert(
         "keep_portrait".to_owned(),
         json!({
@@ -857,18 +819,17 @@ fn inject_dialogue_shorthands(props: &mut Map<String, Value>, entry_obj: &mut Ma
     );
 }
 
-fn register_patch_def(
+pub(super) fn register_named_def(
     out_defs: &mut BTreeMap<String, Value>,
-    base_name: &str,
+    base_key: &str,
     schema: &Value,
 ) -> String {
-    let base_key = format!("{base_name}Patch");
-    match out_defs.get(&base_key) {
+    match out_defs.get(base_key) {
         None => {
-            out_defs.insert(base_key.clone(), schema.clone());
-            base_key
+            out_defs.insert(base_key.to_owned(), schema.clone());
+            base_key.to_owned()
         }
-        Some(existing) if existing == schema => base_key,
+        Some(existing) if existing == schema => base_key.to_owned(),
         Some(_) => {
             let mut idx = 2u32;
             loop {

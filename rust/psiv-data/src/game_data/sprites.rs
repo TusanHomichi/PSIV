@@ -8,6 +8,7 @@
 
 use super::GameData;
 use crate::error::DataError;
+use std::collections::BTreeMap;
 
 pub(super) fn validate_sheet(sheet: &crate::sprites::Sheet) -> Result<(), DataError> {
     let fail = |message: String| DataError::Sprite {
@@ -42,7 +43,10 @@ pub(super) fn validate_sheet(sheet: &crate::sprites::Sheet) -> Result<(), DataEr
     Ok(())
 }
 
-pub(super) fn validate_sprite_refs(data: &GameData) -> Result<(), DataError> {
+pub(super) fn validate_sprite_refs(
+    data: &GameData,
+    sheet_sources: &BTreeMap<String, &'static str>,
+) -> Result<(), DataError> {
     for (id, record) in &data.maps {
         for palette in record
             .map_effects
@@ -107,6 +111,17 @@ pub(super) fn validate_sprite_refs(data: &GameData) -> Result<(), DataError> {
                         who: who.clone(),
                         message: format!("missing chest sheet {}", sprite.sheet),
                     })?;
+                if let Some(&owner_file) = sheet_sources.get(&sprite.sheet)
+                    && sprite.sheets != owner_file
+                {
+                    return Err(DataError::Sprite {
+                        who,
+                        message: format!(
+                            "sheet {} belongs to `{owner_file}`, not `{}`",
+                            sprite.sheet, sprite.sheets
+                        ),
+                    });
+                }
                 for sequence in ["idle_down", "idle_up"] {
                     if sheet.sequence(sequence).is_none() {
                         return Err(DataError::Sprite {
@@ -127,6 +142,17 @@ pub(super) fn validate_sprite_refs(data: &GameData) -> Result<(), DataError> {
                             message: format!("references missing sheet {}", sprite.sheet),
                         });
                     };
+                    if let Some(&owner_file) = sheet_sources.get(&sprite.sheet)
+                        && sprite.sheets != owner_file
+                    {
+                        return Err(DataError::Sprite {
+                            who,
+                            message: format!(
+                                "sheet {} belongs to `{owner_file}`, not `{}`",
+                                sprite.sheet, sprite.sheets
+                            ),
+                        });
+                    }
                     for sequence in [&sprite.idle_sequence, &sprite.walk_sequence] {
                         if sheet.sequence(sequence).is_none() {
                             return Err(DataError::Sprite {

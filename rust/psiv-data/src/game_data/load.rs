@@ -149,6 +149,8 @@ impl GameData {
         // sprite references can be validated against real sheets.
         let mut party_ids = Vec::new();
         let mut vehicle_ids = Vec::new();
+        let mut sheet_sources: std::collections::BTreeMap<String, &'static str> =
+            std::collections::BTreeMap::new();
         for (name, is_party, is_vehicle, optional) in [
             ("sprites/party.json", true, false, false),
             ("sprites/npcs.json", false, false, false),
@@ -179,6 +181,7 @@ impl GameData {
                 if is_vehicle {
                     vehicle_ids.push(sheet.id.clone());
                 }
+                sheet_sources.insert(sheet.id.clone(), name);
                 if let Some(previous) = data.sheets.insert(sheet.id.clone(), sheet) {
                     return Err(DataError::Sprite {
                         who: previous.id,
@@ -206,6 +209,7 @@ impl GameData {
                                 message: "vehicle palette sheet is not named by sheet_ids".into(),
                             });
                         }
+                        sheet_sources.insert(sheet.id.clone(), name);
                         if let Some(previous) = data.sheets.insert(sheet.id.clone(), sheet) {
                             return Err(DataError::Sprite {
                                 who: previous.id,
@@ -230,7 +234,55 @@ impl GameData {
         }
         data.party_sheet_ids = party_ids;
         data.vehicle_sheet_ids = vehicle_ids;
-        validate_sprite_refs(&data)?;
+        validate_sprite_refs(&data, &sheet_sources)?;
+        validate_npc_dialogue_refs(&data)?;
         Ok(data)
     }
+}
+
+/// US retail cartridge silent villager objects in MileHouse1 (`0x020`, NPCs 2/3)
+/// and MileHouse2 (`0x022`, NPCs 2/3) carry `dialogue_id = 0x6E (110)`, pointing
+/// at the trailing `$FF` slot of 110-entry `DialogueTree4`. Mod-added or
+/// mod-edited NPCs are checked strictly without this exemption in `PackOverlay`.
+fn is_retail_silent_mile_npc(map_id: crate::MapId, npc_index: u32, dialogue_id: u16) -> bool {
+    matches!(
+        (map_id.0, npc_index, dialogue_id),
+        (0x020 | 0x022, 2 | 3, 110)
+    )
+}
+
+fn validate_npc_dialogue_refs(data: &GameData) -> Result<(), DataError> {
+    let Some(dialogue) = data.dialogue.as_ref() else {
+        return Ok(());
+    };
+    for (map_id, record) in &data.maps {
+        let Some(tree) = dialogue.tree(record.dialogue_tree) else {
+            return Err(DataError::validation(
+                *map_id,
+                "dialogue_tree",
+                format!(
+                    "references dialogue tree {}, which is absent from dialogue/trees.json",
+                    record.dialogue_tree
+                ),
+            ));
+        };
+        for (pos, npc) in record.npcs.iter().enumerate() {
+            if tree.entry(npc.dialogue_id).is_none()
+                && !is_retail_silent_mile_npc(*map_id, npc.index, npc.dialogue_id)
+            {
+                return Err(DataError::validation(
+                    *map_id,
+                    format!("npcs[{pos}].dialogue_id"),
+                    format!(
+                        "npc index {} references dialogue_id {} in tree {}, which has {} entries",
+                        npc.index,
+                        npc.dialogue_id,
+                        record.dialogue_tree,
+                        tree.entries.len()
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(())
 }

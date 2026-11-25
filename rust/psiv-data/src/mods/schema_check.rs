@@ -20,6 +20,59 @@ use std::collections::BTreeSet;
 
 use super::tables::MAPS_JSON;
 
+/// Verifies that one newly added record in an additive-capable ID-keyed table
+/// satisfies its full `psiv-data` Rust `Deserialize` schema (all required fields
+/// present, valid types/ranges, and zero unknown fields).
+///
+/// Errors explicitly name the table, record ID, and offending field.
+pub(crate) fn validate_added_record(
+    rel_file: &str,
+    table_schema_path: &[&str],
+    table_label: &str,
+    key_field: &str,
+    id_key: &str,
+    record: &Value,
+) -> Result<(), String> {
+    let check_typed = |res: Result<BTreeSet<String>, String>| -> Result<(), String> {
+        let ignored =
+            res.map_err(|err| format!("{table_label}: added record {key_field}={id_key}: {err}"))?;
+        if let Some(unknown) = ignored.into_iter().next() {
+            return Err(format!(
+                "{table_label}: added record {key_field}={id_key}: unknown field `{unknown}` (not in schema for `{rel_file}`)"
+            ));
+        }
+        Ok(())
+    };
+
+    match (rel_file, table_schema_path) {
+        ("dialogue/trees.json", ["trees", "*", "entries"]) => {
+            check_typed(ignored_paths::<crate::dialogue::DialogueEntry>(record))
+        }
+        ("battle/formations.json", ["formations"]) => {
+            check_typed(ignored_paths::<crate::battle::Formation>(record))?;
+            if record
+                .get("event_battle_index")
+                .is_some_and(|v| !v.is_null())
+            {
+                return Err(format!(
+                    "{table_label}: added record {key_field}={id_key}: normal formations must not set `event_battle_index`"
+                ));
+            }
+            Ok(())
+        }
+        (file, ["npcs"]) if MAPS_JSON.matches(file) => {
+            check_typed(ignored_paths::<crate::map::Npc>(record))
+        }
+        (file, ["warps"]) if MAPS_JSON.matches(file) => {
+            check_typed(ignored_paths::<crate::map::Warp>(record))
+        }
+        (file, ["treasure_chests"]) if MAPS_JSON.matches(file) => {
+            check_typed(ignored_paths::<crate::map::Treasure>(record))
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Baseline of ignored/research paths already present in the unmodified base JSON.
 pub(crate) struct SchemaBaseline {
     ignored: BTreeSet<String>,

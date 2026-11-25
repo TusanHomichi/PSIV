@@ -475,6 +475,18 @@ impl DialogueSet {
                         )),
                     ));
                 }
+                for ch in text.chars() {
+                    if !self.font.by_char.contains_key(&ch) {
+                        return Err(defect(
+                            path,
+                            where_(&format!(
+                                "pages[{index}] line {line} uses {ch:?} (U+{:04X}), which the \
+                                 dialogue font has no glyph for",
+                                u32::from(ch)
+                            )),
+                        ));
+                    }
+                }
             }
         }
         Ok(())

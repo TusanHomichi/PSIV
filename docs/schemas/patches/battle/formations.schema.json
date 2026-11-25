@@ -23,6 +23,39 @@
       },
       "type": "object"
     },
+    "FormationEnemy": {
+      "additionalProperties": false,
+      "description": "One enemy slot of a formation.",
+      "properties": {
+        "enemy_id": {
+          "description": "Index into `EnemyData`.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "position": {
+          "description": "The on-screen position byte. Presentation only.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "slot": {
+          "description": "Which of the four enemy slots, one-based.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slot",
+        "enemy_id",
+        "position"
+      ],
+      "type": "object"
+    },
     "FormationEnemyPatch": {
       "additionalProperties": false,
       "description": "One enemy slot of a formation.",
@@ -49,6 +82,85 @@
           "type": "integer"
         }
       },
+      "type": "object"
+    },
+    "FormationNew": {
+      "additionalProperties": false,
+      "description": "One `$FF`-terminated formation record.",
+      "properties": {
+        "ambush_chance": {
+          "description": "Byte 0, compared against the party's highest agility.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "can_run": {
+          "description": "Whether byte 1 is below `$F0`.",
+          "type": "boolean"
+        },
+        "count": {
+          "description": "Byte 4. Formation `$177` declares four and lists three — the\ncartridge's own inconsistency, which is why\n[`Formation::count_matches_entries`] exists.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "count_matches_entries": {
+          "description": "Whether byte 4 agrees with the number of entries.",
+          "type": "boolean"
+        },
+        "drop_item": {
+          "default": null,
+          "description": "Byte 3, or `None` when the formation drops nothing.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "drop_rate": {
+          "description": "Byte 2, out of 128.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enemies": {
+          "description": "The enemies, in slot order.",
+          "items": {
+            "$ref": "#/$defs/FormationEnemy"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "id": {
+          "description": "Its index across the four normal data blocks.\n\nAbsent on a boss formation, which is reached through\n[`Formation::event_battle_index`] instead — the two live in different\nindex spaces because `Battle_SetupEnemyData` reaches them by different\nroutes (`ps4.asm:11813`). A record writes only the key it has.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "run_chance": {
+          "description": "Byte 1, the same comparison for escape.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ambush_chance",
+        "run_chance",
+        "can_run",
+        "drop_rate",
+        "count",
+        "count_matches_entries",
+        "enemies",
+        "id"
+      ],
       "type": "object"
     },
     "FormationPatch": {
@@ -633,9 +745,26 @@
           "additionalProperties": {
             "$ref": "#/$defs/FormationPatch"
           },
-          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "description": "Sparse ID-keyed patch map keyed by `id`, plus optional `$add` list for adding new records.",
+          "properties": {
+            "$add": {
+              "description": "Explicit list of complete new records to append (each must carry a unique `id`).",
+              "items": {
+                "$ref": "#/$defs/FormationNew"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
           "propertyNames": {
-            "pattern": "^(0|[1-9][0-9]*)$"
+            "anyOf": [
+              {
+                "const": "$add"
+              },
+              {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              }
+            ]
           },
           "type": "object"
         },

@@ -8,6 +8,108 @@ pub(crate) fn is_dialogue_entry(rel_file: &str, path: &[&str]) -> bool {
         && (path == ["trees", "*", "entries", "*"] || path == ["system_messages", "messages", "*"])
 }
 
+pub(crate) fn is_tree_dialogue_entry(rel_file: &str, path: &[&str]) -> bool {
+    rel_file == "dialogue/trees.json" && path == ["trees", "*", "entries", "*"]
+}
+
+/// Expands a newly added dialogue entry from `"$add"`, accepting either a
+/// complete `DialogueEntry` object (`id`, `text`, `segments`, `pages`) or the
+/// concise `{"id": <n>, "lines": [...]}` shorthand.
+pub(crate) fn expand_new_dialogue_entry(
+    raw: &Value,
+    table_label: &str,
+    id_key: &str,
+) -> Result<Value, String> {
+    let Some(obj) = raw.as_object() else {
+        return Err(format!(
+            "{table_label}: added record id={id_key} must be a JSON object"
+        ));
+    };
+    if obj.contains_key("replace") {
+        return Err(format!(
+            "{table_label}: added record id={id_key}: `replace` is only valid when editing an existing entry"
+        ));
+    }
+    if obj.contains_key("keep_portrait") {
+        return Err(format!(
+            "{table_label}: added record id={id_key}: `keep_portrait` is only valid when editing an existing entry"
+        ));
+    }
+    if obj.contains_key("lines") {
+        for forbidden in ["segments", "pages", "text"] {
+            if obj.contains_key(forbidden) {
+                return Err(format!(
+                    "{table_label}: added record id={id_key}: cannot combine `lines` shorthand with `{forbidden}`"
+                ));
+            }
+        }
+        for key in obj.keys() {
+            if !matches!(key.as_str(), "id" | "lines") {
+                return Err(format!(
+                    "{table_label}: added record id={id_key}: unknown field `{key}` alongside `lines`"
+                ));
+            }
+        }
+        let mut expanded = Map::new();
+        expanded.insert("id".to_owned(), obj["id"].clone());
+        apply_dialogue_shorthand(&mut expanded, obj)
+            .map_err(|detail| format!("{table_label}: added record id={id_key}: {detail}"))?;
+        return Ok(Value::Object(expanded));
+    }
+    Ok(raw.clone())
+}
+
+/// Synthesizes concise `{"id": <n>, "lines": [...]}` shorthand for a newly
+/// added `dialogue/trees.json` entry whenever it reproduces `segments`,
+/// `pages`, and `text` identically (and carries no extra fields); otherwise
+/// returns the full record object verbatim.
+pub(crate) fn synthesize_new_dialogue_entry(entry_obj: &Map<String, Value>) -> Value {
+    let only_canonical_keys = entry_obj
+        .keys()
+        .all(|k| matches!(k.as_str(), "id" | "text" | "segments" | "pages"));
+    if !only_canonical_keys {
+        return Value::Object(entry_obj.clone());
+    }
+    let Some(id_val) = entry_obj.get("id") else {
+        return Value::Object(entry_obj.clone());
+    };
+    let Some(Value::Array(edited_pages)) = entry_obj.get("pages") else {
+        return Value::Object(entry_obj.clone());
+    };
+    if edited_pages.is_empty() {
+        return Value::Object(entry_obj.clone());
+    }
+    let mut page_lines: Vec<Vec<String>> = Vec::with_capacity(edited_pages.len());
+    for page in edited_pages {
+        let Some(lines) = page.get("lines").and_then(Value::as_array) else {
+            return Value::Object(entry_obj.clone());
+        };
+        let mut row = Vec::with_capacity(lines.len());
+        for line in lines {
+            let Some(s) = line.as_str() else {
+                return Value::Object(entry_obj.clone());
+            };
+            row.push(s.to_owned());
+        }
+        page_lines.push(row);
+    }
+    let lines_val = if page_lines.len() == 1 {
+        json!(page_lines[0])
+    } else {
+        json!(page_lines)
+    };
+    let mut candidate = Map::new();
+    candidate.insert("id".to_owned(), id_val.clone());
+    candidate.insert("lines".to_owned(), lines_val);
+    let candidate_val = Value::Object(candidate);
+    if let Ok(expanded) = expand_new_dialogue_entry(&candidate_val, "", "")
+        && expanded.as_object() == Some(entry_obj)
+    {
+        return candidate_val;
+    }
+    Value::Object(entry_obj.clone())
+}
+
 /// Applies `"replace"` and/or `"lines"` dialogue shorthands onto a dialogue entry
 /// object, keeping `segments`, `pages`, and `text` consistent.
 pub(crate) fn apply_dialogue_shorthand(

@@ -23,7 +23,7 @@ fn docs_schemas_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/schemas")
 }
 
-fn load_published_schema(rel: &str) -> Value {
+pub(super) fn load_published_schema(rel: &str) -> Value {
     let path = docs_schemas_dir().join(rel);
     let text = fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("could not read published schema {}: {e}", path.display()));
@@ -35,7 +35,7 @@ fn load_published_schema(rel: &str) -> Value {
 // Focused Draft 2020-12 JSON Schema validator for test assertions
 // ---------------------------------------------------------------------------
 
-fn validate_against_schema(root: &Value, instance: &Value) -> Result<(), String> {
+pub(super) fn validate_against_schema(root: &Value, instance: &Value) -> Result<(), String> {
     validate_node(root, root, instance, "$")
 }
 
@@ -630,14 +630,15 @@ fn modding_guide_examples_validate_against_published_schemas() {
     }
     assert_eq!(
         blocks.len(),
-        4,
-        "expected 4 worked JSON examples in MODDING.md"
+        5,
+        "expected 5 worked JSON examples in MODDING.md"
     );
 
     let mod_val: Value = serde_json::from_str(&blocks[0]).unwrap();
     let enemy_val: Value = serde_json::from_str(&blocks[1]).unwrap();
     let dialogue_val: Value = serde_json::from_str(&blocks[2]).unwrap();
     let map_val: Value = serde_json::from_str(&blocks[3]).unwrap();
+    let formation_val: Value = serde_json::from_str(&blocks[4]).unwrap();
 
     validate_against_schema(&load_published_schema(MOD_SCHEMA_FILE), &mod_val)
         .expect("MODDING.md mod.json must satisfy mod.schema.json");
@@ -653,6 +654,11 @@ fn modding_guide_examples_validate_against_published_schemas() {
     .expect("MODDING.md dialogue patch must satisfy trees.schema.json");
     validate_against_schema(&load_published_schema("patches/map.schema.json"), &map_val)
         .expect("MODDING.md sparse map collision patch must satisfy map.schema.json");
+    validate_against_schema(
+        &load_published_schema("patches/battle/formations.schema.json"),
+        &formation_val,
+    )
+    .expect("MODDING.md additive formation patch must satisfy formations.schema.json");
 }
 
 // ---------------------------------------------------------------------------

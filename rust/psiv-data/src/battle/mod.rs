@@ -292,8 +292,69 @@ impl BattleFiles {
             }
         }
 
-        // A formation naming an enemy with no record would produce a fighter
-        // with no stats, which is a crash waiting for a player to find it.
+        let equipment: BTreeSet<u8> = self.equipment.items.iter().map(|item| item.id).collect();
+
+        // Normal formations carry unique ids, non-empty slot-valid enemy lists,
+        // consistent declared counts, and valid drop items.
+        let mut formation_ids = BTreeSet::new();
+        for (pos, formation) in self.formations.formations.iter().enumerate() {
+            let Some(fid) = formation.id else {
+                return Err(DataError::ManifestMismatch {
+                    path: dir.join("formations.json"),
+                    field: "id",
+                    manifest: format!("formations[{pos}]"),
+                    record: "missing formation id".into(),
+                });
+            };
+            if !formation_ids.insert(fid) {
+                return Err(DataError::ManifestMismatch {
+                    path: dir.join("formations.json"),
+                    field: "id",
+                    manifest: "unique".into(),
+                    record: format!("formation {fid}"),
+                });
+            }
+            if formation.enemies.is_empty() {
+                return Err(DataError::ManifestMismatch {
+                    path: dir.join("formations.json"),
+                    field: "enemies",
+                    manifest: formation.key(),
+                    record: "empty enemy list".into(),
+                });
+            }
+            if formation.count_matches_entries
+                && usize::from(formation.count) != formation.enemies.len()
+            {
+                return Err(DataError::ManifestMismatch {
+                    path: dir.join("formations.json"),
+                    field: "count",
+                    manifest: format!("{} (count {})", formation.key(), formation.count),
+                    record: format!("{} enemies", formation.enemies.len()),
+                });
+            }
+            let mut seen_slots = BTreeSet::new();
+            for slot in &formation.enemies {
+                if !(1..=4).contains(&slot.slot) {
+                    return Err(DataError::ManifestMismatch {
+                        path: dir.join("formations.json"),
+                        field: "slot",
+                        manifest: format!("{} slot 1..=4", formation.key()),
+                        record: slot.slot.to_string(),
+                    });
+                }
+                if !seen_slots.insert(slot.slot) {
+                    return Err(DataError::ManifestMismatch {
+                        path: dir.join("formations.json"),
+                        field: "slot",
+                        manifest: format!("{} unique slots", formation.key()),
+                        record: slot.slot.to_string(),
+                    });
+                }
+            }
+        }
+
+        // A formation naming an enemy or drop item with no record would produce
+        // a fighter with no stats or a broken drop lookup at battle end.
         for formation in self
             .formations
             .formations
@@ -316,12 +377,36 @@ impl BattleFiles {
                     });
                 }
             }
+            if let Some(drop_item) = formation.drop_item
+                && !equipment.contains(&drop_item)
+            {
+                return Err(DataError::ManifestMismatch {
+                    path: dir.join("formations.json"),
+                    field: "drop_item",
+                    manifest: formation.key(),
+                    record: drop_item.to_string(),
+                });
+            }
+        }
+
+        if let Some(groups) = &self.formations.encounter_groups {
+            for group in &groups.groups {
+                for fid in &group.formation_ids {
+                    if !formation_ids.contains(fid) {
+                        return Err(DataError::ManifestMismatch {
+                            path: dir.join("formations.json"),
+                            field: "formation_ids",
+                            manifest: format!("encounter group {}", group.group),
+                            record: fid.to_string(),
+                        });
+                    }
+                }
+            }
         }
 
         // Every slot a character fills must name an item that exists, or the
         // seating pass would silently drop its bonuses and its element and the
         // derived stats would merely look plausible.
-        let equipment: BTreeSet<u8> = self.equipment.items.iter().map(|item| item.id).collect();
         for character in &self.characters.characters {
             for (slot, filled) in character.equipment.slots() {
                 let Some(filled) = filled else { continue };

@@ -77,7 +77,8 @@ pub(super) fn validate_cross_references(
                             *id,
                             format!("warps[{index}].destination"),
                             format!(
-                                "cell ({}, {}) is outside map {} ({}), which is {}x{} cells",
+                                "warp index {}: cell ({}, {}) is outside map {} ({}), which is {}x{} cells",
+                                warp.index,
                                 landing.x,
                                 landing.y,
                                 target_id,
@@ -94,8 +95,9 @@ pub(super) fn validate_cross_references(
                         *id,
                         format!("warps[{index}].target"),
                         format!(
-                            "targets map {target_id} ({}), which is neither packed nor listed in \
+                            "warp index {}: targets map {target_id} ({}), which is neither packed nor listed in \
                              the manifest's `skipped` or `unpacked_warp_targets`",
+                            warp.index,
                             warp.target.label()
                         ),
                     ));
