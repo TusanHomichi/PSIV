@@ -18,7 +18,7 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 
-use super::patch::MAPS_JSON;
+use super::tables::MAPS_JSON;
 
 /// Baseline of ignored/research paths already present in the unmodified base JSON.
 pub(crate) struct SchemaBaseline {

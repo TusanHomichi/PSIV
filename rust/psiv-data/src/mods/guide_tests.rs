@@ -32,6 +32,12 @@ fn modding_md_path() -> PathBuf {
 }
 
 fn real_pack() -> Option<PathBuf> {
+    if let Some(env_pack) = std::env::var_os("PSIV_RUNTIME_PACK") {
+        let pack = PathBuf::from(env_pack);
+        if pack.join("manifest.json").is_file() {
+            return Some(pack);
+        }
+    }
     let pack = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
     pack.join("manifest.json").is_file().then_some(pack)
 }
@@ -103,6 +109,8 @@ fn classify_block(block: &GuideJsonBlock) -> GuideTarget {
         GuideTarget::Patch("battle/enemies.json")
     } else if block.context.contains("dialogue/trees.json") {
         GuideTarget::Patch("dialogue/trees.json")
+    } else if block.context.contains("patches/maps/010_Piata.json") {
+        GuideTarget::Patch("maps/010_Piata.json")
     } else {
         panic!(
             "unmapped ```json block in docs/MODDING.md at line {} under `{}`; \
@@ -230,19 +238,59 @@ fn synthetic_trees_json() -> Value {
     })
 }
 
+fn synthetic_map_json() -> Value {
+    json!({
+        "format_version": PACK_FORMAT_VERSION,
+        "id": 16,
+        "symbol": "Piata",
+        "png": "maps/010_Piata.png",
+        "png_over": null,
+        "dimensions": {
+            "width_chunks": 1,
+            "height_chunks": 1,
+            "width_cells": 2,
+            "height_cells": 2,
+            "width_pixels": 32,
+            "height_pixels": 32,
+            "cell_pixels": 16
+        },
+        "collision": {
+            "plane": "bg",
+            "plane_byte": 1,
+            "width_cells": 2,
+            "height_cells": 2,
+            "rows": [[0, 0], [0, 0]]
+        },
+        "music": {"id": 132, "symbol": "MotabiaTown", "changes_music": true},
+        "flags": {
+            "poison": 0,
+            "random_battles": 0,
+            "town_teleport": 1,
+            "dungeon_teleport_index": 0
+        },
+        "dialogue_tree": 2,
+        "events": [0],
+        "warps": [],
+        "interaction_areas": [],
+        "npcs": [],
+        "treasure_chests": []
+    })
+}
+
 #[test]
 fn modding_guide_examples_parse_and_validate_against_schema() {
     let markdown = fs::read_to_string(modding_md_path()).expect("read docs/MODDING.md");
     let blocks = extract_json_blocks(&markdown);
     assert!(
-        blocks.len() >= 3,
-        "expected manifest + enemy + dialogue JSON examples in docs/MODDING.md, found {}",
+        blocks.len() >= 4,
+        "expected manifest + enemy + dialogue + map collision JSON examples in docs/MODDING.md, found {}",
         blocks.len()
     );
 
     let mut manifest_text: Option<String> = None;
     let mut enemy_patch: Option<Value> = None;
     let mut dialogue_patch: Option<Value> = None;
+    let mut map_patch: Option<Value> = None;
 
     for block in &blocks {
         let parsed: Value = serde_json::from_str(&block.body).unwrap_or_else(|err| {
@@ -292,6 +340,23 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
                 }
                 dialogue_patch = Some(parsed);
             }
+            GuideTarget::Patch("maps/010_Piata.json") => {
+                let mut base = synthetic_map_json();
+                apply_json_patch(&mut base, &parsed, "maps/010_Piata.json")
+                    .expect("MODDING.md map collision patch must apply");
+                let typed: crate::MapRecord = serde_json::from_value(base.clone())
+                    .expect("patched MapRecord must satisfy schema");
+                assert_eq!(
+                    typed.collision.grid.at(1, 1),
+                    Some(crate::CollisionType::Solid)
+                );
+                // Round-trip through strict diff_json must reproduce the sparse cell patch.
+                let diff = diff_json(&synthetic_map_json(), &base, "maps/010_Piata.json")
+                    .expect("strict diff_json must accept single-cell collision edit")
+                    .expect("non-empty collision diff");
+                assert_eq!(diff, parsed);
+                map_patch = Some(parsed);
+            }
             GuideTarget::Patch(other) => panic!("unexpected patch target {other}"),
         }
     }
@@ -300,6 +365,7 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
     let enemy_patch = enemy_patch.expect("docs/MODDING.md missing battle/enemies.json example");
     let dialogue_patch =
         dialogue_patch.expect("docs/MODDING.md missing dialogue/trees.json example");
+    let map_patch = map_patch.expect("docs/MODDING.md missing maps/010_Piata.json example");
 
     // Negative control (always runs, even without runtime-pack): the bad HP value
     // documented under `## When an edit does not fit` must fail EnemiesFile parsing.
@@ -324,6 +390,7 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
     let mod_dir = scratch.join("mods/guide-mod");
     fs::create_dir_all(mod_dir.join("patches/battle")).unwrap();
     fs::create_dir_all(mod_dir.join("patches/dialogue")).unwrap();
+    fs::create_dir_all(mod_dir.join("patches/maps")).unwrap();
     fs::write(mod_dir.join(MOD_MANIFEST_FILE), &manifest_text).unwrap();
     fs::write(
         mod_dir.join("patches/battle/enemies.json"),
@@ -335,19 +402,33 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
         serde_json::to_string_pretty(&dialogue_patch).unwrap(),
     )
     .unwrap();
+    fs::write(
+        mod_dir.join("patches/maps/010_Piata.json"),
+        serde_json::to_string_pretty(&map_patch).unwrap(),
+    )
+    .unwrap();
 
     let loaded = load_mod(&mod_dir).expect("docs/MODDING.md mod.json must load cleanly");
     let applied = apply_mods(&base_pack, &[loaded], &scratch.join("effective"))
         .expect("docs/MODDING.md examples must pass full apply_mods + schema validation");
     assert_eq!(
         applied.patched_files,
-        vec!["battle/enemies.json", "dialogue/trees.json"]
+        vec![
+            "battle/enemies.json",
+            "dialogue/trees.json",
+            "maps/010_Piata.json"
+        ]
     );
 
     let battle = BattleFiles::load(&applied.effective_pack).unwrap();
     let zoran = battle.enemies.enemies.iter().find(|e| e.id == 10).unwrap();
     assert_eq!(zoran.hp, 99);
     let game = GameData::load(&applied.effective_pack).unwrap();
+    let piata = game.map(crate::MapId(0x010)).unwrap();
+    assert_eq!(
+        piata.collision.grid.at(1, 1),
+        Some(crate::CollisionType::Solid)
+    );
     let dialogue = game.dialogue().unwrap();
     let entry = dialogue
         .trees
@@ -358,6 +439,30 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
         .entry(0)
         .unwrap();
     assert!(entry.text.contains("Glad to see you in one piece!"));
+
+    // Strict default diff_packs must round-trip all three guide examples cleanly.
+    let exported = scratch.join("exported-guide");
+    let exported_summary = diff_packs(
+        &base_pack,
+        &applied.effective_pack,
+        &exported,
+        &ModManifest::new("exported-guide", "Exported Guide", "1.0.0"),
+    )
+    .expect("strict diff_packs must round-trip all MODDING.md examples");
+    assert_eq!(
+        exported_summary.patches,
+        vec![
+            "battle/enemies.json",
+            "dialogue/trees.json",
+            "maps/010_Piata.json"
+        ]
+    );
+    assert!(exported_summary.derived_items.is_empty());
+    let exported_map_patch: Value = serde_json::from_str(
+        &fs::read_to_string(exported.join("patches/maps/010_Piata.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(exported_map_patch, map_patch);
 
     // Negative control through full `apply_mods` naming mod, file, and place.
     let bad_dir = scratch.join("mods/tough-zoran");
