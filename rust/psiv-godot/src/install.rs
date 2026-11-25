@@ -33,9 +33,6 @@ const PACK_NAME: &str = "runtime-pack";
 /// The mods directory name, in the user data folder and in a checkout.
 const MODS_NAME: &str = "mods";
 
-/// Staging directory inside `mods/` holding the materialized overlaid pack.
-const ACTIVE_PACK_DIR: &str = "_active_pack";
-
 /// The pack builder a release ships beside the game's executable.
 const BUILDER_NAME: &str = "psiv-pack";
 
@@ -132,10 +129,11 @@ pub(crate) enum ModSourceMode {
 }
 
 /// Outcome of resolving and applying mods at startup.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub(crate) struct ModBootResult {
     pub(crate) source: ModSourceMode,
-    pub(crate) applied: Option<psiv_data::mods::AppliedMods>,
+    pub(crate) overlay: psiv_data::PackOverlay,
+    pub(crate) validated: Option<psiv_data::ValidatedPack>,
 }
 
 /// Resolves the active mod selection mode from `PSIV_MODS`, the session bypass
@@ -173,20 +171,19 @@ pub(crate) fn resolve_mod_source(
 }
 
 /// Resolves active mods from `PSIV_MODS` (when set) or `install.mods_dir()`,
-/// returning `(source_mode, mods, overlay_staging_dir)`.
+/// returning `(source_mode, mods)`.
 pub(crate) fn resolve_mods(
     override_mods: Option<&OsStr>,
     session_ignored: bool,
     install: &Install,
 ) -> Result<
-    (ModSourceMode, Vec<psiv_data::mods::DiscoveredMod>, PathBuf),
+    (ModSourceMode, Vec<psiv_data::mods::DiscoveredMod>),
     (ModSourceMode, psiv_data::mods::ModError),
 > {
-    let overlay_dir = install.mods_dir().join(ACTIVE_PACK_DIR);
     let source = resolve_mod_source(override_mods, session_ignored, install);
     match &source {
         ModSourceMode::DisabledByEnv { .. } | ModSourceMode::IgnoredForSession { .. } => {
-            Ok((source, Vec::new(), overlay_dir))
+            Ok((source, Vec::new()))
         }
         ModSourceMode::ExplicitPaths { paths } => {
             let mut loaded = Vec::new();
@@ -196,18 +193,19 @@ pub(crate) fn resolve_mods(
                     Err(err) => return Err((source, err)),
                 }
             }
-            Ok((source, loaded, overlay_dir))
+            Ok((source, loaded))
         }
         ModSourceMode::Directory { mods_dir } => match psiv_data::mods::discover_mods(mods_dir) {
-            Ok(discovered) => Ok((source, discovered, overlay_dir)),
+            Ok(discovered) => Ok((source, discovered)),
             Err(err) => Err((source, err)),
         },
     }
 }
 
-/// Applies active mods (if any) over `base_pack`. Returns `applied: None` when
+/// Builds an in-memory [`psiv_data::PackOverlay`] for active mods (if any) over
+/// `base_pack`. Returns an unmodified base overlay with `validated: None` when
 /// no mods are enabled, when mods are bypassed for this session, or when
-/// `base_pack` has not been built yet.
+/// `base_pack` has not been built yet. Never writes a staging directory.
 pub(crate) fn apply_active_mods(
     install: &Install,
     base_pack: &Path,
@@ -218,21 +216,23 @@ pub(crate) fn apply_active_mods(
         let source = resolve_mod_source(override_mods.as_deref(), session_ignored, install);
         return Ok(ModBootResult {
             source,
-            applied: None,
+            overlay: psiv_data::PackOverlay::base(base_pack),
+            validated: None,
         });
     }
-    let (source, mods, overlay_dir) =
-        resolve_mods(override_mods.as_deref(), session_ignored, install)?;
+    let (source, mods) = resolve_mods(override_mods.as_deref(), session_ignored, install)?;
     if mods.is_empty() {
         return Ok(ModBootResult {
             source,
-            applied: None,
+            overlay: psiv_data::PackOverlay::base(base_pack),
+            validated: None,
         });
     }
-    match psiv_data::mods::apply_mods(base_pack, &mods, &overlay_dir) {
-        Ok(applied) => Ok(ModBootResult {
+    match psiv_data::PackOverlay::load_validated(base_pack, &mods) {
+        Ok((overlay, validated)) => Ok(ModBootResult {
             source,
-            applied: Some(applied),
+            overlay,
+            validated: Some(validated),
         }),
         Err(err) => Err((source, err)),
     }
@@ -540,7 +540,7 @@ mod tests {
         let install = Install::Checkout {
             root: std::env::temp_dir().join(format!("psiv-install-mods-{}", std::process::id())),
         };
-        let (source, none, _) = resolve_mods(Some(OsStr::new("none")), false, &install).unwrap();
+        let (source, none) = resolve_mods(Some(OsStr::new("none")), false, &install).unwrap();
         assert!(matches!(source, ModSourceMode::DisabledByEnv { .. }));
         assert!(none.is_empty());
 
@@ -551,13 +551,13 @@ mod tests {
             &psiv_data::mods::ModManifest::new("explicit-a", "Explicit A", "1.0.0"),
         )
         .unwrap();
-        let (source, loaded, _) = resolve_mods(Some(mod_a.as_os_str()), false, &install).unwrap();
+        let (source, loaded) = resolve_mods(Some(mod_a.as_os_str()), false, &install).unwrap();
         assert!(matches!(source, ModSourceMode::ExplicitPaths { .. }));
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].manifest.id, "explicit-a");
 
         // Session bypass preserves the underlying source (explicit paths vs directory).
-        let (ignored_explicit, ignored_mods, _) =
+        let (ignored_explicit, ignored_mods) =
             resolve_mods(Some(mod_a.as_os_str()), true, &install).unwrap();
         assert_eq!(
             ignored_explicit,
@@ -569,7 +569,7 @@ mod tests {
         );
         assert!(ignored_mods.is_empty());
 
-        let (ignored_dir, ignored_dir_mods, _) = resolve_mods(None, true, &install).unwrap();
+        let (ignored_dir, ignored_dir_mods) = resolve_mods(None, true, &install).unwrap();
         assert_eq!(
             ignored_dir,
             ModSourceMode::IgnoredForSession {
@@ -581,7 +581,7 @@ mod tests {
         assert!(ignored_dir_mods.is_empty());
 
         // Directory mode discovers enabled mods under install.mods_dir().
-        let (dir_source, dir_mods, _) = resolve_mods(None, false, &install).unwrap();
+        let (dir_source, dir_mods) = resolve_mods(None, false, &install).unwrap();
         assert_eq!(
             dir_source,
             ModSourceMode::Directory {

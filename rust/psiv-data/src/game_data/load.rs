@@ -11,6 +11,7 @@ use super::{GameData, check_version};
 use crate::error::DataError;
 use crate::manifest::Manifest;
 use crate::map::MapRecord;
+use crate::mods::PackOverlay;
 use std::path::Path;
 
 impl GameData {
@@ -22,11 +23,14 @@ impl GameData {
     /// either the whole pack is coherent, or you get an error naming what is
     /// not.
     pub fn load(pack_dir: &Path) -> Result<GameData, DataError> {
-        let manifest_path = pack_dir.join("manifest.json");
-        let text = std::fs::read_to_string(&manifest_path)
-            .map_err(|e| DataError::io(&manifest_path, e))?;
-        let manifest: Manifest =
-            serde_json::from_str(&text).map_err(|e| DataError::json(&manifest_path, e))?;
+        Self::load_overlay(&PackOverlay::base(pack_dir))
+    }
+
+    /// Reads and validates a runtime pack through a [`PackOverlay`], resolving
+    /// patched JSON tables in memory and mod assets over the base pack without
+    /// touching disk.
+    pub fn load_overlay(overlay: &PackOverlay) -> Result<GameData, DataError> {
+        let manifest: Manifest = overlay.read_json_data("manifest.json")?;
 
         // Checked before anything else is read: if the shape changed, the map
         // files are not ours to interpret, and a parse error would be a
@@ -35,10 +39,8 @@ impl GameData {
 
         let mut records = Vec::with_capacity(manifest.maps.len());
         for entry in &manifest.maps {
-            let path = pack_dir.join(&entry.json);
-            let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-            let record: MapRecord =
-                serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+            let path = overlay.logical_path(&entry.json);
+            let record: MapRecord = overlay.read_json_data(&entry.json)?;
 
             check_version(record.format_version)?;
             if record.id != entry.id {
@@ -62,11 +64,11 @@ impl GameData {
 
         let mut data = GameData::from_parts(manifest, records)?;
         if data.manifest.game_start.is_some() {
-            data.new_game = Some(crate::NewGame::load(pack_dir)?);
+            data.new_game = Some(crate::NewGame::load_overlay(overlay)?);
         }
         if let Some(file) = &data.manifest.travel {
-            data.travel = Some(crate::TravelData::load(
-                pack_dir,
+            data.travel = Some(crate::TravelData::load_overlay(
+                overlay,
                 file,
                 &data.manifest.rom.sha256,
             )?);
@@ -74,15 +76,15 @@ impl GameData {
         // Required: an older pack has no job board, so it is rebuilt, not run.
         let Some(file) = &data.manifest.guild else {
             return Err(DataError::ManifestMismatch {
-                path: pack_dir.join("manifest.json"),
+                path: overlay.logical_path("manifest.json"),
                 field: "guild",
                 manifest: "absent; rebuild the pack".into(),
                 record: "guild/guild.json".into(),
             });
         };
         {
-            data.guild = Some(crate::GuildBoard::load(
-                pack_dir,
+            data.guild = Some(crate::GuildBoard::load_overlay(
+                overlay,
                 file,
                 &data.manifest.rom.sha256,
             )?);
@@ -90,55 +92,57 @@ impl GameData {
         // Required as the guild's is: an older pack has no fifth-member table.
         let Some(file) = &data.manifest.fifth else {
             return Err(DataError::ManifestMismatch {
-                path: pack_dir.join("manifest.json"),
+                path: overlay.logical_path("manifest.json"),
                 field: "fifth",
                 manifest: "absent; rebuild the pack".into(),
                 record: "fifth/fifth.json".into(),
             });
         };
-        data.fifth = Some(crate::FifthTable::load(
-            pack_dir,
+        data.fifth = Some(crate::FifthTable::load_overlay(
+            overlay,
             file,
             &data.manifest.rom.sha256,
         )?);
         // Required: the battle stage loads the Fusion frames with the rest of
         // its art, so an older pack without them is rebuilt before any battle.
-        crate::FusionArt::load(pack_dir)?;
-        data.ending_credits = Some(crate::EndingCreditsAssets::load(
-            pack_dir,
+        crate::FusionArt::load_overlay(overlay)?;
+        data.ending_credits = Some(crate::EndingCreditsAssets::load_overlay(
+            overlay,
             data.manifest.rom.sha256.as_str(),
         )?);
         // A pack from an extractor that cut the Motavia table short is refused
         // here, before any battle draws from it (#40).
-        data.battle_backgrounds = crate::BattleBackgrounds::load(pack_dir)?;
+        data.battle_backgrounds = crate::BattleBackgrounds::load_overlay(overlay)?;
         if let Some(file) = &data.manifest.ship_menu {
-            data.ship_menu = Some(crate::ShipMenu::load(
-                pack_dir,
+            data.ship_menu = Some(crate::ShipMenu::load_overlay(
+                overlay,
                 file,
                 &data.manifest.rom.sha256,
             )?);
         }
         // A pack extracted from a ROM carries its shops; a broken file fails
         // here and names itself. A synthetic pack has none.
-        if pack_dir.join(crate::SHOPS_FILE).is_file() {
-            data.shops = Some(crate::ShopData::load(pack_dir)?);
+        if overlay.is_file(crate::SHOPS_FILE) {
+            data.shops = Some(crate::ShopData::load_overlay(overlay)?);
         }
-        data.sound = crate::sound::SoundFiles::load(pack_dir)?;
+        data.sound = crate::sound::SoundFiles::load_overlay(overlay)?;
         // Scene palettes: a pack extracted from a ROM carries them, and a
         // broken file fails here and names itself. A synthetic pack has none.
-        if pack_dir.join(crate::PRESENTATION_FILE).is_file() {
-            data.scene_palettes = crate::ScenePalettes::load(pack_dir)?;
+        if overlay.is_file(crate::PRESENTATION_FILE) {
+            data.scene_palettes = crate::ScenePalettes::load_overlay(overlay)?;
         }
-        if pack_dir.join(crate::SOUND_TEST_FILE).is_file() {
-            data.sound_test = Some(crate::SoundTestFile::load(pack_dir)?);
+        if overlay.is_file(crate::SOUND_TEST_FILE) {
+            data.sound_test = Some(crate::SoundTestFile::load_overlay(overlay)?);
         }
         // The message box walks these files, so a pack that has them carries
         // the whole set and a broken one fails here, where the error names the
         // file. A synthetic pack built from parts has no `dialogue/` directory
         // at all; the runtime refuses to build from data like that rather than
         // silently opening no window.
-        if pack_dir.join("dialogue").join("trees.json").is_file() {
-            data.dialogue = Some(std::sync::Arc::new(crate::DialogueSet::load(pack_dir)?));
+        if overlay.is_file("dialogue/trees.json") {
+            data.dialogue = Some(std::sync::Arc::new(crate::DialogueSet::load_overlay(
+                overlay,
+            )?));
         }
 
         // Sprite index files (pack format 1). Loaded after the maps so NPC
@@ -150,8 +154,8 @@ impl GameData {
             ("sprites/npcs.json", false, false, false),
             ("sprites/vehicles.json", false, true, true),
         ] {
-            let path = pack_dir.join(name);
-            let text = match std::fs::read_to_string(&path) {
+            let path = overlay.logical_path(name);
+            let text = match overlay.read_text(name) {
                 Ok(text) => text,
                 Err(error) if optional && error.kind() == std::io::ErrorKind::NotFound => continue,
                 Err(error) => return Err(DataError::io(&path, error)),

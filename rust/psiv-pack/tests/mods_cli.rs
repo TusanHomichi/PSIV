@@ -89,10 +89,11 @@ fn mod_init_diff_and_check_round_trip_and_refuse_invalid_mod() {
         "{stdout}"
     );
 
-    // 3. Apply mod to an edited pack, then `psiv-pack mod diff` back to a new mod
+    // 3. Build an edited copy carrying the overlay's patched files, then `psiv-pack mod diff` back to a new mod
     let edited_pack = scratch.join("edited-pack");
     let loaded = psiv_data::mods::load_mod(&init_dir).unwrap();
-    psiv_data::mods::apply_mods(&pack, &[loaded], &edited_pack).unwrap();
+    let overlay = psiv_data::mods::PackOverlay::load(&pack, &[loaded]).unwrap();
+    materialize_pack_copy(&pack, &overlay, &edited_pack);
 
     let diff_dir = scratch.join("diffed");
     let diff = Command::new(binary)
@@ -186,6 +187,45 @@ fn mod_init_diff_and_check_round_trip_and_refuse_invalid_mod() {
     assert!(stderr.contains("typo_flag"), "{stderr}");
 
     let _ = fs::remove_dir_all(&scratch);
+}
+
+fn materialize_pack_copy(
+    base: &std::path::Path,
+    overlay: &psiv_data::PackOverlay,
+    out: &std::path::Path,
+) {
+    fn walk(
+        base: &std::path::Path,
+        current: &std::path::Path,
+        overlay: &psiv_data::PackOverlay,
+        out: &std::path::Path,
+    ) {
+        for entry in fs::read_dir(current).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            let rel = path.strip_prefix(base).unwrap();
+            let dst = out.join(rel);
+            if path.is_dir() {
+                fs::create_dir_all(&dst).unwrap();
+                walk(base, &path, overlay, out);
+            } else if path.is_file() {
+                let rel_str = rel.to_string_lossy().replace('\\', "/");
+                if overlay.patched_files().contains(&rel_str)
+                    || overlay.replaced_assets().contains(&rel_str)
+                    || overlay.resolve_asset(&rel_str).is_none()
+                {
+                    fs::write(&dst, overlay.read_asset_bytes(&rel_str).unwrap()).unwrap();
+                } else {
+                    #[cfg(unix)]
+                    std::os::unix::fs::symlink(path.canonicalize().unwrap_or(path), &dst).unwrap();
+                    #[cfg(not(unix))]
+                    fs::copy(&path, &dst).unwrap();
+                }
+            }
+        }
+    }
+    fs::create_dir_all(out).unwrap();
+    walk(base, base, overlay, out);
 }
 
 #[test]

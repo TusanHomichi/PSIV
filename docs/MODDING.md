@@ -43,9 +43,10 @@ mods/
    - **Source checkout:** `mods/` at the repository root.
 
 Every enabled mod in `mods/` is sorted by `(order, id)` (lower `order` loads
-first; later mods override earlier ones) and layered over the base pack into a
-hidden staging directory inside `mods/` without ever modifying `runtime-pack/`
-or `saves/`. Rebuilding the base pack from your ROM never touches `mods/`.
+first; later mods override earlier ones) and resolved directly in memory over
+the base pack without creating a staging mirror or ever modifying
+`runtime-pack/` or `saves/`. Rebuilding the base pack from your ROM never
+touches `mods/`.
 
 > **Automatic save isolation:** Modded runs never touch your vanilla
 > `saves/slot_1..3.sram`. Whenever one or more mods are active (and
@@ -77,7 +78,7 @@ release folder) to create a mod:
 2. **Use the published JSON Schemas** under [`docs/schemas/`](schemas/)
    ([`mod.schema.json`](schemas/mod.schema.json) and `docs/schemas/patches/`) —
    generated directly from `psiv-data`'s Rust types — so editors and coding
-   agents can validate `mod.json` and every patch file directly without reading
+   agents can validate `mod.json` and every `psiv-data` table patch directly without reading
    Rust source.
 3. **Patch tables by stable ID under `patches/`** (see the table key reference
    below) and place original replacement art/audio under `assets/`.

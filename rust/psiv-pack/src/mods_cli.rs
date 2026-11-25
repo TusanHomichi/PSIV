@@ -1,9 +1,9 @@
 //! `psiv-pack mod <init|diff|check|schema>` subcommands (#118, #789, #790).
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use psiv_data::mods::{
-    DiffOptions, ModManifest, apply_mods, audit_mod_shareability, check_mod_schemas,
+    DiffOptions, ModManifest, PackOverlay, audit_mod_shareability, check_mod_schemas,
     diff_packs_with_options, init_mod_dir, load_mod, write_mod_schemas,
 };
 use psiv_pack::PackError;
@@ -168,17 +168,7 @@ fn run_check(args: &[String]) -> Result<(), PackError> {
         let loaded = load_mod(Path::new(mod_arg)).map_err(|e| PackError(e.to_string()))?;
         mods.push(loaded);
     }
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let staging: PathBuf = std::env::temp_dir().join(format!(
-        "psiv-pack-mod-check-{}-{stamp}",
-        std::process::id()
-    ));
-    let result = apply_mods(base, &mods, &staging);
-    let _ = std::fs::remove_dir_all(&staging);
-    let applied = result.map_err(|e| PackError(e.to_string()))?;
+    let overlay = PackOverlay::load(base, &mods).map_err(|e| PackError(e.to_string()))?;
     for m in &mods {
         let notices = audit_mod_shareability(base, m).map_err(|e| PackError(e.to_string()))?;
         for notice in notices {
@@ -192,9 +182,9 @@ fn run_check(args: &[String]) -> Result<(), PackError> {
     }
     println!(
         "ok: {} mod(s), {} patched file(s), {} replaced asset(s)",
-        applied.active.len(),
-        applied.patched_files.len(),
-        applied.replaced_assets.len()
+        overlay.active_mods().len(),
+        overlay.patched_files().len(),
+        overlay.replaced_assets().len()
     );
     Ok(())
 }

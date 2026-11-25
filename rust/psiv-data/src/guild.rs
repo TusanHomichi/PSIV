@@ -2,8 +2,6 @@
 //! ([retired guild_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/guild_pack.py)): the job names, the list window's record and
 //! the colour lines `Event_HuntersGuild` draws them in.
 
-use std::path::Path;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -61,14 +59,13 @@ pub struct GuildBoard {
 }
 
 impl GuildBoard {
-    pub(crate) fn load(
-        directory: &Path,
+    pub(crate) fn load_overlay(
+        overlay: &crate::mods::PackOverlay,
         file: &GuildFile,
         rom: &RomHash,
     ) -> Result<GuildBoard, DataError> {
-        let path = directory.join(&file.path);
-        let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-        let json: GuildJson = serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+        let path = overlay.logical_path(&file.path);
+        let json: GuildJson = overlay.read_json_data(&file.path)?;
         let well_formed = json.format_version == 1
             && json.kind == "guild"
             && json.rom_sha256 == *rom

@@ -8,8 +8,6 @@
 //! explicit instead of hiding it in a texture tint.
 
 use std::collections::BTreeMap;
-use std::fs;
-use std::path::Path;
 
 use godot::classes::{Image, ImageTexture, image::Format};
 use godot::prelude::*;
@@ -19,6 +17,7 @@ use super::enemy_overlay::{
     AnimationPiece, AttackAnimation, EnemyAnimation, EnemyAttackArtFile, EnemyAttackArtFileEntry,
     EnemyOverlayFile, EnemyOverlayFileEntry,
 };
+use crate::pack_assets::PackAssets;
 
 /// Parsed battle art, with no Godot objects retained between battles.
 pub(crate) struct BattleArt {
@@ -116,12 +115,6 @@ struct BackgroundFileEntry {
     png: String,
 }
 
-fn read_json<T: for<'de> Deserialize<'de>>(pack_dir: &str, name: &str) -> Result<T, String> {
-    let path = Path::new(pack_dir).join(name);
-    let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-    serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
-}
-
 fn parse_word(text: &str) -> Result<u16, String> {
     let digits = text
         .strip_prefix("0x")
@@ -131,16 +124,18 @@ fn parse_word(text: &str) -> Result<u16, String> {
 }
 
 impl BattleArt {
-    pub(crate) fn load(pack_dir: &str) -> Result<BattleArt, String> {
-        let enemy_file: EnemyFile = read_json(pack_dir, "battle/art/enemies.json")?;
-        let overlay_file: EnemyOverlayFile = read_json(pack_dir, "battle/art/enemy_overlays.json")?;
-        let attack_file: EnemyAttackArtFile = read_json(pack_dir, "battle/art/enemy_attacks.json")
+    pub(crate) fn load(assets: &PackAssets) -> Result<BattleArt, String> {
+        let enemy_file: EnemyFile = assets.read_json("battle/art/enemies.json")?;
+        let overlay_file: EnemyOverlayFile = assets.read_json("battle/art/enemy_overlays.json")?;
+        let attack_file: EnemyAttackArtFile = assets
+            .read_json("battle/art/enemy_attacks.json")
             .map_err(|error| {
                 format!("{error}; rebuild runtime pack for attack priority surfaces")
             })?;
-        let character_file: CharacterFile = read_json(pack_dir, "battle/art/characters.json")?;
-        let background_file: BackgroundFile = read_json(pack_dir, "battle/art/backgrounds.json")?;
-        let fusion = psiv_data::FusionArt::load(Path::new(pack_dir)).map_err(|e| e.to_string())?;
+        let character_file: CharacterFile = assets.read_json("battle/art/characters.json")?;
+        let background_file: BackgroundFile = assets.read_json("battle/art/backgrounds.json")?;
+        let fusion =
+            psiv_data::FusionArt::load_overlay(assets.overlay()).map_err(|e| e.to_string())?;
 
         let enemies = enemy_file
             .enemies
@@ -249,13 +244,13 @@ impl BattleArt {
     /// The Fusion frames as textures, in the pack's order. The pieces' pattern
     /// word carries no line bits (`#$A000`, `ps4.asm:35726`), so they draw on
     /// CRAM line 1 in the casting slug's colours.
-    pub(crate) fn fusion_frames(&self, pack_dir: &str) -> Option<Vec<FusionFrame>> {
+    pub(crate) fn fusion_frames(&self, assets: &PackAssets) -> Option<Vec<FusionFrame>> {
         let art = self.enemies.get(&self.fusion.palette_enemy_id)?;
         self.fusion
             .frames
             .iter()
             .map(|frame| {
-                let image = self.enemy_image(pack_dir, art, &frame.png, 0)?;
+                let image = self.enemy_image(assets, art, &frame.png, 0)?;
                 Some(FusionFrame {
                     texture: ImageTexture::create_from_image(&image)?,
                     origin: Vector2i::new(frame.origin[0], frame.origin[1]),
@@ -301,24 +296,24 @@ impl BattleArt {
 
     pub(crate) fn enemy_texture(
         &self,
-        pack_dir: &str,
+        assets: &PackAssets,
         enemy_id: u16,
         position: u8,
     ) -> Option<Gd<ImageTexture>> {
         let art = self.enemies.get(&enemy_id)?;
-        let image = self.enemy_image(pack_dir, art, &art.png, position)?;
+        let image = self.enemy_image(assets, art, &art.png, position)?;
         ImageTexture::create_from_image(&image)
     }
 
     pub(crate) fn enemy_animation(
         &self,
-        pack_dir: &str,
+        assets: &PackAssets,
         enemy_id: u16,
         position: u8,
         initial_phase_ticks: usize,
     ) -> Option<EnemyAnimation> {
         let art = self.enemies.get(&enemy_id)?;
-        let base = self.enemy_image(pack_dir, art, &art.png, position)?;
+        let base = self.enemy_image(assets, art, &art.png, position)?;
         let mut pieces = Vec::new();
         if let Some(overlay) = self.enemy_overlays.get(&enemy_id) {
             for piece in &overlay.pieces {
@@ -337,11 +332,11 @@ impl BattleArt {
                     );
                     return None;
                 }
-                let initial = self.enemy_image(pack_dir, art, initial_path, position)?;
+                let initial = self.enemy_image(assets, art, initial_path, position)?;
                 let frames = piece
                     .frames
                     .iter()
-                    .map(|frame| self.enemy_image(pack_dir, art, &frame.png, position))
+                    .map(|frame| self.enemy_image(assets, art, &frame.png, position))
                     .collect::<Option<Vec<_>>>()?;
                 pieces.push(AnimationPiece {
                     initial,
@@ -351,13 +346,13 @@ impl BattleArt {
                 });
             }
         }
-        let attack = self.enemy_attack_animation(pack_dir, art, enemy_id, position)?;
+        let attack = self.enemy_attack_animation(assets, art, enemy_id, position)?;
         EnemyAnimation::new(base, pieces, attack, initial_phase_ticks)
     }
 
     fn enemy_attack_animation(
         &self,
-        pack_dir: &str,
+        assets: &PackAssets,
         art: &EnemyArt,
         enemy_id: u16,
         position: u8,
@@ -380,7 +375,7 @@ impl BattleArt {
                 return None;
             }
             let image = self.enemy_image_with_palette(
-                pack_dir,
+                assets,
                 art,
                 &frame.low_priority_png,
                 position,
@@ -388,7 +383,7 @@ impl BattleArt {
             )?;
             textures.push(ImageTexture::create_from_image(&image)?);
             let high = self.enemy_image_with_palette(
-                pack_dir,
+                assets,
                 art,
                 &frame.high_priority_png,
                 position,
@@ -417,17 +412,17 @@ impl BattleArt {
 
     fn enemy_image(
         &self,
-        pack_dir: &str,
+        assets: &PackAssets,
         art: &EnemyArt,
         relative_path: &str,
         position: u8,
     ) -> Option<Gd<Image>> {
-        self.enemy_image_with_palette(pack_dir, art, relative_path, position, None)
+        self.enemy_image_with_palette(assets, art, relative_path, position, None)
     }
 
     fn enemy_image_with_palette(
         &self,
-        pack_dir: &str,
+        assets: &PackAssets,
         art: &EnemyArt,
         relative_path: &str,
         position: u8,
@@ -443,8 +438,7 @@ impl BattleArt {
             }
         }
         let source_palette = assemble_enemy_palette(&art.palette_words, 1, &self.enemy_palette)?;
-        let path = format!("{pack_dir}/{relative_path}");
-        let mut image = Image::load_from_file(&GString::from(path.as_str()))?;
+        let mut image = assets.load_image(relative_path)?;
         image.convert(Format::RGBA8);
 
         let mut unresolved = false;
@@ -472,16 +466,14 @@ impl BattleArt {
 
     pub(crate) fn character_texture(
         &self,
-        pack_dir: &str,
+        assets: &PackAssets,
         character_id: u8,
         pose: u8,
     ) -> Option<Gd<ImageTexture>> {
         // Runtime character ids are zero-based; the art extractor's ids are
         // one-based because they index the retail fighter blocks.
         let art = self.characters.get(&character_id.checked_add(1)?)?;
-        let path = format!("{pack_dir}/{}", art.poses.get(&pose)?);
-        let image = Image::load_from_file(&GString::from(path.as_str()))?;
-        ImageTexture::create_from_image(&image)
+        assets.load_texture(art.poses.get(&pose)?)
     }
 }
 
@@ -576,12 +568,12 @@ mod tests {
 
     #[test]
     fn retail_battle_art_pack_has_the_declared_shape() {
-        let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        let pack = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
         if !pack.join("manifest.json").is_file() {
             eprintln!("runtime pack not present; skipping");
             return;
         }
-        let art = BattleArt::load(&pack.to_string_lossy()).expect("retail battle art loads");
+        let art = BattleArt::load(&PackAssets::base_dir(&pack)).expect("retail battle art loads");
         assert_eq!(art.enemies.len(), 153);
         assert_eq!(
             art.characters
@@ -595,7 +587,7 @@ mod tests {
 
     #[test]
     fn igglanova_boss_uses_pack_positions_palette_and_event_background() {
-        let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        let pack = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
         if !pack.join("manifest.json").is_file() {
             eprintln!("runtime pack not present; skipping");
             return;
@@ -618,7 +610,7 @@ mod tests {
             vec![(9, 137), (12, 20), (9, 159)]
         );
 
-        let art = BattleArt::load(&pack.to_string_lossy()).expect("retail battle art loads");
+        let art = BattleArt::load(&PackAssets::base_dir(&pack)).expect("retail battle art loads");
         for enemy_id in [9, 12] {
             let entry = art.enemies.get(&enemy_id).expect("boss enemy art exists");
             assert_eq!(entry.palette_words.len(), 11);

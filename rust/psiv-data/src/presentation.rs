@@ -13,7 +13,6 @@
 pub mod credits;
 
 use std::collections::BTreeMap;
-use std::path::Path;
 
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -90,10 +89,11 @@ impl ScenePalettes {
     /// Reads [`PRESENTATION_FILE`] under `pack_dir`. Every palette record must
     /// decode to its declared word count, and every panel layer the cartridge
     /// draws (art tile not `$FFFF`) must name a palette the file carries.
-    pub(crate) fn load(pack_dir: &Path) -> Result<ScenePalettes, DataError> {
-        let path = pack_dir.join(PRESENTATION_FILE);
-        let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-        let file: File = serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+    pub(crate) fn load_overlay(
+        overlay: &crate::mods::PackOverlay,
+    ) -> Result<ScenePalettes, DataError> {
+        let path = overlay.logical_path(PRESENTATION_FILE);
+        let file: File = overlay.read_json_data(PRESENTATION_FILE)?;
         let fail = |message: String| DataError::Presentation {
             path: path.clone(),
             message,

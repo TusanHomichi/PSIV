@@ -138,7 +138,11 @@ impl CutsceneLayer {
         }
         if !self.picture_art.contains_key(&source) {
             let art = self.pictures.get(&source).and_then(|picture| {
-                IndexedArt::load(&picture.path, psiv_data::color::IndexLayout::Plane)
+                IndexedArt::load(
+                    &self.pack_assets,
+                    &picture.path,
+                    psiv_data::color::IndexLayout::Plane,
+                )
             });
             self.picture_art.insert(source, art);
         }

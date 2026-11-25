@@ -4,7 +4,8 @@
 //! direct NO — live in `psiv-runtime`'s dialogue choice state. This module
 //! only knows how the prompt looks: the `yes_no` record's window from the
 //! pack, the menu font, and `ArtNem_Window` pattern $6E8 as the cursor.
-use super::{Quad, WindowView, load_image};
+use super::{Quad, WindowView};
+use crate::pack_assets::PackAssets;
 use godot::classes::ImageTexture;
 use godot::prelude::*;
 use psiv_data::{DialogueSet, Role};
@@ -17,15 +18,15 @@ pub(super) struct ChoiceView {
 }
 
 impl ChoiceView {
-    pub(super) fn build(pack: &str, set: &DialogueSet) -> Option<Self> {
+    pub(super) fn build(assets: &PackAssets, set: &DialogueSet) -> Option<Self> {
         let record = set.window.windows.iter().find(|w| w.name == "yes_no")?;
         let text = set.window.text_window.rect;
-        let strip = load_image(pack, &set.window.png)?;
+        let strip = assets.load_image(&set.window.png)?;
         // ArtNem_Window pattern $6E8, relative to its $680 VRAM base.
         let cursor =
             strip.get_region(Rect2i::new(Vector2i::new(0x68 * 8, 0), Vector2i::new(8, 8)))?;
         Some(Self {
-            font: ImageTexture::create_from_image(&load_image(pack, "dialogue/menu_font.png")?)?,
+            font: assets.load_texture("dialogue/menu_font.png")?,
             cursor: ImageTexture::create_from_image(&cursor)?,
             origin: Vector2::new(
                 (record.rect.x - text.x) as f32,

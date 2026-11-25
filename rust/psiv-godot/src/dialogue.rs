@@ -16,11 +16,13 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use godot::classes::{INode2D, Image, ImageTexture, Node2D};
+use godot::classes::{INode2D, ImageTexture, Node2D};
 use godot::prelude::*;
 
 use psiv_data::{CHARS_PER_LINE, DialogueSet, LINES_PER_WINDOW, Role};
 use psiv_runtime::DialogueView;
+
+use crate::pack_assets::PackAssets;
 
 /// The Genesis's visible frame. The pack states window positions in it, so a
 /// wider viewport keeps the box's margins rather than its coordinates.
@@ -73,8 +75,8 @@ struct WindowView {
 }
 
 impl WindowView {
-    fn build(pack_dir: &str, set: &DialogueSet) -> Option<WindowView> {
-        let strip = load_image(pack_dir, &set.window.png)?;
+    fn build(assets: &PackAssets, set: &DialogueSet) -> Option<WindowView> {
+        let strip = assets.load_image(&set.window.png)?;
         let mut tiles = BTreeMap::new();
         for role in Role::ALL {
             let tile = set.window.role(role)?;
@@ -92,7 +94,7 @@ impl WindowView {
             tiles.insert(role.as_str(), ImageTexture::create_from_image(&cell)?);
         }
 
-        let font = ImageTexture::create_from_image(&load_image(pack_dir, &set.font.png)?)?;
+        let font = assets.load_texture(&set.font.png)?;
         let glyph_at = set
             .font
             .by_char
@@ -106,7 +108,7 @@ impl WindowView {
         let text = &set.window.text_window;
         let portrait = &set.window.portrait_window;
         let arrow = &set.trees.window.scroll_arrow;
-        let arrow_texture = ImageTexture::create_from_image(&load_image(pack_dir, &arrow.png)?)?;
+        let arrow_texture = assets.load_texture(&arrow.png)?;
 
         Some(WindowView {
             tiles,
@@ -183,7 +185,7 @@ pub struct DialogueWindow {
     base: Base<Node2D>,
     view: Option<WindowView>,
     portraits: HashMap<u8, Gd<ImageTexture>>,
-    pack_dir: String,
+    pack_assets: PackAssets,
     /// What the runtime says to draw this frame; `None` with no window up.
     snapshot: Option<DialogueView>,
     choice_view: Option<choice::ChoiceView>,
@@ -196,7 +198,7 @@ impl INode2D for DialogueWindow {
             base,
             view: None,
             portraits: HashMap::new(),
-            pack_dir: String::new(),
+            pack_assets: PackAssets::default(),
             snapshot: None,
             choice_view: None,
         }
@@ -237,13 +239,16 @@ impl INode2D for DialogueWindow {
 impl DialogueWindow {
     /// Hands the window the pack's art. Until this is called it can only
     /// complain.
-    pub fn configure(&mut self, pack_dir: &str, set: &DialogueSet) {
-        self.pack_dir = pack_dir.to_owned();
-        self.choice_view = choice::ChoiceView::build(pack_dir, set);
-        match WindowView::build(pack_dir, set) {
+    pub(crate) fn configure(&mut self, assets: &PackAssets, set: &DialogueSet) {
+        self.pack_assets = assets.clone();
+        self.choice_view = choice::ChoiceView::build(assets, set);
+        match WindowView::build(assets, set) {
             Some(view) => self.view = Some(view),
             None => {
-                godot_error!("dialogue: window or font art failed to load from {pack_dir}");
+                godot_error!(
+                    "dialogue: window or font art failed to load from {}",
+                    assets.display_root()
+                );
             }
         }
     }
@@ -445,25 +450,16 @@ impl DialogueWindow {
             godot_error!("dialogue: portrait {id} is not in the pack");
             return;
         };
-        match load_image(&self.pack_dir, &png)
-            .and_then(|image| ImageTexture::create_from_image(&image))
-        {
+        match self.pack_assets.load_texture(&png) {
             Some(texture) => {
                 self.portraits.insert(id, texture);
             }
             None => {
                 godot_error!(
-                    "dialogue: portrait art {}/{png} failed to load",
-                    self.pack_dir
+                    "dialogue: portrait art {png} failed to load from {}",
+                    self.pack_assets.display_root()
                 );
             }
         }
     }
-}
-
-/// Loads one of the pack's PNGs. The pack names its own files; this never
-/// invents a filename.
-fn load_image(pack_dir: &str, png: &str) -> Option<Gd<Image>> {
-    let path = format!("{pack_dir}/{png}");
-    Image::load_from_file(&GString::from(path.as_str()))
 }

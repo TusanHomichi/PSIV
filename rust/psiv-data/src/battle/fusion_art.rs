@@ -52,23 +52,27 @@ impl FusionArt {
     /// five frames in order with their PNGs present;
     /// [`DataError::FormatVersion`] for another pack format.
     pub fn load(pack_dir: &Path) -> Result<FusionArt, DataError> {
-        let path = pack_dir.join(FUSION_ART_PATH);
+        Self::load_overlay(&crate::mods::PackOverlay::base(pack_dir))
+    }
+
+    /// Reads and validates `battle/art/fusion.json` through a [`crate::PackOverlay`].
+    pub fn load_overlay(overlay: &crate::mods::PackOverlay) -> Result<FusionArt, DataError> {
+        let path = overlay.logical_path(FUSION_ART_PATH);
         let refused = |record: String| DataError::ManifestMismatch {
             path: path.clone(),
             field: "fusion",
             manifest: format!("{FUSION_FRAMES} frames in order, each with its PNG"),
             record,
         };
-        if !path.is_file() {
+        if !overlay.is_file(FUSION_ART_PATH) {
             return Err(DataError::ManifestMismatch {
-                path: pack_dir.join("manifest.json"),
+                path: overlay.logical_path("manifest.json"),
                 field: "fusion",
                 manifest: "absent; rebuild the pack".into(),
                 record: FUSION_ART_PATH.into(),
             });
         }
-        let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-        let art: FusionArt = serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+        let art: FusionArt = overlay.read_json_data(FUSION_ART_PATH)?;
         if art.format_version != PACK_FORMAT_VERSION {
             return Err(DataError::FormatVersion {
                 found: art.format_version,
@@ -85,7 +89,7 @@ impl FusionArt {
             if frame.size[0] <= 0 || frame.size[1] <= 0 {
                 return Err(refused(format!("frame {index} is empty")));
             }
-            if !pack_dir.join(&frame.png).is_file() {
+            if !overlay.is_file(&frame.png) {
                 return Err(refused(format!("frame {index}'s {} is missing", frame.png)));
             }
         }

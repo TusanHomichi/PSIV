@@ -554,23 +554,20 @@ impl ModTitleState {
 }
 
 impl Field {
-    /// Applies active mods or mounts [`ModErrorScreen`] on failure so a broken
-    /// mod never leaves a blank screen.
+    /// Builds the in-memory mod overlay or mounts [`ModErrorScreen`] on failure
+    /// so a broken mod never leaves a blank screen.
     pub(crate) fn apply_mods_or_show_error(
         &mut self,
         install: &Install,
-        mut pack: PathBuf,
-    ) -> Option<(PathBuf, ModBootResult)> {
-        match crate::install::apply_active_mods(install, &pack) {
+        base_pack: &Path,
+    ) -> Option<ModBootResult> {
+        match crate::install::apply_active_mods(install, base_pack) {
             Ok(boot) => {
-                if let Some(applied) = &boot.applied {
-                    for m in &applied.active {
-                        godot_print!("loaded mod: {} ({} v{})", m.name, m.id, m.version);
-                    }
-                    pack = applied.effective_pack.clone();
-                    self.pack_dir = pack.to_string_lossy().into_owned();
+                for m in boot.overlay.active_mods() {
+                    godot_print!("loaded mod: {} ({} v{})", m.name, m.id, m.version);
                 }
-                Some((pack, boot))
+                self.pack_assets = crate::pack_assets::PackAssets::new(boot.overlay.clone());
+                Some(boot)
             }
             Err((source, error)) => {
                 godot_error!("mod load failed: {error}");

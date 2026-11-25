@@ -93,10 +93,18 @@ impl INode2D for DestinationScreen {
 
 impl DestinationScreen {
     /// Loads the shared window art and keeps the pack's screen.
-    pub(crate) fn configure(&mut self, pack_dir: &str, set: &DialogueSet, menu: Option<ShipMenu>) {
-        self.chrome = CampChrome::build(pack_dir, set);
+    pub(crate) fn configure(
+        &mut self,
+        assets: &crate::pack_assets::PackAssets,
+        set: &DialogueSet,
+        menu: Option<ShipMenu>,
+    ) {
+        self.chrome = CampChrome::build(assets, set);
         if self.chrome.is_none() {
-            godot_error!("destination menu: window art failed to load from {pack_dir}");
+            godot_error!(
+                "destination menu: window art failed to load from {}",
+                assets.display_root()
+            );
         }
         self.menu = menu;
     }

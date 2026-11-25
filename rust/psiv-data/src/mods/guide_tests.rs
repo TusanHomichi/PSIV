@@ -3,12 +3,13 @@
 //! Extracts every `json` fenced block and the documented schema-violation
 //! example directly from `docs/MODDING.md`, validates them unconditionally
 //! against synthetic schema fixtures (so hosted CI without a ROM catches drift)
-//! and validates them end-to-end through `apply_mods` against `runtime-pack`
+//! and validates them end-to-end through `PackOverlay::load` against `runtime-pack`
 //! whenever the local pack is present.
 
 use super::*;
 use crate::battle::EnemiesFile;
 use crate::dialogue::TreeFile;
+use crate::{BattleFiles, GameData};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -409,21 +410,21 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
     .unwrap();
 
     let loaded = load_mod(&mod_dir).expect("docs/MODDING.md mod.json must load cleanly");
-    let applied = apply_mods(&base_pack, &[loaded], &scratch.join("effective"))
-        .expect("docs/MODDING.md examples must pass full apply_mods + schema validation");
+    let overlay = PackOverlay::load(&base_pack, &[loaded])
+        .expect("docs/MODDING.md examples must pass full PackOverlay::load + schema validation");
     assert_eq!(
-        applied.patched_files,
-        vec![
+        overlay.patched_files(),
+        &[
             "battle/enemies.json",
             "dialogue/trees.json",
             "maps/010_Piata.json"
         ]
     );
 
-    let battle = BattleFiles::load(&applied.effective_pack).unwrap();
+    let battle = BattleFiles::load_overlay(&overlay).unwrap();
     let zoran = battle.enemies.enemies.iter().find(|e| e.id == 10).unwrap();
     assert_eq!(zoran.hp, 99);
-    let game = GameData::load(&applied.effective_pack).unwrap();
+    let game = GameData::load_overlay(&overlay).unwrap();
     let piata = game.map(crate::MapId(0x010)).unwrap();
     assert_eq!(
         piata.collision.grid.at(1, 1),
@@ -441,10 +442,12 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
     assert!(entry.text.contains("Glad to see you in one piece!"));
 
     // Strict default diff_packs must round-trip all three guide examples cleanly.
+    let edited_copy = scratch.join("edited-guide");
+    tests::materialize_overlay_for_diff_test(&overlay, &edited_copy);
     let exported = scratch.join("exported-guide");
     let exported_summary = diff_packs(
         &base_pack,
-        &applied.effective_pack,
+        &edited_copy,
         &exported,
         &ModManifest::new("exported-guide", "Exported Guide", "1.0.0"),
     )
@@ -464,7 +467,7 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
     .unwrap();
     assert_eq!(exported_map_patch, map_patch);
 
-    // Negative control through full `apply_mods` naming mod, file, and place.
+    // Negative control through full `PackOverlay::load` naming mod, file, and place.
     let bad_dir = scratch.join("mods/tough-zoran");
     init_mod_dir(
         &bad_dir,
@@ -477,12 +480,8 @@ fn modding_guide_examples_parse_and_validate_against_schema() {
         serde_json::to_string(&bad_enemies_patch).unwrap(),
     )
     .unwrap();
-    let err = apply_mods(
-        &base_pack,
-        &[load_mod(&bad_dir).unwrap()],
-        &scratch.join("bad-effective"),
-    )
-    .expect_err("documented invalid HP example must be rejected by apply_mods");
+    let err = PackOverlay::load(&base_pack, &[load_mod(&bad_dir).unwrap()])
+        .expect_err("documented invalid HP example must be rejected by PackOverlay::load");
     assert_eq!(err.mod_id, "tough-zoran");
     assert_eq!(err.file, "battle/enemies.json");
     assert!(err.detail.contains(&bad_hp.to_string()), "{err}");

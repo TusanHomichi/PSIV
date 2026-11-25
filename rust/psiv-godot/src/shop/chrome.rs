@@ -5,14 +5,14 @@
 //! layout: callers ask for a frame by `CellRect` and words by pattern.
 
 use std::collections::BTreeMap;
-use std::path::Path;
 
-use godot::classes::{Image, ImageTexture};
+use godot::classes::ImageTexture;
 use godot::prelude::*;
 
 use psiv_data::{DialogueSet, Role};
 
 use super::layout::{CELL, CellRect};
+use crate::pack_assets::PackAssets;
 
 pub(super) struct Quad {
     pub(super) texture: Gd<ImageTexture>,
@@ -28,8 +28,8 @@ pub(super) struct ShopChrome {
 }
 
 impl ShopChrome {
-    pub(super) fn build(pack_dir: &str, set: &DialogueSet) -> Option<ShopChrome> {
-        let strip = load_image(pack_dir, &set.window.png)?;
+    pub(super) fn build(assets: &PackAssets, set: &DialogueSet) -> Option<ShopChrome> {
+        let strip = assets.load_image(&set.window.png)?;
         let mut tiles = BTreeMap::new();
         for role in Role::ALL {
             let tile = set.window.role(role)?;
@@ -46,13 +46,7 @@ impl ShopChrome {
             }
             tiles.insert(role.as_str(), ImageTexture::create_from_image(&cell)?);
         }
-        let menu_path = format!("{pack_dir}/dialogue/menu_font.png");
-        let menu = Image::load_from_file(&GString::from(menu_path.as_str())).or_else(|| {
-            let path = Path::new(pack_dir)
-                .parent()?
-                .join("generated/gfx/ArtNem_Font.png");
-            Image::load_from_file(&GString::from(path.to_string_lossy().as_ref()))
-        })?;
+        let menu = assets.load_menu_font_image()?;
         let font = ImageTexture::create_from_image(&menu)?;
         let mut words = BTreeMap::new();
         for pattern in [0x680, 0x6E7, 0x6E8] {
@@ -152,9 +146,4 @@ impl ShopChrome {
         }
         quads
     }
-}
-
-fn load_image(pack_dir: &str, name: &str) -> Option<Gd<Image>> {
-    let path = format!("{pack_dir}/{name}");
-    Image::load_from_file(&GString::from(path.as_str()))
 }

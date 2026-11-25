@@ -168,9 +168,12 @@ pub(super) struct CreditsSurface {
 }
 
 impl CreditsSurface {
-    fn load(assets: &EndingCreditsAssets, pack_dir: &str, font: &FontFile) -> Option<Self> {
-        let path = format!("{pack_dir}/{}", font.png);
-        let mut font_img = Image::load_from_file(&GString::from(path.as_str()))?;
+    fn load(
+        assets: &EndingCreditsAssets,
+        pack: &crate::pack_assets::PackAssets,
+        font: &FontFile,
+    ) -> Option<Self> {
+        let mut font_img = pack.load_image(&font.png)?;
         font_img.convert(Format::RGBA8);
         let font_w = usize::try_from(font_img.get_width()).ok()?;
         let font_h = usize::try_from(font_img.get_height()).ok()?;
@@ -224,10 +227,10 @@ impl CutsceneLayer {
     pub(crate) fn configure_credits(
         &mut self,
         assets: &EndingCreditsAssets,
-        pack_dir: &str,
+        pack: &crate::pack_assets::PackAssets,
         font: &FontFile,
     ) {
-        self.credits = CreditsSurface::load(assets, pack_dir, font);
+        self.credits = CreditsSurface::load(assets, pack, font);
         if self.credits.is_none() {
             godot_error!("ending credits compositor failed to load dialogue font strip");
         }

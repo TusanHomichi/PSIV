@@ -2,8 +2,6 @@
 //! ([retired fifth_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/fifth_pack.py)): the five friends waiting at the Mota Spaceport
 //! and the records the routine refills.
 
-use std::path::Path;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -55,14 +53,13 @@ pub struct FifthTable {
 }
 
 impl FifthTable {
-    pub(crate) fn load(
-        directory: &Path,
+    pub(crate) fn load_overlay(
+        overlay: &crate::mods::PackOverlay,
         file: &FifthFile,
         rom: &RomHash,
     ) -> Result<FifthTable, DataError> {
-        let path = directory.join(&file.path);
-        let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-        let json: FifthJson = serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+        let path = overlay.logical_path(&file.path);
+        let json: FifthJson = overlay.read_json_data(&file.path)?;
         let refused = || DataError::ManifestMismatch {
             path: path.clone(),
             field: "fifth",

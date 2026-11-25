@@ -9,11 +9,11 @@ use crate::manifest::PACK_FORMAT_VERSION;
 use crate::map::MapRecord;
 use crate::{GameData, Manifest};
 
-pub(super) const DIGEST: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+pub(crate) const DIGEST: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 /// A map record as JSON, with every section a test might want to break exposed
 /// as a field. Defaults describe a valid 4x4 map.
-pub(super) struct MapJson {
+pub(crate) struct MapJson {
     pub(super) version: u32,
     pub(super) id: u16,
     pub(super) symbol: &'static str,
@@ -84,7 +84,7 @@ pub(super) fn warp_json(rect: &str, target: &str, destination: &str) -> String {
 
 impl MapJson {
     /// The second map of the default pack: warps back to the first.
-    pub(super) fn academy() -> Self {
+    pub(crate) fn academy() -> Self {
         MapJson {
             id: 0x011,
             symbol: "PiataAcademy",
@@ -99,7 +99,7 @@ impl MapJson {
         }
     }
 
-    pub(super) fn text(&self) -> String {
+    pub(crate) fn text(&self) -> String {
         format!(
             r#"{{"format_version": {}, "id": {}, "id_hex": "0x{:03X}", "symbol": "{}",
                  "record_offset": "0x11C690", "png": "{}",
@@ -134,7 +134,7 @@ impl MapJson {
         format!("{:03X}_{}", self.id, self.symbol)
     }
 
-    pub(super) fn json_name(&self) -> String {
+    pub(crate) fn json_name(&self) -> String {
         format!("maps/{}.json", self.stem())
     }
 
@@ -143,7 +143,7 @@ impl MapJson {
     }
 }
 
-pub(super) fn manifest_text(
+pub(crate) fn manifest_text(
     version: u32,
     maps: &[&MapJson],
     skipped: &str,
@@ -183,7 +183,7 @@ pub(super) fn manifest_text(
     )
 }
 
-pub(super) const SKIPPED_MOTAVIA: &str = r#"{"id": 0, "id_hex": "0x000", "symbol": "Motavia",
+pub(crate) const SKIPPED_MOTAVIA: &str = r#"{"id": 0, "id_hex": "0x000", "symbol": "Motavia",
                                   "reason": "paged layout format not decoded"}"#;
 
 pub(super) fn manifest_of(maps: &[&MapJson]) -> Manifest {

@@ -12,7 +12,7 @@
 //! record's serde shape.
 
 mod accessors;
-mod fixtures;
+pub(crate) mod fixtures;
 mod load;
 mod maps;
 mod overworld;

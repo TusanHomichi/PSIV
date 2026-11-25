@@ -26,7 +26,7 @@ pub enum ModInventoryEntry {
 }
 
 /// Lists direct subdirectories of `mods_dir` that contain a `mod.json`, ignoring
-/// hidden (`.`-prefixed) and internal (`_`-prefixed, e.g. `_active_pack`) folders.
+/// hidden (`.`-prefixed) and internal (`_`-prefixed) folders.
 pub(crate) fn candidate_mod_dirs(mods_dir: &Path) -> Result<Vec<PathBuf>, ModError> {
     if !mods_dir.exists() {
         return Ok(Vec::new());

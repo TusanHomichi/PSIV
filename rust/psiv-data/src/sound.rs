@@ -77,35 +77,48 @@ impl SoundFiles {
     /// Load `sound/` when present. Older synthetic packs without a sound
     /// directory remain valid and expose an empty sound set.
     pub fn load(pack_dir: &Path) -> Result<Self, crate::DataError> {
-        let root = pack_dir.join("sound");
-        let index_path = root.join("index.json");
-        if !index_path.is_file() {
+        Self::load_overlay(&crate::mods::PackOverlay::base(pack_dir))
+    }
+
+    /// Load `sound/` through a [`crate::PackOverlay`].
+    pub fn load_overlay(overlay: &crate::mods::PackOverlay) -> Result<Self, crate::DataError> {
+        let root = overlay.logical_path("sound");
+        let index_path = overlay.logical_path("sound/index.json");
+        if !overlay.is_file("sound/index.json") {
             if root.exists() {
                 return Err(sound_error(index_path, "sound directory has no index.json"));
             }
             return Ok(Self::default());
         }
-        let _index: schema::IndexFile = read_file(&index_path)?;
+        let _index: schema::IndexFile = read_file(overlay, "sound/index.json")?;
 
-        let driver: schema::DriverFile = read_file(&root.join("driver.json"))?;
-        let volume_envelopes = load_volume_envelopes(&root, &driver.driver.envelopes)?;
-        let dac_samples = load_dac_samples(&root, &driver.driver.dac)?;
+        let driver: schema::DriverFile = read_file(overlay, "sound/driver.json")?;
+        let volume_envelopes = load_volume_envelopes(overlay, &root, &driver.driver.envelopes)?;
+        let dac_samples = load_dac_samples(overlay, &driver.driver.dac)?;
 
-        let music_path = root.join("music.json");
-        let music_file: schema::MusicFile = read_file(&music_path)?;
+        let music_path = overlay.logical_path("sound/music.json");
+        let music_file: schema::MusicFile = read_file(overlay, "sound/music.json")?;
         let mut music = BTreeMap::new();
         for value in &music_file.records.records {
             let tempo = value.header.tempo_reload.max(1);
-            let record = load_record(&root, value, value.header.tick_multiplier, tempo, false)?;
+            let record = load_record(
+                overlay,
+                &root,
+                value,
+                value.header.tick_multiplier,
+                tempo,
+                false,
+            )?;
             insert_record(&mut music, record, &music_path)?;
         }
 
-        let sfx_path = root.join("sfx.json");
-        let sfx_file: schema::SfxFile = read_file(&sfx_path)?;
+        let sfx_path = overlay.logical_path("sound/sfx.json");
+        let sfx_file: schema::SfxFile = read_file(overlay, "sound/sfx.json")?;
         let mut sfx = BTreeMap::new();
         for group in [&sfx_file.records.regular, &sfx_file.records.special] {
             for value in &group.records {
-                let record = load_record(&root, value, value.header.tick_multiplier, 1, true)?;
+                let record =
+                    load_record(overlay, &root, value, value.header.tick_multiplier, 1, true)?;
                 insert_record(&mut sfx, record, &sfx_path)?;
             }
         }
@@ -157,6 +170,7 @@ impl SoundFiles {
 }
 
 fn load_record<H>(
+    overlay: &crate::mods::PackOverlay,
     root: &Path,
     value: &schema::Record<H>,
     tick_multiplier: u8,
@@ -164,8 +178,8 @@ fn load_record<H>(
     is_sfx: bool,
 ) -> Result<SoundRecord, crate::DataError> {
     let tick_multiplier = tick_multiplier.max(1);
-    let raw_path = root.join(&value.record.raw_file);
-    let raw = std::fs::read(&raw_path).map_err(|error| crate::DataError::io(&raw_path, error))?;
+    let raw_rel = format!("sound/{}", value.record.raw_file);
+    let raw = overlay.read_bytes_data(&raw_rel)?;
     let voices = parse_voices(&value.voices, root)?;
     let tracks = value
         .tracks
@@ -263,6 +277,7 @@ fn parse_voices(voices: &[schema::Voice], root: &Path) -> Result<Vec<Vec<u8>>, c
 }
 
 fn load_volume_envelopes(
+    overlay: &crate::mods::PackOverlay,
     root: &Path,
     envelopes: &schema::Envelopes,
 ) -> Result<Vec<Vec<u8>>, crate::DataError> {
@@ -270,8 +285,9 @@ fn load_volume_envelopes(
     let mut loaded = vec![Vec::new(); values.len()];
     for value in values {
         let index = value.index as usize;
-        let path = root.join(&value.raw_file);
-        let bytes = std::fs::read(&path).map_err(|error| crate::DataError::io(&path, error))?;
+        let rel = format!("sound/{}", value.raw_file);
+        let path = overlay.logical_path(&rel);
+        let bytes = overlay.read_bytes_data(&rel)?;
         if index >= loaded.len() {
             return Err(sound_error(
                 path,
@@ -290,14 +306,15 @@ fn load_volume_envelopes(
 }
 
 fn load_dac_samples(
-    root: &Path,
+    overlay: &crate::mods::PackOverlay,
     dac: &schema::Dac,
 ) -> Result<BTreeMap<u8, Vec<u8>>, crate::DataError> {
     let mut samples = BTreeMap::new();
     for entry in dac.banks.iter().flat_map(|bank| &bank.samples) {
         let id = entry.sound_id;
-        let path = root.join(&entry.raw_file);
-        let bytes = std::fs::read(&path).map_err(|error| crate::DataError::io(&path, error))?;
+        let rel = format!("sound/{}", entry.raw_file);
+        let path = overlay.logical_path(&rel);
+        let bytes = overlay.read_bytes_data(&rel)?;
         if samples.insert(id, bytes).is_some() {
             return Err(sound_error(
                 path,
@@ -321,14 +338,18 @@ fn insert_record(
 
 /// Read a sound file: its `format_version` is checked before its shape, so
 /// a pack from another version is refused as one.
-fn read_file<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, crate::DataError> {
-    let text = std::fs::read_to_string(path).map_err(|error| crate::DataError::io(path, error))?;
+fn read_file<T: serde::de::DeserializeOwned>(
+    overlay: &crate::mods::PackOverlay,
+    rel: &str,
+) -> Result<T, crate::DataError> {
+    let path = overlay.logical_path(rel);
+    let text = overlay.read_text_data(rel)?;
     let value: Value =
-        serde_json::from_str(&text).map_err(|error| crate::DataError::json(path, error))?;
+        serde_json::from_str(&text).map_err(|error| crate::DataError::json(&path, error))?;
     let found = value
         .get("format_version")
         .and_then(Value::as_u64)
-        .ok_or_else(|| sound_error(path.to_owned(), "format_version is missing"))?
+        .ok_or_else(|| sound_error(path.clone(), "format_version is missing"))?
         as u32;
     if found != SOUND_FORMAT_VERSION {
         return Err(crate::DataError::FormatVersion {
@@ -336,7 +357,7 @@ fn read_file<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, crate::Da
             expected: SOUND_FORMAT_VERSION,
         });
     }
-    serde_json::from_value(value).map_err(|error| crate::DataError::json(path, error))
+    serde_json::from_value(value).map_err(|error| crate::DataError::json(&path, error))
 }
 
 fn parse_hex(raw: &str) -> Result<Vec<u8>, String> {

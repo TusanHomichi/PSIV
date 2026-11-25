@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use godot::classes::{Image, ImageTexture, Sprite2D};
+use godot::classes::{ImageTexture, Sprite2D};
 use godot::prelude::*;
 
 use psiv_core::{Cell, Direction};
@@ -15,6 +15,7 @@ use psiv_data::Sheet;
 use psiv_data::color::IndexLayout;
 
 use crate::cram_art::{IndexedArt, SharedCram};
+use crate::pack_assets::PackAssets;
 
 use crate::CELL_PIXELS;
 
@@ -91,15 +92,13 @@ pub(crate) struct SheetView {
 impl SheetView {
     /// `cram` is the field's live palette; `None` draws the baked colours only.
     pub(crate) fn build(
-        pack_dir: &str,
+        assets: &PackAssets,
         sheet: &Sheet,
         cram: Option<&SharedCram>,
     ) -> Option<SheetView> {
-        let path = format!("{pack_dir}/{}", sheet.png);
-        let image = Image::load_from_file(&GString::from(path.as_str()))?;
-        let texture = ImageTexture::create_from_image(&image)?;
+        let texture = assets.load_texture(&sheet.png)?;
         let indexed = cram.zip(sheet.cram_line()).and_then(|(cram, line)| {
-            let art = IndexedArt::load(&path, IndexLayout::Line(line))?;
+            let art = IndexedArt::load(assets, &sheet.png, IndexLayout::Line(line))?;
             Some((RefCell::new(art), Rc::clone(cram)))
         });
         let mut sequences = BTreeMap::new();

@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use super::DialogueSet;
+use crate::PackOverlay;
 
 fn packed() -> Option<(PathBuf, DialogueSet)> {
     let path = std::env::var_os("PSIV_RUNTIME_PACK").map_or_else(
@@ -28,7 +29,9 @@ fn world_selection_validates_count_and_every_tree_reference() {
         eprintln!("skipping: rebuild local pack for world_interaction data");
         return;
     }
-    good.validate(&path).expect("emitted selection validates");
+    let overlay = PackOverlay::base(&path);
+    good.validate(&overlay)
+        .expect("emitted selection validates");
     let mut short = good.clone();
     short
         .trees
@@ -39,7 +42,7 @@ fn world_selection_validates_count_and_every_tree_reference() {
         .pop();
     assert!(
         short
-            .validate(&path)
+            .validate(&overlay)
             .unwrap_err()
             .to_string()
             .contains("six world trees")
@@ -48,7 +51,7 @@ fn world_selection_validates_count_and_every_tree_reference() {
     absent.trees.world_interaction.as_mut().unwrap().world_trees[1] = 0;
     assert!(
         absent
-            .validate(&path)
+            .validate(&overlay)
             .unwrap_err()
             .to_string()
             .contains("absent tree 0")
@@ -61,7 +64,7 @@ fn world_selection_validates_count_and_every_tree_reference() {
         .first_world_override
         .tree = 0;
     assert!(
-        high.validate(&path)
+        high.validate(&overlay)
             .unwrap_err()
             .to_string()
             .contains("absent tree 0")
@@ -73,9 +76,10 @@ fn legacy_pack_can_read_map_dialogue_without_inventing_world_selection() {
     let Some((path, mut legacy)) = packed() else {
         return;
     };
+    let overlay = PackOverlay::base(&path);
     legacy.trees.world_interaction = None;
     legacy
-        .validate(&path)
+        .validate(&overlay)
         .expect("NPC and scene data remain readable");
     assert!(legacy.trees.world_interaction.is_none());
 }

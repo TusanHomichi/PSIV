@@ -6,6 +6,7 @@
 //! (`WinGroup_Event`, `ps4.asm:141150`), the palette and one background per
 //! cover combination, and turns a background and a palette state into pixels.
 
+#[cfg(test)]
 use std::path::Path;
 
 use schemars::JsonSchema;
@@ -148,15 +149,22 @@ pub struct ShipMenu {
 }
 
 impl ShipMenu {
+    #[cfg(test)]
     pub(crate) fn load(
         directory: &Path,
         file: &ShipMenuFile,
         rom: &RomHash,
     ) -> Result<ShipMenu, DataError> {
-        let path = directory.join(&file.path);
-        let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-        let json: ShipMenuJson =
-            serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+        Self::load_overlay(&crate::mods::PackOverlay::base(directory), file, rom)
+    }
+
+    pub(crate) fn load_overlay(
+        overlay: &crate::mods::PackOverlay,
+        file: &ShipMenuFile,
+        rom: &RomHash,
+    ) -> Result<ShipMenu, DataError> {
+        let path = overlay.logical_path(&file.path);
+        let json: ShipMenuJson = overlay.read_json_data(&file.path)?;
         let mismatch = |message: String| DataError::ManifestMismatch {
             path: path.clone(),
             field: "ship_menu",
@@ -205,8 +213,7 @@ impl ShipMenu {
             let slot = backgrounds
                 .get_mut(record.covers)
                 .ok_or_else(|| mismatch(format!("cover set {} out of range", record.covers)))?;
-            let file = directory.join(&record.file);
-            let bytes = std::fs::read(&file).map_err(|e| DataError::io(&file, e))?;
+            let bytes = overlay.read_bytes_data(&record.file)?;
             if bytes.len() != SCREEN_WIDTH * SCREEN_HEIGHT
                 || bytes.iter().any(|&index| usize::from(index) >= 64)
             {

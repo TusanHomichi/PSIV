@@ -9,8 +9,6 @@
 //! This module is the schema only. The rules that use it — what a counter
 //! opens, what a night costs — live in `psiv-runtime`.
 
-use std::path::Path;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -161,10 +159,8 @@ pub struct ShopLines {
 }
 
 impl ShopData {
-    pub(crate) fn load(pack_dir: &Path) -> Result<ShopData, DataError> {
-        let path = pack_dir.join(SHOPS_FILE);
-        let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-        serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))
+    pub(crate) fn load_overlay(overlay: &crate::mods::PackOverlay) -> Result<ShopData, DataError> {
+        overlay.read_json_data(SHOPS_FILE)
     }
 
     /// The shopkeeper portraits, by art address.

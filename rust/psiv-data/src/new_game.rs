@@ -1,7 +1,5 @@
 //! The title initializer, distinct from the manifest's post-opening spawn.
 
-use std::path::Path;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -111,10 +109,9 @@ pub struct Event {
 }
 
 impl NewGame {
-    pub(crate) fn load(pack_dir: &Path) -> Result<Self, DataError> {
-        let path = pack_dir.join("game_start.json");
-        let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-        let file: File = serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+    pub(crate) fn load_overlay(overlay: &crate::mods::PackOverlay) -> Result<Self, DataError> {
+        let path = overlay.logical_path("game_start.json");
+        let file: File = overlay.read_json_data("game_start.json")?;
         let mismatch = |field, expected: &str, actual: String| DataError::ManifestMismatch {
             path: path.clone(),
             field,

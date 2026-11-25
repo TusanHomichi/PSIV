@@ -3,6 +3,7 @@
 //! (#789).
 
 use super::*;
+use crate::GameData;
 use serde_json::{Value, json};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -593,13 +594,8 @@ fn real_pack_single_cell_collision_and_keyed_map_arrays_round_trip_strict() {
         .unwrap();
     }
 
-    let applied = apply_mods(
-        &base,
-        &[load_mod(&mod_dir).unwrap()],
-        &scratch.join("effective"),
-    )
-    .unwrap();
-    let loaded_game = GameData::load(&applied.effective_pack).unwrap();
+    let overlay = PackOverlay::load(&base, &[load_mod(&mod_dir).unwrap()]).unwrap();
+    let loaded_game = GameData::load_overlay(&overlay).unwrap();
     assert_eq!(
         loaded_game
             .map(crate::MapId(0x010))
@@ -613,10 +609,12 @@ fn real_pack_single_cell_collision_and_keyed_map_arrays_round_trip_strict() {
     );
 
     // Strict default diff_packs round-trips with a tiny sparse cell patch (NOT 64x64 grid).
+    let edited_copy = scratch.join("effective");
+    tests::materialize_overlay_for_diff_test(&overlay, &edited_copy);
     let exported = scratch.join("exported");
     let summary = diff_packs(
         &base,
-        &applied.effective_pack,
+        &edited_copy,
         &exported,
         &ModManifest::new("exported", "Exported", "1.0.0"),
     )
@@ -634,13 +632,8 @@ fn real_pack_single_cell_collision_and_keyed_map_arrays_round_trip_strict() {
         json!({"collision": {"rows": {"cells": [[1, 1, new_code]]}}})
     );
 
-    let reapplied = apply_mods(
-        &base,
-        &[load_mod(&exported).unwrap()],
-        &scratch.join("reapplied"),
-    )
-    .unwrap();
-    let re_game = GameData::load(&reapplied.effective_pack).unwrap();
+    let reapplied = PackOverlay::load(&base, &[load_mod(&exported).unwrap()]).unwrap();
+    let re_game = GameData::load_overlay(&reapplied).unwrap();
     assert_eq!(
         re_game
             .map(crate::MapId(0x010))

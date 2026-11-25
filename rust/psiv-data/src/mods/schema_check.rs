@@ -63,7 +63,7 @@ pub(crate) fn verify_patched(
             // Files reloaded by GameData::load / BattleFiles::load (e.g. battle/enemies.json)
             // defer non-unknown-field value/range errors (like hp = 70000) to those loaders so
             // they report full pack file context; files outside GameData/BattleFiles fail closed
-            // immediately here as well as in apply_mods' explicit loaders.
+            // immediately here as well as in PackOverlay's explicit loaders.
             if error.contains("unknown field")
                 || matches!(
                     rel_file,

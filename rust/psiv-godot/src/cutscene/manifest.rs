@@ -7,10 +7,9 @@
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::path::Path;
 use std::rc::Rc;
 
-use godot::classes::{Image, ImageTexture};
+use godot::classes::ImageTexture;
 use godot::prelude::*;
 use psiv_data::{DialogueSet, Role};
 use serde::Deserialize;
@@ -18,6 +17,7 @@ use serde::Deserialize;
 use super::picture::PictureAsset;
 use super::temporary_sprite_asset::TemporarySpriteAsset;
 use crate::cram_art::IndexedArt;
+use crate::pack_assets::PackAssets;
 use psiv_data::color::IndexLayout;
 
 #[derive(Debug, Deserialize)]
@@ -160,7 +160,7 @@ pub(super) struct SceneAssets {
 
 impl SceneAssets {
     /// Loads the manifest and every pack image the layer draws.
-    pub(super) fn load(pack_dir: &str, set: &DialogueSet) -> SceneAssets {
+    pub(super) fn load(pack: &PackAssets, set: &DialogueSet) -> SceneAssets {
         let mut assets = SceneAssets {
             opening_screen_y: None,
             textures: BTreeMap::new(),
@@ -174,49 +174,42 @@ impl SceneAssets {
             generic_window_rect: None,
             pictures: BTreeMap::new(),
         };
-        let manifest_path = Path::new(pack_dir).join("presentation/panels.json");
-        match std::fs::read_to_string(&manifest_path)
-            .ok()
-            .and_then(|raw| serde_json::from_str::<PanelManifest>(&raw).ok())
-        {
-            Some(manifest) => {
+        match pack.read_json::<PanelManifest>("presentation/panels.json") {
+            Ok(manifest) => {
                 if let Some(opening) = &manifest.opening_background {
                     assets.opening_screen_y = Some(opening.screen_y);
                 }
                 for panel in manifest.panels {
-                    let path = format!("{pack_dir}/{}", panel.png);
                     let layout = IndexLayout::Panel {
                         a: IndexLayout::art_tile_line(panel.art_tile_a),
                         b: IndexLayout::art_tile_line(panel.art_tile_b),
                     };
                     assets
                         .indexed_panels
-                        .insert(panel.id, (path.clone(), layout));
-                    if let Some(image) = Image::load_from_file(&GString::from(path.as_str()))
-                        && let Some(texture) = ImageTexture::create_from_image(&image)
-                    {
+                        .insert(panel.id, (panel.png.clone(), layout));
+                    if let Some(texture) = pack.load_texture(&panel.png) {
                         assets.textures.insert(panel.id, texture);
                     } else {
-                        godot_error!("scene panel {} failed to load: {path}", panel.id);
+                        godot_error!("scene panel {} failed to load: {}", panel.id, panel.png);
                     }
                 }
                 for temporary in manifest.temporary_objects {
-                    let path = format!("{pack_dir}/{}", temporary.png);
-                    let Some(image) = Image::load_from_file(&GString::from(path.as_str())) else {
+                    let Some(image) = pack.load_image(&temporary.png) else {
                         godot_error!(
-                            "scene temporary object {:#06x}/{:#05x} failed to load: {path}",
+                            "scene temporary object {:#06x}/{:#05x} failed to load: {}",
                             temporary.object_id,
-                            temporary.art_tile
+                            temporary.art_tile,
+                            temporary.png
                         );
                         continue;
                     };
                     let Some(texture) = ImageTexture::create_from_image(&image) else {
-                        godot_error!("scene temporary object texture failed: {path}");
+                        godot_error!("scene temporary object texture failed: {}", temporary.png);
                         continue;
                     };
                     // The sheet's indices on its line, for the live palette.
                     let indexed = temporary.layout().and_then(|layout| {
-                        let art = IndexedArt::load(&path, layout)?;
+                        let art = IndexedArt::load(pack, &temporary.png, layout)?;
                         Some(Rc::new(RefCell::new(art)))
                     });
                     let sequences = temporary
@@ -260,16 +253,17 @@ impl SceneAssets {
                         godot_error!("scene picture record unreadable: {picture:?}");
                         continue;
                     };
-                    let path = format!("{pack_dir}/{}", picture.png);
-                    let baked = Image::load_from_file(&GString::from(path.as_str()))
-                        .and_then(|image| ImageTexture::create_from_image(&image));
+                    let baked = pack.load_texture(&picture.png);
                     if baked.is_none() {
-                        godot_error!("scene picture {source:#08x} failed to load: {path}");
+                        godot_error!(
+                            "scene picture {source:#08x} failed to load: {}",
+                            picture.png
+                        );
                     }
                     assets.pictures.insert(
                         source,
                         PictureAsset {
-                            path,
+                            path: picture.png,
                             art: (art, picture.art_tile & 0x07FF),
                             screen_pos: (picture.screen_x, picture.screen_y),
                             baked,
@@ -278,29 +272,24 @@ impl SceneAssets {
                 }
                 for portrait in manifest.portraits {
                     if portrait.id == "shopkeeper_2" {
-                        let path = format!("{pack_dir}/{}", portrait.png);
                         assets.generic_portrait_named = true;
-                        assets.generic_portrait =
-                            Image::load_from_file(&GString::from(path.as_str()))
-                                .and_then(|image| ImageTexture::create_from_image(&image));
+                        assets.generic_portrait = pack.load_texture(&portrait.png);
                     }
                 }
             }
-            None => {
-                godot_warn!("scene panel manifest missing: {}", manifest_path.display());
+            Err(error) => {
+                godot_warn!("scene panel manifest missing or invalid: {error}");
             }
         }
 
-        let background = format!("{pack_dir}/presentation/opening_background.png");
-        assets.opening_background = Image::load_from_file(&GString::from(background.as_str()))
-            .and_then(|image| ImageTexture::create_from_image(&image));
+        let background = "presentation/opening_background.png";
+        assets.opening_background = pack.load_texture(background);
         if assets.opening_background.is_none() {
             godot_error!("opening background failed to load: {background}");
         }
-        assets.opening_background_path = Some(background);
+        assets.opening_background_path = Some(background.to_owned());
 
-        let window_path = format!("{pack_dir}/{}", set.window.png);
-        if let Some(window) = Image::load_from_file(&GString::from(window_path.as_str())) {
+        if let Some(window) = pack.load_image(&set.window.png) {
             for role in Role::ALL {
                 let Some(tile) = set.window.role(role) else {
                     continue;
@@ -327,7 +316,7 @@ impl SceneAssets {
                 Vector2::new(rect.width as f32, rect.height as f32),
             ));
         } else {
-            godot_error!("generic scene window failed to load: {window_path}");
+            godot_error!("generic scene window failed to load: {}", set.window.png);
         }
 
         assets

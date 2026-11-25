@@ -128,7 +128,7 @@ impl Field {
             if let Some(sheet_id) = sheet_id {
                 if !self.sheet_views.contains_key(&sheet_id)
                     && let Some(sheet) = runtime.data().sheet(&sheet_id)
-                    && let Some(view) = SheetView::build(&self.pack_dir, sheet, Some(&self.cram))
+                    && let Some(view) = SheetView::build(&self.pack_assets, sheet, Some(&self.cram))
                 {
                     self.sheet_views.insert(sheet_id.clone(), view);
                 }
@@ -208,7 +208,7 @@ impl Field {
                 .collect();
             for sheet_id in missing {
                 if let Some(sheet) = runtime.data().sheet(&sheet_id)
-                    && let Some(view) = SheetView::build(&self.pack_dir, sheet, Some(&self.cram))
+                    && let Some(view) = SheetView::build(&self.pack_assets, sheet, Some(&self.cram))
                 {
                     self.sheet_views.insert(sheet_id, view);
                 }

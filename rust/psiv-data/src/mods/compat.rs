@@ -8,7 +8,7 @@
 //!   while [`MIN_SUPPORTED_PACK_FORMAT_VERSION`] stays pinned at the earliest
 //!   compatible version. Existing mods declaring an older version in
 //!   `MIN_SUPPORTED_PACK_FORMAT_VERSION..=MAX_SUPPORTED_PACK_FORMAT_VERSION`
-//!   continue to load cleanly while `apply_mods` still validates every patched
+//!   continue to load cleanly while [`super::PackOverlay::load`] still validates every patched
 //!   table fail-closed.
 //! - On a **breaking** pack-format bump, both [`PACK_FORMAT_VERSION`] and
 //!   [`MIN_SUPPORTED_PACK_FORMAT_VERSION`] advance to the new version so mods

@@ -68,7 +68,7 @@ impl CutsceneLayer {
             let art = self
                 .indexed_panels
                 .get(&id)
-                .and_then(|(path, layout)| IndexedArt::load(path, *layout));
+                .and_then(|(rel, layout)| IndexedArt::load(&self.pack_assets, rel, *layout));
             self.panel_art.insert(id, art);
         }
         self.panel_art.get_mut(&id)?.as_mut()?.texture(&cram)
