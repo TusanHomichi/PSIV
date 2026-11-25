@@ -669,3 +669,52 @@ fn mod_diff_and_check_round_trip_additive_records() {
 
     let _ = fs::remove_dir_all(&scratch);
 }
+
+#[test]
+fn additive_keyed_record_patch_and_diff_work_without_rom() {
+    let base = serde_json::json!({
+        "formation_count": 1,
+        "formations": [{
+            "id": 0,
+            "ambush_chance": 0,
+            "run_chance": 0,
+            "can_run": true,
+            "drop_rate": 0,
+            "drop_item": null,
+            "count": 1,
+            "count_matches_entries": true,
+            "enemies": [{"slot": 1, "enemy_id": 10, "position": 14}]
+        }]
+    });
+    let patch = serde_json::json!({
+        "formations": {
+            "$add": [{
+                "id": 504,
+                "ambush_chance": 0,
+                "run_chance": 0,
+                "can_run": true,
+                "drop_rate": 0,
+                "drop_item": null,
+                "count": 1,
+                "count_matches_entries": true,
+                "enemies": [{"slot": 1, "enemy_id": 10, "position": 14}]
+            }]
+        }
+    });
+
+    let mut applied = base.clone();
+    psiv_data::mods::apply_json_patch(&mut applied, &patch, "battle/formations.json")
+        .expect("additive formation patch must apply");
+    assert_eq!(applied["formation_count"], 2);
+    assert_eq!(applied["formations"].as_array().unwrap().len(), 2);
+
+    let diff = psiv_data::mods::diff_json(&base, &applied, "battle/formations.json")
+        .expect("diffing appended formation must emit $add")
+        .expect("diff must be non-empty");
+    assert!(diff["formations"]["$add"].is_array(), "{diff}");
+
+    let mut reapplied = base;
+    psiv_data::mods::apply_json_patch(&mut reapplied, &diff, "battle/formations.json")
+        .expect("diffed $add patch must reapply");
+    assert_eq!(reapplied, applied);
+}
