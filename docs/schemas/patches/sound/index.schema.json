@@ -1,0 +1,282 @@
+{
+  "$defs": {
+    "FileEntry": {
+      "additionalProperties": false,
+      "description": "One entry of the index's file inventory.",
+      "properties": {
+        "file": {
+          "description": "Pack-relative path.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "SHA-256 of the file's bytes.",
+          "type": "string"
+        },
+        "size_bytes": {
+          "description": "File size.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file",
+        "size_bytes",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "TrackInstruments": {
+      "additionalProperties": false,
+      "description": "One track's instrument use, in the census.",
+      "properties": {
+        "instruments_used": {
+          "description": "FM voices selected by `EF`, ascending.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "psg_instruments_used": {
+          "description": "PSG envelopes selected by `F5`, ascending.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "track_id": {
+          "description": "The track's id, as in [`Track::track_id`].",
+          "type": "string"
+        }
+      },
+      "required": [
+        "track_id",
+        "instruments_used",
+        "psg_instruments_used"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/sound/index.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "census": {
+      "additionalProperties": false,
+      "description": "Totals over every decoded track.",
+      "properties": {
+        "command_counts": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "Primary command counts keyed by `NN`.",
+          "type": "object"
+        },
+        "command_opcodes_seen": {
+          "description": "Primary command opcodes met, as `0xNN`, ascending.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "command_vocabulary_size": {
+          "description": "How many distinct primary commands were met.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "documented_primary_command_count": {
+          "description": "How many primary commands the vocabulary documents.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "instruments_used_per_track": {
+          "description": "The FM and PSG instruments each track selects.",
+          "items": {
+            "$ref": "#/$defs/TrackInstruments"
+          },
+          "type": "array"
+        },
+        "max_gosub_call_depth": {
+          "description": "Deepest `F8` nesting.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "meta_counts": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "Meta command counts keyed by `NN`.",
+          "type": "object"
+        },
+        "meta_opcodes_seen": {
+          "description": "`FF` meta opcodes met, as `0xNN`, ascending.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "music_record_count": {
+          "description": "Music records.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "music_track_count": {
+          "description": "Tracks in music records.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "regular_sfx_record_count": {
+          "description": "Regular SFX records.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "regular_sfx_track_count": {
+          "description": "Tracks in regular SFX records.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sequence_byte_values_seen": {
+          "description": "Every byte value on a reachable path, as `0xNN`, ascending.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "special_sfx_record_count": {
+          "description": "Special SFX records.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "special_sfx_track_count": {
+          "description": "Tracks in special SFX records.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "track_count": {
+          "description": "All tracks.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tracks_without_static_track_end": {
+          "description": "Tracks with no reachable `F2`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unresolved": {
+          "description": "Open questions; empty for the retail image.",
+          "items": true,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "driver": {
+      "additionalProperties": false,
+      "description": "`sound/driver.json`.",
+      "properties": {
+        "file": {
+          "description": "Pack-relative path.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "SHA-256 of the file's bytes.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "files": {
+      "description": "Every raw file and the three record files, sorted by path.",
+      "items": {
+        "$ref": "#/$defs/FileEntry"
+      },
+      "type": "array"
+    },
+    "format_version": {
+      "const": 1,
+      "description": "[`SOUND_FORMAT_VERSION`].",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "kind": {
+      "description": "`\"sound_index\"`.",
+      "type": "string"
+    },
+    "music": {
+      "additionalProperties": false,
+      "description": "`sound/music.json`.",
+      "properties": {
+        "file": {
+          "description": "Pack-relative path.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "SHA-256 of the file's bytes.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "rom": {
+      "additionalProperties": false,
+      "description": "The source ROM.",
+      "properties": {
+        "sha256": {
+          "description": "Lowercase SHA-256 of the image.",
+          "type": "string"
+        },
+        "size_bytes": {
+          "description": "Image size.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "sfx": {
+      "additionalProperties": false,
+      "description": "`sound/sfx.json`.",
+      "properties": {
+        "file": {
+          "description": "Pack-relative path.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "SHA-256 of the file's bytes.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "unresolved": {
+      "description": "Open questions; empty for the retail image.",
+      "items": true,
+      "type": "array"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (sound/index.json)",
+  "type": "object"
+}

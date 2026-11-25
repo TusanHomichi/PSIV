@@ -1,0 +1,53 @@
+{
+  "$defs": {
+    "ModProfileEntry": {
+      "additionalProperties": false,
+      "description": "One active mod recorded in `mod_profile.json`.",
+      "properties": {
+        "id": {
+          "description": "Stable mod id.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Human-readable mod name at the time the save was written.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Mod version string at the time the save was written.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "version"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Schema for `saves/mods/<profile>/mod_profile.json`, generated directly from `psiv_data::mods::ModProfile`.",
+  "properties": {
+    "format_version": {
+      "const": 1,
+      "description": "Profile sidecar format version (`MOD_PROFILE_FORMAT_VERSION`).",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "mods": {
+      "description": "Active mods in load order when this save directory was written.",
+      "items": {
+        "$ref": "#/$defs/ModProfileEntry"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "format_version",
+    "mods"
+  ],
+  "title": "PSIV Save Mod Profile (mod_profile.json)",
+  "type": "object"
+}

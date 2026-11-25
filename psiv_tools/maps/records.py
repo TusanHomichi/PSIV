@@ -71,6 +71,7 @@ in `psiv_tools.maps.encounters`.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from ..symbols import FIELD_OBJECT_SYMBOLS, MAP_SYMBOLS, MUSIC_ID_BASE, MUSIC_SYMBOLS
@@ -83,11 +84,12 @@ MAP_COUNT = 417
 POINTER_SIZE = 4
 
 # PtrMap_Null* all point at ErrorTrap. Entries 3..$F are the first run of
-# them, so the 16-long prefix pins both the address and the null convention.
+# them, so the 16-long prefix (pinned by length and SHA-256, #461) pins both
+# the address and the null convention.
 ERROR_TRAP = 0x000200
-FIELD_MAP_PTRS_SIGNATURE = bytes.fromhex(
-    "001006840010fea20011966400000200000002000000020000000200000002000000"
-    "020000000200000002000000020000000200000002000000020000000200"
+FIELD_MAP_PTRS_PIN: tuple[int, str] = (
+    64,
+    "a4105f021a6a756796d2496bef5872ffe49b79a515dac9ec90330cab462a58a0",
 )
 
 WORD_TERMINATOR = 0xFFFF
@@ -764,16 +766,11 @@ def _dialogue_tree_index(data: bytes) -> dict[int, dict[str, Any]]:
 def _check_pointer_table(data: bytes) -> dict[str, Any]:
     start = FIELD_MAP_PTRS
     end = start + MAP_COUNT * POINTER_SIZE
-    actual = data[start:start + len(FIELD_MAP_PTRS_SIGNATURE)]
-    if actual != FIELD_MAP_PTRS_SIGNATURE:
+    length, digest = FIELD_MAP_PTRS_PIN
+    actual = data[start:start + length]
+    if len(actual) != length or hashlib.sha256(actual).hexdigest() != digest:
         raise MapError(
-            f"FieldMapPtrs signature mismatch at {_hex(start)}: expected "
-            f"{FIELD_MAP_PTRS_SIGNATURE.hex()}, got {actual.hex()}"
-        )
-    if data.count(FIELD_MAP_PTRS_SIGNATURE) != 1:
-        raise MapError(
-            f"FieldMapPtrs signature occurs {data.count(FIELD_MAP_PTRS_SIGNATURE)} "
-            "times in this ROM; it must be unique for the offset to be self-verifying"
+            f"FieldMapPtrs signature mismatch at {_hex(start)}: got {actual.hex()}"
         )
     first = be32(data, start)
     if first != end:
@@ -788,7 +785,7 @@ def _check_pointer_table(data: bytes) -> dict[str, Any]:
         "rom_end_exclusive": _hex(end),
         "entry_size": POINTER_SIZE,
         "count": MAP_COUNT,
-        "signature_hex": FIELD_MAP_PTRS_SIGNATURE.hex(),
+        "signature_hex": actual.hex(),
         "error_trap": _hex(ERROR_TRAP),
         "indexing": (
             "Field_Map_Index * 4; the long is an absolute 68000 address and the "

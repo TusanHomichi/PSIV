@@ -4,10 +4,11 @@
 //! makes -- beside the flag-by-flag result a full-map build composed from those same
 //! hooks, and the 32px atlas whose entries hold the composed FG/BG pairs.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// One raw paged-overworld hook, in page-loader order.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OverworldLayoutPatch {
     /// Plane whose page copy invokes the hook (`fg` or `bg`).
@@ -23,7 +24,7 @@ pub struct OverworldLayoutPatch {
 }
 
 /// Source event-flag identity for a page hook.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OverworldPatchFlag {
     /// Event bank bit index.
@@ -35,7 +36,7 @@ pub struct OverworldPatchFlag {
 }
 
 /// Raw page-hook write; `chunk_ids` retain the cartridge's byte notation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OverworldLayoutWrite {
     /// Plane written (`fg` or `bg`).
@@ -55,7 +56,7 @@ pub struct OverworldLayoutWrite {
 }
 
 /// One flag's final composed chunks after all its page hooks run.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OverworldPatch {
     /// Event bank bit index; active when set.
@@ -68,7 +69,7 @@ pub struct OverworldPatch {
 /// `dest_chunk`) resolved to every `(chunk_x, chunk_y)` cell on this map that
 /// references `dest_chunk` (`MapDataMan_Dezolis` `loc_525AC` /
 /// `Event_EclipseTorchUsed` `$07041E`, `#676`).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ChunkDefCopy {
     /// Source chunk id in `Chunk_Table` (`($FFFF6100 - $FFFF6000) / $20 = $08`).
@@ -84,7 +85,7 @@ pub struct ChunkDefCopy {
 }
 
 /// Both visual planes and the collision-authoritative chunk at one location.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OverworldPatchTile {
     /// Horizontal world chunk coordinate.
@@ -104,7 +105,7 @@ pub struct OverworldPatchTile {
 }
 
 /// A map's patch-tile atlas: raw chunks and composed overworld plane pairs.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct PatchTiles {
     /// The atlas PNG, one row of tiles.
     pub png: String,
@@ -121,7 +122,7 @@ pub struct PatchTiles {
 }
 
 /// One atlas tile.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct PatchTile {
     /// Position in the atlas row; `x` is its pixel offset.
     pub index: u32,

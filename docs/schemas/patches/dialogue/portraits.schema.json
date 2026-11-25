@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "PortraitPatch": {
+      "additionalProperties": false,
+      "description": "One portrait.",
+      "properties": {
+        "duplicate_of": {
+          "default": null,
+          "description": "The portrait this one duplicates, when the ROM stores the art twice.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "`$F4` id.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "png": {
+          "description": "The PNG, pack-root-relative.",
+          "type": "string"
+        },
+        "symbol": {
+          "description": "Who it is, from the art label: `Chaz`, `Alys`, ...",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/dialogue/portraits.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "count": {
+      "description": "Declared portrait count, validated against `portraits.len()`.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "format_version": {
+      "const": 2,
+      "description": "Pack format; checked against [`DIALOGUE_FORMAT_VERSION`].",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "geometry": {
+      "additionalProperties": false,
+      "description": "Where the picture goes and how big it is.",
+      "properties": {
+        "height": {
+          "description": "48.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "screen_x": {
+          "description": "Screen x in Genesis pixels: 40.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "screen_y": {
+          "description": "Screen y in Genesis pixels: 104.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "talk_slot_stride_tiles": {
+          "description": "In talk mode, `$F4`'s second operand shifts the portrait right by this\nmany tiles per slot.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width": {
+          "description": "48.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "portraits": {
+      "description": "The portraits, id 1 upward. Id 0 is the table's null entry and is not\nlisted: `$F4` id 0 hides the window.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/PortraitPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/PortraitPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (dialogue/portraits.json)",
+  "type": "object"
+}

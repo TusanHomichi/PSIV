@@ -7,7 +7,9 @@
 use super::cell::{Cell, CellPos, CellRect};
 use super::facing::Facing;
 use super::reference::{MapRef, RangeRef};
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
 /// Which transition table a warp came from.
 ///
@@ -50,12 +52,26 @@ impl From<TransitionTable> for u8 {
     }
 }
 
+impl JsonSchema for TransitionTable {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("TransitionTable")
+    }
+
+    fn json_schema(_generator: &mut SchemaGenerator) -> Schema {
+        json_schema!({
+            "type": "integer",
+            "enum": [1, 2],
+            "description": "Which ROM transition table the warp came from (1 = normal, 2 = map change)."
+        })
+    }
+}
+
 /// A map transition.
 ///
 /// The ROM stores a source coordinate and an `XYRangeJmpTbl` index, not a
 /// rectangle; the packer transcribes the fifteen routines into [`Warp::rect`]
 /// and clips it to the map, because five of them are open-ended half-planes.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Warp {
     /// Position in this map's warp list.
     pub index: u32,
@@ -87,7 +103,7 @@ pub struct Warp {
 }
 
 /// A transition's source coordinate, raw and resolved.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WarpSource {
     /// The raw X byte from the record.

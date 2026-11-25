@@ -15,7 +15,10 @@
 //! [`crate::BattleFiles::load_overlay`]. Any failure returns a [`ModError`]
 //! naming the offending mod, file, and place.
 
+mod compat;
+mod dialogue_patch;
 mod diff;
+mod grid;
 #[cfg(test)]
 mod guide_tests;
 mod inventory;
@@ -26,29 +29,46 @@ mod overlay_tests;
 mod patch;
 mod profile;
 mod schema_check;
+mod schema_gen;
+#[cfg(test)]
+mod schema_tests;
+mod tables;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_shareability;
+#[cfg(test)]
 mod tests_strict;
 
-pub use diff::{DiffSummary, diff_packs};
+pub use compat::{
+    MAX_SUPPORTED_MOD_FORMAT_VERSION, MAX_SUPPORTED_PACK_FORMAT_VERSION,
+    MIN_SUPPORTED_MOD_FORMAT_VERSION, MIN_SUPPORTED_PACK_FORMAT_VERSION, MOD_FORMAT_COMPATIBILITY,
+    MOD_FORMAT_VERSION, PACK_FORMAT_COMPATIBILITY, VersionCompatibilityPolicy, VersionKind,
+    VersionMismatchKind, check_version_compatibility,
+};
+pub use diff::{
+    DiffOptions, DiffSummary, ShareabilityNotice, audit_mod_shareability, diff_packs,
+    diff_packs_with_options,
+};
 pub use inventory::{ModInventoryEntry, find_mod_dir_by_id, inspect_mods_dir, set_mod_enabled};
 pub use overlay::{PackOverlay, ValidatedPack};
-pub use patch::{apply_json_patch, diff_json};
+pub use patch::{apply_json_patch, diff_json, diff_json_with_options};
 pub use profile::{
     MOD_PROFILE_FILE, MOD_PROFILE_FORMAT_VERSION, ModProfile, ModProfileDiff, ModProfileEntry,
     mod_save_profile_slug,
 };
+pub use schema_gen::{
+    MOD_PROFILE_SCHEMA_FILE, MOD_SCHEMA_FILE, check_mod_schemas, generate_mod_schemas,
+    write_mod_schemas,
+};
 
 use crate::manifest::PACK_FORMAT_VERSION;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-
-/// Current `mod.json` schema version.
-pub const MOD_FORMAT_VERSION: u32 = 1;
 
 /// Filename of a mod folder's manifest.
 pub const MOD_MANIFEST_FILE: &str = "mod.json";
@@ -72,10 +92,10 @@ const fn default_enabled() -> bool {
 }
 
 /// Metadata stored in `<mod-dir>/mod.json`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ModManifest {
-    /// Mod manifest format version; must equal [`MOD_FORMAT_VERSION`].
+    /// Mod manifest format version; checked against [`MOD_FORMAT_COMPATIBILITY`].
     pub format_version: u32,
     /// Stable slug (`[a-z0-9_-]`), used for load ordering and error reporting.
     pub id: String,
@@ -89,7 +109,7 @@ pub struct ModManifest {
     /// Optional short summary of what the mod changes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// Target runtime pack format version; checked against [`PACK_FORMAT_VERSION`].
+    /// Target runtime pack format version; checked against [`PACK_FORMAT_COMPATIBILITY`].
     #[serde(default = "default_pack_format_version")]
     pub pack_format_version: u32,
     /// Sort key relative to other mods (lower loads earlier; ties break by `id`).
@@ -118,22 +138,34 @@ impl ModManifest {
         }
     }
 
-    /// Validates manifest fields and version compatibility.
+    /// Validates manifest fields and version compatibility against this build's
+    /// active compatibility policies ([`MOD_FORMAT_COMPATIBILITY`] and
+    /// [`PACK_FORMAT_COMPATIBILITY`]).
     pub fn validate(&self, manifest_path: &Path) -> Result<(), ModError> {
+        self.validate_with_policies(
+            manifest_path,
+            MOD_FORMAT_COMPATIBILITY,
+            PACK_FORMAT_COMPATIBILITY,
+        )
+    }
+
+    /// Validates manifest fields and version compatibility against explicit
+    /// format-version policies.
+    pub fn validate_with_policies(
+        &self,
+        manifest_path: &Path,
+        mod_policy: VersionCompatibilityPolicy,
+        pack_policy: VersionCompatibilityPolicy,
+    ) -> Result<(), ModError> {
         let who = if self.id.is_empty() {
             manifest_path.display().to_string()
         } else {
             self.id.clone()
         };
-        if self.format_version != MOD_FORMAT_VERSION {
-            return Err(ModError::new(
-                who,
-                MOD_MANIFEST_FILE,
-                format!(
-                    "unsupported mod format_version {} (expected {MOD_FORMAT_VERSION})",
-                    self.format_version
-                ),
-            ));
+        if let Err(detail) =
+            check_version_compatibility(VersionKind::ModFormat, self.format_version, mod_policy)
+        {
+            return Err(ModError::new(who, MOD_MANIFEST_FILE, detail));
         }
         if !is_valid_mod_id(&self.id) {
             return Err(ModError::new(
@@ -159,15 +191,12 @@ impl ModManifest {
                 "version must not be empty",
             ));
         }
-        if self.pack_format_version != PACK_FORMAT_VERSION {
-            return Err(ModError::new(
-                self.id.clone(),
-                MOD_MANIFEST_FILE,
-                format!(
-                    "targets pack format_version {} (this build uses {PACK_FORMAT_VERSION})",
-                    self.pack_format_version
-                ),
-            ));
+        if let Err(detail) = check_version_compatibility(
+            VersionKind::PackFormat,
+            self.pack_format_version,
+            pack_policy,
+        ) {
+            return Err(ModError::new(self.id.clone(), MOD_MANIFEST_FILE, detail));
         }
         Ok(())
     }
@@ -230,16 +259,19 @@ pub fn is_valid_mod_id(id: &str) -> bool {
         && !is_windows_reserved_name(id)
 }
 
+/// Reserved Windows DOS device names (`CON`, `PRN`, `AUX`, `NUL`,
+/// `COM1`..`COM9`, `LPT1`..`LPT9`), disallowed as mod IDs for portability.
+pub(crate) const WINDOWS_RESERVED_NAMES: &[&str] = &[
+    "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
+    "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+];
+
 /// Whether `name` is a reserved Windows DOS device name (`CON`, `PRN`, `AUX`,
 /// `NUL`, `COM1`..`COM9`, `LPT1`..`LPT9`), which cannot be used reliably as a
 /// file or directory name on Windows.
 pub(crate) fn is_windows_reserved_name(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
-    matches!(lower.as_str(), "con" | "prn" | "aux" | "nul")
-        || matches!(
-            lower.as_bytes(),
-            [b'c', b'o', b'm', b'1'..=b'9'] | [b'l', b'p', b't', b'1'..=b'9']
-        )
+    WINDOWS_RESERVED_NAMES.contains(&lower.as_str())
 }
 
 /// Loads and validates a single mod directory's `mod.json`.

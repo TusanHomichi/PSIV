@@ -2,6 +2,7 @@
 //! attributes; art is raw packed 4bpp, independent of the current CRAM.
 use std::path::Path;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::DataError;
@@ -12,7 +13,7 @@ pub const CREDITS_FILE: &str = "presentation/credits.json";
 pub const CREDITS_VERSION: u32 = 1;
 
 /// Inputs for `EndingCreditsAssets` and all three `EndingCreditsStage`s.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EndingCreditsAssets {
     /// Contract version, independent of the pack envelope.
     pub version: u32,
@@ -37,7 +38,7 @@ pub struct EndingCreditsAssets {
 }
 
 /// Decompressed tiles, in upload order. Two colour indices per byte, high first.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CreditsArt {
     /// Source address in the verified US retail ROM.
     pub rom_addr: u32,
@@ -52,7 +53,7 @@ pub struct CreditsArt {
 }
 
 /// The signed tile command and sentinel at $07A26C.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CreditsFontUpload {
     /// Source address in the verified US retail ROM.
     pub rom_addr: u32,
@@ -65,7 +66,7 @@ pub struct CreditsFontUpload {
 }
 
 /// Enigma's d0 is an additive base tile word, never a length.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CreditsMapping {
     /// Source address in the verified US retail ROM.
     pub rom_addr: u32,
@@ -84,7 +85,7 @@ pub struct CreditsMapping {
 }
 
 /// Palette buffer destination is a word index. Fade holds eight five-word rows.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CreditsPalette {
     /// Source address in the verified US retail ROM.
     pub rom_addr: u32,
@@ -95,7 +96,7 @@ pub struct CreditsPalette {
 }
 
 /// (TextCounter & $3F, opcode) pairs followed by $FF and its alignment byte.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CreditsCommands {
     /// Source address in the verified US retail ROM.
     pub rom_addr: u32,
@@ -105,7 +106,7 @@ pub struct CreditsCommands {
 
 /// An ordinal record, including its $FF terminator. Headers use the credit
 /// tile charset; names use the normal RunText2 font charset. No lossy string.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CreditsText {
     /// Source address in the verified US retail ROM.
     pub rom_addr: u32,

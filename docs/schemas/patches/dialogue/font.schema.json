@@ -1,0 +1,135 @@
+{
+  "$defs": {
+    "Glyph": {
+      "additionalProperties": false,
+      "description": "One cell of the glyph strip.",
+      "properties": {
+        "blank": {
+          "description": "Whether every pixel is background.",
+          "type": "boolean"
+        },
+        "byte": {
+          "description": "The font byte, which is the cell index.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "char": {
+          "default": null,
+          "description": "The character it draws, when the charset maps one.",
+          "maxLength": 1,
+          "minLength": 1,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "height": {
+          "description": "Cell height, 16.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width": {
+          "description": "Cell width, 8.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x": {
+          "description": "X of the cell in the strip, in pixels.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "y": {
+          "description": "Y of the cell in the strip, in pixels (always 0: the strip is one row).",
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "byte",
+        "x",
+        "y",
+        "width",
+        "height",
+        "blank"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/dialogue/font.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "by_char": {
+      "additionalProperties": {
+        "format": "uint8",
+        "maximum": 255,
+        "minimum": 0,
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "description": "Character to font byte, which is also the cell index in the strip.",
+      "type": "object"
+    },
+    "format_version": {
+      "const": 2,
+      "description": "Pack format; checked against [`DIALOGUE_FORMAT_VERSION`].",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "glyph": {
+      "additionalProperties": false,
+      "description": "Strip metrics.",
+      "properties": {
+        "count": {
+          "description": "Cells in the strip.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "height": {
+          "description": "16.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width": {
+          "description": "8.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "glyphs": {
+      "description": "Every cell of the strip, including the blank and the unmapped ones.",
+      "items": {
+        "$ref": "#/$defs/Glyph"
+      },
+      "type": "array"
+    },
+    "png": {
+      "description": "The strip, pack-root-relative. White glyphs on a transparent ground:\nthe cartridge fills the window with colour index $E first and draws the\nglyphs over it, so compositing reproduces it.",
+      "type": "string"
+    },
+    "unmapped_glyphs": {
+      "description": "Font bytes with no character: art the charset does not reach.",
+      "items": {
+        "format": "uint8",
+        "maximum": 255,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "array"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (dialogue/font.json)",
+  "type": "object"
+}

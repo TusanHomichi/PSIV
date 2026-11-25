@@ -25,7 +25,6 @@ from .warps import PackError
 from .sound_defs import (
     ANCHORS,
     COMMAND_SPECS,
-    EXPECTED_SHORT_BYTES,
     KNOWN_REGIONS,
     META_SPECS,
     MUSIC_NAMES,
@@ -85,13 +84,12 @@ def _verify_provenance(rom: bytes) -> None:
             "sound extraction refuses an unverified ROM clone: "
             f"expected {EXPECTED_SHA256}, got {digest}"
         )
-    for offset, expected_hex in ANCHORS:
-        expected = bytes.fromhex(expected_hex)
-        actual = _range(rom, offset, offset + len(expected), "anchor")
-        if actual != expected:
+    for offset, length, expected_sha in ANCHORS:
+        actual = _range(rom, offset, offset + length, "anchor")
+        if hashlib.sha256(actual).hexdigest() != expected_sha:
             raise SoundError(
                 f"sound provenance anchor mismatch at {_rom_offset(offset)}: "
-                f"expected {expected.hex()}, got {actual.hex()}"
+                f"got {actual.hex()}"
             )
     for name, label, start, end, expected_sha in KNOWN_REGIONS:
         actual = _range(rom, start, end, label)
@@ -101,9 +99,6 @@ def _verify_provenance(rom: bytes) -> None:
                 f"sound region {label} ({name}) changed at "
                 f"{_rom_offset(start)}:{_rom_offset(end)}"
             )
-        expected_short = EXPECTED_SHORT_BYTES.get(name)
-        if expected_short is not None and actual != bytes.fromhex(expected_short):
-            raise SoundError(f"sound constant {label} bytes do not match the disassembly")
 
 
 def _read_pointer_table(

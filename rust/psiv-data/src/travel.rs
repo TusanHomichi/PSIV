@@ -3,12 +3,13 @@
 
 use std::collections::BTreeSet;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{DataError, RomHash};
 
 /// Location of the travel extract inside a runtime pack.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TravelFile {
     /// Relative JSON path.
     pub path: String,
@@ -17,7 +18,7 @@ pub struct TravelFile {
 }
 
 /// A destination shown by RYUKA's visited-town list.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TownDestination {
     /// World byte: Motavia 0, Dezolis 1, Rykros 2.
     pub world: u8,
@@ -36,7 +37,7 @@ pub struct TownDestination {
 }
 
 /// An eight-byte DungeonTeleportPlaces record.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DungeonDestination {
     /// Exit selector. Zero means unavailable.
     pub index: u8,
@@ -53,7 +54,7 @@ pub struct DungeonDestination {
 }
 
 /// FieldRoutine_PlaceName matches both map words before applying a selector.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct PlaceEntry {
     /// Entered map.
     pub map: u16,
@@ -67,7 +68,7 @@ pub struct PlaceEntry {
 
 /// The teleport windows' strings, decoded from the window charset with `$FC`
 /// as a newline ([retired travel](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/travel.py) `MESSAGES` cites each one).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TravelMessages {
     /// The town list's label on each page's bottom border (`loc_2AA892`).
     pub towns_label: String,
@@ -81,7 +82,7 @@ pub struct TravelMessages {
 
 /// One planet overview image decoded from `FieldRoutine_WorldMap`
 /// (`ps4.asm:136977-137245`, #122).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct WorldMapAsset {
     /// World byte: Motavia 0, Dezolis 1.
     pub world: u8,
@@ -100,7 +101,7 @@ pub struct WorldMapAsset {
 }
 
 /// Validated travel tables. Old/synthetic packs may omit the entire file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TravelData {
     /// The file's version.
     pub format_version: u32,

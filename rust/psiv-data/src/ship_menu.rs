@@ -9,12 +9,13 @@
 #[cfg(test)]
 use std::path::Path;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{DataError, RomHash};
 
 /// Where the pack keeps the screen's JSON.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ShipMenuFile {
     /// Relative JSON path.
     pub path: String,
@@ -40,7 +41,7 @@ pub const DARK_WORDS: [usize; 2] = [14, 15];
 pub const HIGHLIGHT_BASE_WORD: usize = 7;
 
 /// One `WinGroup_Event` record: a window's size and position in cells.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ShipWindow {
     /// The window id `Window_Create` is called with.
     pub id: u8,
@@ -55,14 +56,14 @@ pub struct ShipWindow {
 }
 
 /// One of the 32 palette words, as a colour.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct PaletteEntry {
     /// The colour.
     pub rgb: [u8; 3],
 }
 
 /// The two colours `loc_64144` writes: the blinking marker and the darkened lines.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Colors {
     /// The blinking marker's colour (`$EEE`).
     pub highlight: [u8; 3],
@@ -71,7 +72,7 @@ pub struct Colors {
 }
 
 /// One cover combination's background file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct BackgroundRecord {
     /// The cover bits: Rykros 1, Kuran 2, the Air Castle 4.
     pub covers: usize,
@@ -80,7 +81,7 @@ pub struct BackgroundRecord {
 }
 
 /// `ship_menu/ship_menu.json`, the record the pack builder writes and [`ShipMenu::load`] reads.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ShipMenuJson {
     /// The file's version.
     pub format_version: u32,
@@ -111,7 +112,7 @@ pub struct ShipMenuJson {
 }
 
 /// `SpaceTravel_PlaceNamePtrs`: a complete RunText2 line (leading spaces kept).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct FlightCaption {
     /// The world.
     pub world: u8,

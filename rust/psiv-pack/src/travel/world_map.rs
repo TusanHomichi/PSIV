@@ -15,7 +15,7 @@ use crate::PackError;
 use crate::decode::Decodes;
 use crate::maps::layouts::map_palette_rgb;
 use crate::maps::records::walk_map;
-use crate::png::{self, hex};
+use crate::png;
 use crate::text::dialogue_tree_specs;
 
 /// `FieldMapPtrs` base offset in the US retail ROM.
@@ -26,12 +26,29 @@ const CHUNKS_WIDE: usize = 128;
 const STRIP_ROWS: usize = 8;
 const STRIP_BYTES: usize = CHUNKS_WIDE * STRIP_ROWS;
 
-/// Instruction-pointer guards in `FieldRoutine_WorldMap` (`ps4.asm:137006-137029`).
-const WORLD_MAP_GUARDS: [(usize, &str); 4] = [
-    (0x06_66CE, "0010be02"),
-    (0x06_66DC, "001175c4"),
-    (0x06_6714, "00066986"),
-    (0x06_6722, "00066a5a"),
+/// Instruction-pointer guards in `FieldRoutine_WorldMap` (`ps4.asm:137006-137029`),
+/// pinned by `(offset, length, sha256)` (#461).
+const WORLD_MAP_GUARDS: [(usize, usize, &str); 4] = [
+    (
+        0x06_66CE,
+        4,
+        "d7f57e29536fb17df665bd65cf12a36dc19a6c0d2dc011c192921a54a22992f6",
+    ),
+    (
+        0x06_66DC,
+        4,
+        "1addd9ffaf62f7ed718d29d8f5b8c94814b20de38e2fc98aa7f95ae83b3d3bde",
+    ),
+    (
+        0x06_6714,
+        4,
+        "713b50dfc5f236ff9386e697a1fad74508a79d0f794bc8cad5c9629c6908e61f",
+    ),
+    (
+        0x06_6722,
+        4,
+        "66376597460e124bea47e87344b0d4da095fd03539fa2bd2d68faee6a53c99c1",
+    ),
 ];
 
 struct PlanetSpec {
@@ -82,9 +99,8 @@ fn be32(rom: &[u8], at: usize) -> Result<usize, PackError> {
 }
 
 fn check_guards(rom: &[u8]) -> Result<(), PackError> {
-    for (offset, expected) in WORLD_MAP_GUARDS {
-        let found = rom.get(offset..offset + expected.len() / 2).map(hex);
-        if found.as_deref() != Some(expected) {
+    for (offset, length, digest) in WORLD_MAP_GUARDS {
+        if !crate::rom::matches_pin(rom, offset, (length, digest)) {
             return Err(PackError(format!(
                 "world map guard failed at 0x{offset:06X}"
             )));

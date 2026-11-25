@@ -51,6 +51,7 @@ same 49-shop proof.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from .symbols import ITEM_SYMBOLS, MAP_SYMBOLS
@@ -69,9 +70,11 @@ SHOP_INVENTORIES: dict[str, Any] = {
 SHOP_COUNT = 49
 
 # First two shop lists: [Monomate] and [Dagger, HuntKnife, StelSword,
-# Boomerang, Slasher]. Unique in this retail build, so it pins both the
+# Boomerang, Slasher]. Pinned by `(length, sha256)` (#461), so it pins both the
 # address and the item-id convention before anything is decoded.
-SHOP_SIGNATURE = bytes.fromhex("7dff0102080309ff")
+SHOP_SIGNATURE_PIN: tuple[int, str] = (
+    8, "9a8fc696243d7ee5418a869d4fe4b731783ab2701b3d36187d4e110cd8cbe8fc",
+)
 
 # Assembler `even` padding after the table, then the neighbouring block.
 PAD_BYTE = 0x00
@@ -105,20 +108,15 @@ def _item_symbol(value: int) -> dict[str, Any]:
     }
 
 
-def _check_signature(data: bytes) -> None:
+def _check_signature(data: bytes) -> bytes:
     start = SHOP_INVENTORIES["start"]
-    actual = data[start:start + len(SHOP_SIGNATURE)]
-    if actual != SHOP_SIGNATURE:
+    length, digest = SHOP_SIGNATURE_PIN
+    actual = data[start:start + length]
+    if len(actual) != length or hashlib.sha256(actual).hexdigest() != digest:
         raise ShopError(
-            f"ShopInventories signature mismatch at 0x{start:06X}: expected "
-            f"{SHOP_SIGNATURE.hex()}, got {actual.hex()}"
+            f"ShopInventories signature mismatch at 0x{start:06X}: got {actual.hex()}"
         )
-    if data.count(SHOP_SIGNATURE) != 1:
-        raise ShopError(
-            f"ShopInventories signature {SHOP_SIGNATURE.hex()} occurs "
-            f"{data.count(SHOP_SIGNATURE)} times in this ROM; it must be unique "
-            "for the offset to be self-verifying"
-        )
+    return actual
 
 
 def _check_boundary(data: bytes) -> dict[str, Any]:
@@ -186,7 +184,7 @@ def parse_shop_record(record: bytes) -> dict[str, Any]:
 
 
 def extract_shop_inventories(data: bytes) -> dict[str, Any]:
-    _check_signature(data)
+    verified_signature = _check_signature(data)
     start, end = SHOP_INVENTORIES["start"], SHOP_INVENTORIES["end"]
     block = data[start:end]
     if len(block) != end - start:
@@ -223,7 +221,7 @@ def extract_shop_inventories(data: bytes) -> dict[str, Any]:
                 "GetOffsetByID_FF_Delim: shop N is the Nth $FF-terminated list, "
                 "counted from the table start. No pointer table, no bounds check."
             ),
-            "signature_hex": SHOP_SIGNATURE.hex(),
+            "signature_hex": verified_signature.hex(),
             **boundary,
         },
         "shop_count": len(shops),

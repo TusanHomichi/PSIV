@@ -5,11 +5,12 @@
 
 use super::cell::CellPos;
 use super::object::SpriteRef;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// What a chest holds. Byte 1 of the chest record selects between the two, and
 /// byte 3 is read as whichever was selected.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ContentsType {
     /// Byte 3 is an inventory item id.
@@ -19,7 +20,7 @@ pub enum ContentsType {
 }
 
 /// A treasure chest.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Treasure {
     /// Position in this map's chest list.
     pub index: u32,

@@ -13,8 +13,10 @@ use crate::map_symbols::MAP_SYMBOLS;
 /// space, read with no bounds check.
 const TABLE: usize = 0x008050;
 const TABLE_SIZE: usize = 416;
-const SIGNATURE: &str = "00013cffffffffffffffffffffffffffffffffffff0e0f0fffffffffffffffff\
-                         ffffffffffffffffffffff1011ffffffffffffffffffffffffffffffffffffff";
+const SIGNATURE_PIN: crate::rom::Pin = (
+    64,
+    "5a33835b719b071a3a3bb2cc1611944a09169b2866f9676c4fb26099e2db0f6c",
+);
 /// Values 0 and 1 mean a world map, not a group.
 const WORLD_MAP_SENTINEL_MAX: u8 = 1;
 const NO_ENCOUNTERS: u8 = 0xFF;
@@ -86,26 +88,20 @@ pub fn formation_group_count(decodes: &Decodes) -> Result<usize, PackError> {
 }
 
 fn check_table(data: &[u8]) -> Result<&[u8], PackError> {
-    let signature: Vec<u8> = (0..SIGNATURE.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&SIGNATURE[i..i + 2], 16).expect("hex signature"))
-        .collect();
-    let actual = data.get(TABLE..TABLE + signature.len());
-    if actual != Some(signature.as_slice()) {
+    if !crate::rom::matches_pin(data, TABLE, SIGNATURE_PIN) {
+        let actual = data.get(TABLE..TABLE + SIGNATURE_PIN.0);
         return Err(PackError(format!(
-            "Battle_EnemyFormationIndexes signature mismatch at {}: expected {SIGNATURE}, got {}",
+            "Battle_EnemyFormationIndexes signature mismatch at {}: got {}",
             hex6(TABLE),
             crate::png::hex(actual.unwrap_or_default())
         )));
     }
-    if crate::m68k::find_all(data, SIGNATURE).len() != 1 {
-        return Err(PackError(
-            "Battle_EnemyFormationIndexes signature is not unique in this ROM; the offset would \
-             not be self-verifying"
-                .to_owned(),
-        ));
-    }
-    Ok(&data[TABLE..TABLE + TABLE_SIZE])
+    data.get(TABLE..TABLE + TABLE_SIZE).ok_or_else(|| {
+        PackError(format!(
+            "Battle_EnemyFormationIndexes at {} runs past the end of the ROM",
+            hex6(TABLE)
+        ))
+    })
 }
 
 fn decode_position_grid(
@@ -296,7 +292,7 @@ pub fn extract_encounter_binding(
                 .with("entry_size", 1)
                 .with("count", table.len())
                 .with("map_count", MAP_COUNT)
-                .with("signature_hex", SIGNATURE)
+                .with("signature_hex", crate::png::hex(&table[..SIGNATURE_PIN.0]))
                 .with("indexing", "Field_Map_Index, one byte, no bounds check")
                 .with("no_encounter_value", format!("0x{NO_ENCOUNTERS:02X}"))
                 .with("world_map_sentinel_max", WORLD_MAP_SENTINEL_MAX)

@@ -18,7 +18,7 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 
-use super::patch::MAPS_JSON;
+use super::tables::MAPS_JSON;
 
 /// Baseline of ignored/research paths already present in the unmodified base JSON.
 pub(crate) struct SchemaBaseline {
@@ -83,52 +83,73 @@ pub(crate) fn verify_patched(
     Ok(())
 }
 
+/// Single-owner registry of every patchable `psiv-data` pack table.
+///
+/// Shared between runtime unknown-field checking ([`collect_ignored_for_file`])
+/// and JSON Schema generation ([`super::schema_gen`]) so adding or renaming a
+/// pack table updates both in lockstep.
+macro_rules! for_each_patchable_table {
+    ($cb:ident) => {
+        $cb!(
+            exact: [
+                ("battle/enemies.json", "patches/battle/enemies.schema.json", crate::battle::EnemiesFile),
+                ("battle/equipment.json", "patches/battle/equipment.schema.json", crate::battle::EquipmentFile),
+                ("battle/characters.json", "patches/battle/characters.schema.json", crate::battle::CharactersFile),
+                ("battle/abilities.json", "patches/battle/abilities.schema.json", crate::battle::AbilitiesFile),
+                ("battle/formations.json", "patches/battle/formations.schema.json", crate::battle::FormationsFile),
+                ("battle/levels.json", "patches/battle/levels.schema.json", crate::battle::LevelsFile),
+                ("battle/enemy_animations.json", "patches/battle/enemy_animations.schema.json", crate::battle::EnemyAnimationsFile),
+                ("battle/art/backgrounds.json", "patches/battle/art/backgrounds.schema.json", crate::battle::backgrounds::File),
+                ("battle/art/command_ui.json", "patches/battle/art/command_ui.schema.json", crate::battle::CommandUiArt),
+                ("battle/art/damage_digits.json", "patches/battle/art/damage_digits.schema.json", crate::battle::DamageDigitArt),
+                ("battle/art/fusion.json", "patches/battle/art/fusion.schema.json", crate::battle::FusionArt),
+                ("dialogue/trees.json", "patches/dialogue/trees.schema.json", crate::dialogue::TreeFile),
+                ("dialogue/font.json", "patches/dialogue/font.schema.json", crate::dialogue::FontFile),
+                ("dialogue/portraits.json", "patches/dialogue/portraits.schema.json", crate::dialogue::PortraitFile),
+                ("dialogue/window.json", "patches/dialogue/window.schema.json", crate::dialogue::WindowFile),
+                ("shops.json", "patches/shops.schema.json", crate::shops::ShopData),
+                ("sound/index.json", "patches/sound/index.schema.json", crate::sound::schema::IndexFile),
+                ("sound/driver.json", "patches/sound/driver.schema.json", crate::sound::schema::DriverFile),
+                ("sound/music.json", "patches/sound/music.schema.json", crate::sound::schema::MusicFile),
+                ("sound/sfx.json", "patches/sound/sfx.schema.json", crate::sound::schema::SfxFile),
+                ("game_start.json", "patches/game_start.schema.json", crate::new_game::File),
+                ("guild/guild.json", "patches/guild/guild.schema.json", crate::guild::GuildJson),
+                ("fifth/fifth.json", "patches/fifth/fifth.schema.json", crate::fifth::FifthJson),
+                ("travel.json", "patches/travel.schema.json", crate::travel::TravelData),
+                ("ship_menu/ship_menu.json", "patches/ship_menu/ship_menu.schema.json", crate::ship_menu::ShipMenuJson),
+                ("title/sound_test.json", "patches/title/sound_test.schema.json", crate::sound_test::SoundTestFile),
+                ("presentation/panels.json", "patches/presentation/panels.schema.json", crate::presentation::File),
+                ("presentation/credits.json", "patches/presentation/credits.schema.json", crate::EndingCreditsAssets),
+            ],
+            maps: ("maps/010_Piata.json", "patches/map.schema.json", crate::map::MapRecord),
+            sprites: ("sprites/party.json", "patches/sprite.schema.json", crate::sprites::SheetFile),
+        )
+    };
+}
+pub(crate) use for_each_patchable_table;
+
 fn collect_ignored_for_file(
     rel_file: &str,
     value: &Value,
 ) -> Option<Result<BTreeSet<String>, String>> {
-    match rel_file {
-        "battle/enemies.json" => Some(ignored_paths::<crate::battle::EnemiesFile>(value)),
-        "battle/equipment.json" => Some(ignored_paths::<crate::battle::EquipmentFile>(value)),
-        "battle/characters.json" => Some(ignored_paths::<crate::battle::CharactersFile>(value)),
-        "battle/abilities.json" => Some(ignored_paths::<crate::battle::AbilitiesFile>(value)),
-        "battle/formations.json" => Some(ignored_paths::<crate::battle::FormationsFile>(value)),
-        "battle/levels.json" => Some(ignored_paths::<crate::battle::LevelsFile>(value)),
-        "battle/enemy_animations.json" => {
-            Some(ignored_paths::<crate::battle::EnemyAnimationsFile>(value))
-        }
-        "battle/art/backgrounds.json" => {
-            Some(ignored_paths::<crate::battle::backgrounds::File>(value))
-        }
-        "battle/art/command_ui.json" => Some(ignored_paths::<crate::battle::CommandUiArt>(value)),
-        "battle/art/damage_digits.json" => {
-            Some(ignored_paths::<crate::battle::DamageDigitArt>(value))
-        }
-        "battle/art/fusion.json" => Some(ignored_paths::<crate::battle::FusionArt>(value)),
-        "dialogue/trees.json" => Some(ignored_paths::<crate::dialogue::TreeFile>(value)),
-        "dialogue/font.json" => Some(ignored_paths::<crate::dialogue::FontFile>(value)),
-        "dialogue/portraits.json" => Some(ignored_paths::<crate::dialogue::PortraitFile>(value)),
-        "dialogue/window.json" => Some(ignored_paths::<crate::dialogue::WindowFile>(value)),
-        "manifest.json" => Some(ignored_paths::<crate::manifest::Manifest>(value)),
-        "shops.json" => Some(ignored_paths::<crate::shops::ShopData>(value)),
-        "sound/index.json" => Some(ignored_paths::<crate::sound::schema::IndexFile>(value)),
-        "sound/driver.json" => Some(ignored_paths::<crate::sound::schema::DriverFile>(value)),
-        "sound/music.json" => Some(ignored_paths::<crate::sound::schema::MusicFile>(value)),
-        "sound/sfx.json" => Some(ignored_paths::<crate::sound::schema::SfxFile>(value)),
-        "game_start.json" => Some(ignored_paths::<crate::new_game::File>(value)),
-        "guild/guild.json" => Some(ignored_paths::<crate::guild::GuildJson>(value)),
-        "fifth/fifth.json" => Some(ignored_paths::<crate::fifth::FifthJson>(value)),
-        "travel.json" => Some(ignored_paths::<crate::travel::TravelData>(value)),
-        "ship_menu/ship_menu.json" => Some(ignored_paths::<crate::ship_menu::ShipMenuJson>(value)),
-        "title/sound_test.json" => Some(ignored_paths::<crate::sound_test::SoundTestFile>(value)),
-        "presentation/panels.json" => Some(ignored_paths::<crate::presentation::File>(value)),
-        "presentation/credits.json" => Some(ignored_paths::<crate::EndingCreditsAssets>(value)),
-        file if MAPS_JSON.matches(file) => Some(ignored_paths::<crate::map::MapRecord>(value)),
-        file if file.starts_with("sprites/") && file.ends_with(".json") => {
-            Some(ignored_paths::<crate::sprites::SheetFile>(value))
-        }
-        _ => None,
+    macro_rules! dispatch {
+        (
+            exact: [ $( ($pack:literal, $schema:literal, $ty:ty) ),+ $(,)? ],
+            maps: ($map_sample:literal, $map_schema:literal, $map_ty:ty),
+            sprites: ($sprite_sample:literal, $sprite_schema:literal, $sprite_ty:ty),
+        ) => {
+            match rel_file {
+                $( $pack => Some(ignored_paths::<$ty>(value)), )+
+                "manifest.json" => Some(ignored_paths::<crate::manifest::Manifest>(value)),
+                file if MAPS_JSON.matches(file) => Some(ignored_paths::<$map_ty>(value)),
+                file if file.starts_with("sprites/") && file.ends_with(".json") => {
+                    Some(ignored_paths::<$sprite_ty>(value))
+                }
+                _ => None,
+            }
+        };
     }
+    for_each_patchable_table!(dispatch)
 }
 
 /// Captures keys absorbed by `#[serde(flatten)]` structs (`SheetFile`/`Sheet`

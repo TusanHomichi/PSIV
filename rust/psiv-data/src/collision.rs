@@ -1,7 +1,9 @@
 //! The 4-bit collision grid: one type per 16x16-pixel cell.
 
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::de::{self, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::borrow::Cow;
 use std::fmt;
 
 use crate::map::CellPos;
@@ -178,7 +180,7 @@ impl TryFrom<u8> for CollisionType {
 ///
 /// `GetChunkAndCollision` reads `Map_Layout_BG` when the map record's
 /// `$FFFFEC24` byte is non-zero and `Map_Layout_FG` when it is zero.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Plane {
     /// Foreground plane.
@@ -468,6 +470,66 @@ impl Serialize for Collision {
         state.serialize_field("height_cells", &self.grid.height())?;
         state.serialize_field("rows", &hex_rows(&self.grid))?;
         state.end()
+    }
+}
+
+fn collision_rows_schema() -> Schema {
+    json_schema!({
+        "type": "array",
+        "description": "Collision rows: each row is either a hex-nibble string or an array of 4-bit collision codes (0..=15).",
+        "items": {
+            "oneOf": [
+                {
+                    "type": "string",
+                    "pattern": "^[0-9a-fA-F]*$"
+                },
+                {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 15
+                    }
+                }
+            ]
+        }
+    })
+}
+
+impl JsonSchema for CollisionGrid {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("CollisionGrid")
+    }
+
+    fn json_schema(_generator: &mut SchemaGenerator) -> Schema {
+        json_schema!({
+            "type": "object",
+            "properties": {
+                "rows": collision_rows_schema()
+            },
+            "required": ["rows"]
+        })
+    }
+}
+
+impl JsonSchema for Collision {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Collision")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        json_schema!({
+            "type": "object",
+            "description": "A map's collision section: plane selector, declared dimensions, and row-major 4-bit collision cells.",
+            "properties": {
+                "plane": generator.subschema_for::<Plane>(),
+                "plane_byte": generator.subschema_for::<u8>(),
+                "width_cells": generator.subschema_for::<u32>(),
+                "height_cells": generator.subschema_for::<u32>(),
+                "rows": collision_rows_schema()
+            },
+            "required": ["plane", "plane_byte", "width_cells", "height_cells", "rows"]
+        })
     }
 }
 

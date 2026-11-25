@@ -16,6 +16,12 @@ fn temp_dir(label: &str) -> PathBuf {
 }
 
 fn real_pack() -> Option<PathBuf> {
+    if let Some(env_pack) = std::env::var_os("PSIV_RUNTIME_PACK") {
+        let pack = PathBuf::from(env_pack);
+        if pack.join("manifest.json").is_file() {
+            return Some(pack);
+        }
+    }
     let pack = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
     pack.join("manifest.json").is_file().then_some(pack)
 }
@@ -289,15 +295,28 @@ fn apply_mods_layers_table_patch_dialogue_and_asset_and_rejects_bad_schema() {
     assert!(err.file.contains("battle/enemies.json"), "{err}");
     assert!(err.detail.contains("9999"), "{err}");
 
-    // Round-trip: diffing an edited copy carrying the overlay's edits reproduces the mod.
+    // Round-trip: strict default diff_packs refuses copying the modified base PNG,
+    // while `allow_derived: true` exports it and reproduces the edits cleanly.
     let edited_copy = scratch.join("edited-copy");
     materialize_overlay_for_diff_test(&overlay, &edited_copy);
     let exported = scratch.join("exported-mod");
-    let summary = diff_packs(
+    let refused = diff_packs(
         &base,
         &edited_copy,
         &exported,
         &ModManifest::new("exported", "Exported", "1.0.0"),
+    )
+    .expect_err("strict diff_packs must refuse copying modified base binary asset");
+    assert_eq!(refused.file, "maps/010_Piata.png");
+    assert!(refused.detail.contains("--allow-derived"), "{refused}");
+    let summary = diff_packs_with_options(
+        &base,
+        &edited_copy,
+        &exported,
+        &ModManifest::new("exported", "Exported", "1.0.0"),
+        DiffOptions {
+            allow_derived: true,
+        },
     )
     .unwrap();
     assert_eq!(
@@ -305,6 +324,7 @@ fn apply_mods_layers_table_patch_dialogue_and_asset_and_rejects_bad_schema() {
         vec!["battle/enemies.json", "dialogue/trees.json"]
     );
     assert_eq!(summary.assets, vec!["maps/010_Piata.png"]);
+    assert_eq!(summary.derived_items, vec!["assets/maps/010_Piata.png"]);
     let reapplied = PackOverlay::load(&base, &[load_mod(&exported).unwrap()]).unwrap();
     let re_battle = BattleFiles::load_overlay(&reapplied).unwrap();
     assert_eq!(
@@ -426,9 +446,25 @@ fn diff_packs_clears_stale_patches_and_assets_on_reexport() {
     fs::write(edited.join("maps/test.png"), b"mod-png").unwrap();
 
     let manifest = ModManifest::new("reexport", "Reexport", "1.0.0");
-    let first = diff_packs(&base, &edited, &out_mod, &manifest).unwrap();
+    // Strict default diff_packs refuses modifying an existing base binary asset.
+    let err = diff_packs(&base, &edited, &out_mod, &manifest)
+        .expect_err("modifying existing base binary asset must be refused by default");
+    assert_eq!(err.file, "maps/test.png");
+    assert!(err.detail.contains("--allow-derived"), "{err}");
+
+    let first = diff_packs_with_options(
+        &base,
+        &edited,
+        &out_mod,
+        &manifest,
+        DiffOptions {
+            allow_derived: true,
+        },
+    )
+    .unwrap();
     assert_eq!(first.patches, vec!["battle/enemies.json"]);
     assert_eq!(first.assets, vec!["maps/test.png"]);
+    assert_eq!(first.derived_items, vec!["assets/maps/test.png"]);
     assert!(out_mod.join("patches/battle/enemies.json").is_file());
     assert!(out_mod.join("assets/maps/test.png").is_file());
 

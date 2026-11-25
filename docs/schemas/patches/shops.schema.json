@@ -1,0 +1,381 @@
+{
+  "$defs": {
+    "InnRecordPatch": {
+      "additionalProperties": false,
+      "description": "One inn's rate word.",
+      "properties": {
+        "index": {
+          "description": "The rate's index; also the inn selector (`Inn_Index`).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rate_per_character": {
+          "description": "Meseta per occupied party slot.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "text_variant": {
+          "default": 0,
+          "description": "The rate word's high byte, the inn's text variant (`$FFFFE3EE`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ShopCounterPatch": {
+      "additionalProperties": false,
+      "description": "One row of the cartridge's counter table.",
+      "properties": {
+        "greeting": {
+          "additionalProperties": false,
+          "description": "A shop's greeting word: which noun names its trade.",
+          "properties": {
+            "index": {
+              "default": 0,
+              "description": "The greeting word's index: the shop's index in its group\n(`$FFFFECD1`).",
+              "format": "uint",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "text_variant": {
+              "default": 0,
+              "description": "The word's high byte, the shop's text variant (`$FFFFE3EE`).",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "trade_fragment": {
+              "default": 0,
+              "description": "`0` weapons, `1` armor, anything else items.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "group": {
+          "additionalProperties": false,
+          "default": {
+            "id": 0,
+            "name": null
+          },
+          "description": "The selector's group (`$FFFFECD0`'s high byte): `0` inn, `1` shop,\n`2` a shop with its own dialogue.",
+          "properties": {
+            "id": {
+              "description": "`0` inn, `1` shop, `2` a shop with its own dialogue.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "description": "The pack's name for it; `None` for a group the table does not name.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The row's index in `ShopCounters`.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "inn_index": {
+          "default": null,
+          "description": "The inn this row is, for an inn.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "kind": {
+          "description": "`\"inn\"` or `\"shop\"`.",
+          "type": "string"
+        },
+        "live": {
+          "default": true,
+          "description": "Whether the row is reachable in the game. Three Tonoe rows are dead.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "map_id": {
+          "description": "The map the counter stands on.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "portrait": {
+          "description": "The shopkeeper's portrait art address.",
+          "type": "string"
+        },
+        "shop_inventory_index": {
+          "default": null,
+          "description": "The `ShopInventories` list this row sells, for a shop.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "x_cell": {
+          "description": "The shopkeeper's cell.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_cell": {
+          "description": "The shopkeeper's cell.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ShopInventoryPatch": {
+      "additionalProperties": false,
+      "description": "One `ShopInventories` list.",
+      "properties": {
+        "index": {
+          "description": "The list's index.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "items": {
+          "description": "The items it sells, in menu order. Stock is unlimited.",
+          "items": {
+            "$ref": "#/$defs/ShopItem"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "ShopItem": {
+      "additionalProperties": false,
+      "description": "One item a shop sells.",
+      "properties": {
+        "buy_price": {
+          "description": "The record's price word, spent unchanged (`ps4.asm:135153`).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "display_name": {
+          "description": "The cartridge's name for the item.",
+          "type": "string"
+        },
+        "item_id": {
+          "description": "The `InventoryData` index.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "symbol": {
+          "description": "The disassembly's symbol.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_id",
+        "buy_price",
+        "display_name",
+        "symbol"
+      ],
+      "type": "object"
+    },
+    "ShopPortraitPatch": {
+      "additionalProperties": false,
+      "description": "A shopkeeper portrait the counters point at by ROM art address.",
+      "properties": {
+        "art": {
+          "description": "The ROM address of the portrait's art, as the counters spell it.",
+          "type": "string"
+        },
+        "png": {
+          "description": "The extracted PNG, relative to the pack directory.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/shops.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "counters": {
+      "description": "Every counter row, in table order.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/ShopCounterPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/ShopCounterPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "inns": {
+      "description": "The inn rate words, in table order.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/InnRecordPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/InnRecordPatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "inventories": {
+      "description": "The `ShopInventories` lists, in table order.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/ShopInventoryPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/ShopInventoryPatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "lines": {
+      "additionalProperties": false,
+      "default": {
+        "farewell": [],
+        "inn_farewell": []
+      },
+      "description": "The window's own lines, decoded from the cartridge.",
+      "properties": {
+        "farewell": {
+          "description": "The shopkeeper's farewell when Cancel leaves the BUY/SELL menu,\n`loc_682A4`'s four lines by text variant (`$FFFFE3EE`).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "inn_farewell": {
+          "description": "The innkeeper's when Cancel or NO refuses the bill, by inn text\nvariant.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "portraits": {
+      "description": "The shopkeeper portraits, by art address.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/ShopPortraitPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `png`.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `png`.",
+          "items": {
+            "$ref": "#/$defs/ShopPortraitPatch",
+            "required": [
+              "png"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (shops.json)",
+  "type": "object"
+}

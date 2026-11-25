@@ -1,0 +1,324 @@
+{
+  "$defs": {
+    "DungeonDestinationPatch": {
+      "additionalProperties": false,
+      "description": "An eight-byte DungeonTeleportPlaces record.",
+      "properties": {
+        "alignment": {
+          "description": "Retail party alignment byte.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "facing": {
+          "description": "Retail facing byte (0, 4, 8, 12).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "index": {
+          "description": "Exit selector. Zero means unavailable.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "map": {
+          "description": "Destination field map.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x": {
+          "description": "Map_Start X in eight-pixel units.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Map_Start Y in eight-pixel units.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "PlaceEntry": {
+      "additionalProperties": false,
+      "description": "FieldRoutine_PlaceName matches both map words before applying a selector.",
+      "properties": {
+        "map": {
+          "description": "Entered map.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Decoded name displayed at entry.",
+          "type": "string"
+        },
+        "previous_map": {
+          "description": "Map from which the player entered.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "selector": {
+          "description": "Town bit, $FE (clear exit), or $80 | dungeon exit.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "map",
+        "previous_map",
+        "name",
+        "selector"
+      ],
+      "type": "object"
+    },
+    "TownDestinationPatch": {
+      "additionalProperties": false,
+      "description": "A destination shown by RYUKA's visited-town list.",
+      "properties": {
+        "index": {
+          "description": "Index in that world's teleport table.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Decoded place name.",
+          "type": "string"
+        },
+        "previous_map": {
+          "description": "Field_Map_Index_2 supplied at the overworld destination.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "town_flag": {
+          "description": "Bit in the town flag bank.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "world": {
+          "description": "World byte: Motavia 0, Dezolis 1, Rykros 2.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x": {
+          "description": "Map_Start X in eight-pixel units.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Map_Start Y in eight-pixel units.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "WorldMapAssetPatch": {
+      "additionalProperties": false,
+      "description": "One planet overview image decoded from `FieldRoutine_WorldMap`\n(`ps4.asm:136977-137245`, #122).",
+      "properties": {
+        "height": {
+          "description": "Height in pixels (256 for Motavia, 128 for Dezolis).",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "initial_y": {
+          "description": "Initial vertical camera offset (`0` on Motavia, `-48` / `$FFD0` on Dezolis).",
+          "format": "int16",
+          "maximum": 32767,
+          "minimum": -32768,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Planet title shown in the world-map caption window.",
+          "type": "string"
+        },
+        "png": {
+          "description": "Relative PNG path inside the runtime pack.",
+          "type": "string"
+        },
+        "scroll_y": {
+          "description": "Whether vertical scrolling is active (`true` on Motavia, `false` on Dezolis).",
+          "type": "boolean"
+        },
+        "width": {
+          "description": "Width in pixels (256: 128 chunks x 2 px).",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "world": {
+          "description": "World byte: Motavia 0, Dezolis 1.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/travel.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "dungeons": {
+      "description": "HINAS rows keyed by their explicit index.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/DungeonDestinationPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/DungeonDestinationPatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "entries": {
+      "description": "Map-entry registration and inherited-exit selectors.",
+      "items": {
+        "$ref": "#/$defs/PlaceEntry"
+      },
+      "type": "array"
+    },
+    "format_version": {
+      "const": 2,
+      "description": "The file's version.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "kind": {
+      "description": "`field_travel`.",
+      "type": "string"
+    },
+    "messages": {
+      "additionalProperties": false,
+      "description": "The teleport windows' strings.",
+      "properties": {
+        "cannot_be_used": {
+          "description": "The refusal where the place forbids a teleport (`loc_2AA8BC`).",
+          "type": "string"
+        },
+        "not_enough_tp": {
+          "description": "The refusal when the caster lacks the TP (`loc_2AA8D2`).",
+          "type": "string"
+        },
+        "teleported": {
+          "description": "The line a granted teleport shows (`loc_2AA896`).",
+          "type": "string"
+        },
+        "towns_label": {
+          "description": "The town list's label on each page's bottom border (`loc_2AA892`).",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "rom_sha256": {
+      "description": "The ROM this came from.",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-fA-F]{64}$",
+      "type": "string"
+    },
+    "towns": {
+      "description": "RYUKA rows in retail display order.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/TownDestinationPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `town_flag`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `town_flag`.",
+          "items": {
+            "$ref": "#/$defs/TownDestinationPatch",
+            "required": [
+              "town_flag"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "world_maps": {
+      "description": "Decoded overworld planet overview images (`FieldRoutine_WorldMap`, #122).",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/WorldMapAssetPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `name`.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `name`.",
+          "items": {
+            "$ref": "#/$defs/WorldMapAssetPatch",
+            "required": [
+              "name"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (travel.json)",
+  "type": "object"
+}

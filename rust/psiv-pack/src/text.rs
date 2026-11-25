@@ -385,7 +385,7 @@ pub fn split_terminated(block: &[u8], terminator: u8) -> Result<Vec<(usize, &[u8
     Ok(entries)
 }
 
-/// One name table: `text.py`'s `NAME_TABLES` entry and its signature.
+/// One name table: `text.py`'s `NAME_TABLES` entry and its digest pin (#461).
 pub struct NameTable {
     pub name: &'static str,
     pub label: &'static str,
@@ -395,8 +395,8 @@ pub struct NameTable {
     pub terminator: u8,
     pub charset: &'static str,
     pub id_base: usize,
-    /// The first entry, encoded: checked before anything is decoded.
-    pub signature: &'static str,
+    /// The first entry, pinned by length and SHA-256 before anything is decoded.
+    pub pin: crate::rom::Pin,
 }
 
 // One row of `NAME_TABLES`, in the Python dict's field order.
@@ -410,7 +410,7 @@ const fn table(
     terminator: u8,
     charset: &'static str,
     id_base: usize,
-    signature: &'static str,
+    pin: crate::rom::Pin,
 ) -> NameTable {
     NameTable {
         name,
@@ -421,11 +421,11 @@ const fn table(
         terminator,
         charset,
         id_base,
-        signature,
+        pin,
     }
 }
 
-/// `NAME_TABLES` with `NAME_TABLE_SIGNATURES`, in the Python order.
+/// `NAME_TABLES` with `NAME_TABLE_PINS`, in the Python order.
 pub const NAME_TABLES: [NameTable; 10] = [
     table(
         "character_names",
@@ -436,7 +436,10 @@ pub const NAME_TABLES: [NameTable; 10] = [
         0xFF,
         WINDOW,
         0,
-        "03403952ff",
+        (
+            5,
+            "d77b260aa798ee8d65b63c8e80c39bd6c2a858d98e7eeebfb74058d62aaa473d",
+        ),
     ),
     table(
         "profession_names",
@@ -447,7 +450,10 @@ pub const NAME_TABLES: [NameTable; 10] = [
         0xFF,
         WINDOW,
         0,
-        "08150e140512ff",
+        (
+            7,
+            "1c8cc225117e31a09ced54369de4ba03e373665249e01b2631f6480728d86384",
+        ),
     ),
     table(
         "enemy_names",
@@ -458,7 +464,10 @@ pub const NAME_TABLES: [NameTable; 10] = [
         0xFF,
         WINDOW,
         0,
-        "08050c0518ff",
+        (
+            6,
+            "06075dc82c5d9303c2f7313304549a48725be6fc871bb3e7f828ce4ffefa3d58",
+        ),
     ),
     table(
         "enemy_skill_names",
@@ -469,7 +478,10 @@ pub const NAME_TABLES: [NameTable; 10] = [
         0xFF,
         WINDOW,
         1,
-        "0e0f1408090e07ff",
+        (
+            8,
+            "ff7378de0cbe2169ccc1a24cd1bfdd955446cb54a9e73e4be543637ccd53f26d",
+        ),
     ),
     table(
         "combo_names",
@@ -480,7 +492,10 @@ pub const NAME_TABLES: [NameTable; 10] = [
         0xFF,
         WINDOW,
         1,
-        "1001120104090e020c17ff",
+        (
+            11,
+            "9d79450b3a9f5e413a1eb4c39edc3e621727369b33b5e147351ee8e2e3986063",
+        ),
     ),
     table(
         "item_names",
@@ -491,7 +506,10 @@ pub const NAME_TABLES: [NameTable; 10] = [
         0xFE,
         WINDOW,
         1,
-        "040107070512fe",
+        (
+            7,
+            "a0e4fa31e759d62efe9e5cd8d32681001680129a0a39b7dc34839474c78b027b",
+        ),
     ),
     table(
         "technique_names",
@@ -502,7 +520,10 @@ pub const NAME_TABLES: [NameTable; 10] = [
         0xFE,
         WINDOW,
         1,
-        "060f09fe",
+        (
+            4,
+            "938a716bae2e23e4724220adc5a287b731f027b494cc05195f8a63e685544ae3",
+        ),
     ),
     table(
         "skill_names",
@@ -513,7 +534,10 @@ pub const NAME_TABLES: [NameTable; 10] = [
         0xFE,
         WINDOW,
         1,
-        "03120f1313031514fe",
+        (
+            9,
+            "211f1d07f4c675a6671c6d5ba1788149a44e4b40f8337661c44ef0d48711d063",
+        ),
     ),
     table(
         "place_names",
@@ -524,7 +548,10 @@ pub const NAME_TABLES: [NameTable; 10] = [
         0xFE,
         WINDOW,
         0,
-        "1009011401fe",
+        (
+            6,
+            "be1cecdf1d782ca6bb8422dd363894c91196d08dc7ebbfc8dc657ab3f4919c89",
+        ),
     ),
     table(
         "item_names_dialogue",
@@ -535,10 +562,14 @@ pub const NAME_TABLES: [NameTable; 10] = [
         0xFF,
         DIALOGUE,
         1,
-        "040107070512ff",
+        (
+            7,
+            "afe78db5da14d95456c1d200a160d8fd6d75f8b054d2dedac2febaa36e6675ac",
+        ),
     ),
 ];
 
+#[cfg(test)]
 fn unhex(text: &str) -> Vec<u8> {
     (0..text.len())
         .step_by(2)
@@ -588,16 +619,17 @@ pub fn extract_name_table(data: &[u8], spec: &NameTable) -> Result<Json, TextErr
         .with("entries", records))
 }
 
-/// `validate_name_tables`: each table's first encoded entry, and whether it
-/// matches.
+/// `validate_name_tables`: each table's first encoded entry, pinned by length
+/// and SHA-256 (#461).
 pub fn validate_name_tables(data: &[u8]) -> Vec<(bool, Json)> {
     NAME_TABLES
         .iter()
         .map(|spec| {
-            let expected = unhex(spec.signature);
-            let end = (spec.start + expected.len()).min(data.len());
+            let (len, expected_sha) = spec.pin;
+            let end = (spec.start + len).min(data.len());
             let actual = data.get(spec.start.min(end)..end).unwrap_or_default();
-            let ok = actual == expected.as_slice();
+            let actual_sha = crate::rom::sha256(actual);
+            let ok = actual.len() == len && actual_sha == expected_sha;
             (
                 ok,
                 Json::object()
@@ -605,7 +637,8 @@ pub fn validate_name_tables(data: &[u8]) -> Vec<(bool, Json)> {
                     .with("table", spec.name)
                     .with("offset", format!("0x{:06X}", spec.start))
                     .with("ok", ok)
-                    .with("expected_hex", hex(&expected))
+                    .with("expected_sha256", expected_sha)
+                    .with("actual_sha256", actual_sha)
                     .with("actual_hex", hex(actual)),
             )
         })

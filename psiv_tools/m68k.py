@@ -1,11 +1,11 @@
 """Just enough 68000 to read tables and short routines out of retail.
 
-Several extractors need the same handful of moves: check that a byte signature
-occurs exactly as often as retail contains it, read a big-endian field, assert
-that a specific opcode sits at an address, follow a `bra.w`, and resolve a
-jump table a dispatcher reaches PC-relative. This is that handful, and nothing
-more -- it is deliberately not a disassembler. Anything that needs to *walk*
-instructions models its own opcode set and fails closed on the rest, the way
+Several extractors need the same handful of moves: check that a pinned region
+matches its `(length, sha256)` digest, read a big-endian field, assert that a
+specific opcode sits at an address, follow a `bra.w`, and resolve a jump table
+a dispatcher reaches PC-relative. This is that handful, and nothing more -- it
+is deliberately not a disassembler. Anything that needs to *walk* instructions
+models its own opcode set and fails closed on the rest, the way
 `psiv_tools.map_effects` and `psiv_tools.battle_rules` do.
 
 Every function here raises [`DecodeError`]. Modules that want their own error
@@ -14,7 +14,7 @@ type subclass it, so a caller can catch either the specific one or the base.
 
 from __future__ import annotations
 
-import re
+import hashlib
 import struct
 
 
@@ -22,27 +22,21 @@ class DecodeError(ValueError):
     """A retail image did not hold what the decoder required."""
 
 
-def find_all(rom: bytes, signature: str) -> list[int]:
-    """Every offset at which `signature` (hex) occurs."""
-    pattern = bytes.fromhex(signature)
-    return [match.start() for match in re.finditer(re.escape(pattern), rom)]
+def pin_matches(rom: bytes, at: int, length: int, digest: str) -> bool:
+    """Whether `rom[at:at + length]` has `length` bytes and SHA-256 `digest`."""
+    if at < 0 or length < 0 or at + length > len(rom):
+        return False
+    return hashlib.sha256(rom[at:at + length]).hexdigest() == digest
 
 
-def find_exactly(rom: bytes, signature: str, expected: int, label: str) -> list[int]:
-    """`find_all`, refusing any count but `expected`.
-
-    The pin discipline the whole toolchain uses: a signature that occurs a
-    different number of times than retail holds means either the wrong build or
-    a wrong signature, and both must stop the extraction rather than decode
-    whatever happens to be there.
-    """
-    hits = find_all(rom, signature)
-    if len(hits) != expected:
-        raise DecodeError(
-            f"{label}: signature {signature} occurs {len(hits)} times, not the "
-            f"{expected} retail has"
-        )
-    return hits
+def verify_pin(rom: bytes, at: int, length: int, digest: str, what: str) -> bytes:
+    """Return `rom[at:at + length]` if its SHA-256 matches `digest`, else raise."""
+    if at < 0 or length < 0 or at + length > len(rom):
+        raise DecodeError(f"{what} at 0x{at:06X} (+{length}) runs past the end of the ROM")
+    chunk = rom[at:at + length]
+    if hashlib.sha256(chunk).hexdigest() != digest:
+        raise DecodeError(f"{what} at 0x{at:06X}: retail digest mismatch (got {chunk.hex()})")
+    return chunk
 
 
 def w(rom: bytes, at: int) -> int:

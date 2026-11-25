@@ -4,10 +4,11 @@
 //! `Map_Start_Facing_Dir` defines; a sprite binding carries the same byte as a
 //! spelled-out `SpriteFacing` that tolerates the cartridge's one out-of-set value.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// A facing direction, as `Map_Start_Facing_Dir` encodes it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Facing {
     /// The raw byte: 0 down, 4 up, 8 right, `$C` left.
     pub id: u8,
@@ -24,7 +25,7 @@ impl Facing {
 }
 
 /// One of the four facings.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Direction {
     /// Facing down the screen; the raw byte is 0.
@@ -38,7 +39,7 @@ pub enum Direction {
 }
 
 /// A sprite facing, tolerating the cartridge's one out-of-set byte.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum SpriteFacing {
     /// Facing down.

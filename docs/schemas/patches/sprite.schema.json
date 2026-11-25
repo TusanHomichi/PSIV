@@ -1,0 +1,409 @@
+{
+  "$defs": {
+    "Sequence": {
+      "additionalProperties": false,
+      "description": "One animation sequence.",
+      "properties": {
+        "frames": {
+          "description": "Frames in play order.",
+          "items": {
+            "$ref": "#/$defs/SequenceFrame"
+          },
+          "type": "array"
+        },
+        "loop": {
+          "default": false,
+          "description": "Whether the sequence loops (all retail field sequences do).",
+          "type": "boolean"
+        },
+        "sequence_offset": {
+          "description": "Where the cartridge's sequence table is, as `0x` hex; research only.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "frames"
+      ],
+      "type": "object"
+    },
+    "SequenceFrame": {
+      "additionalProperties": false,
+      "description": "One step of a sequence.",
+      "properties": {
+        "duration_ticks": {
+          "description": "How long the frame holds, in engine ticks (transcribed from the\ncartridge's own sequence tables, not invented).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "index": {
+          "description": "Frame index into the strip.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "duration_ticks"
+      ],
+      "type": "object"
+    },
+    "Sheet": {
+      "additionalProperties": false,
+      "description": "One frame-strip sheet.",
+      "properties": {
+        "frame_count": {
+          "description": "Number of frames in the strip.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frame_height": {
+          "description": "Frame height in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frame_width": {
+          "description": "Frame width in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "description": "Sheet id: a party member's name, or an NPC art id like\n`NPCType2_a2bfdc9c` (symbol + content hash).",
+          "type": "string"
+        },
+        "origin_x": {
+          "description": "X of the cell anchor inside a frame, in pixels.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "origin_y": {
+          "description": "Y of the cell anchor inside a frame, in pixels.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "palette": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SheetPalette"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Palette metadata (`cram_line` feeds the runtime palette choice)."
+        },
+        "png": {
+          "description": "The frame strip, pack-root-relative. Frames left to right.",
+          "type": "string"
+        },
+        "sequences": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Sequence"
+          },
+          "description": "Named animation sequences (`idle_down`, `walk_left`, ...).",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "png",
+        "frame_width",
+        "frame_height",
+        "frame_count",
+        "origin_x",
+        "origin_y",
+        "sequences"
+      ],
+      "type": "object"
+    },
+    "SheetPalette": {
+      "additionalProperties": false,
+      "description": "Palette metadata for one frame-strip sheet.",
+      "properties": {
+        "colors": {
+          "description": "Extracted RGB colour entries.",
+          "items": {
+            "items": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "cram_line": {
+          "description": "CRAM line (`0..=3`, from the object's `$13` palette byte).",
+          "format": "uint8",
+          "maximum": 3,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "source": {
+          "description": "Palette provenance source description.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "transparent_index": {
+          "description": "Transparent palette index.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "SheetPatch": {
+      "additionalProperties": false,
+      "description": "One frame-strip sheet.",
+      "properties": {
+        "frame_count": {
+          "description": "Number of frames in the strip.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frame_height": {
+          "description": "Frame height in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frame_width": {
+          "description": "Frame width in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "description": "Sheet id: a party member's name, or an NPC art id like\n`NPCType2_a2bfdc9c` (symbol + content hash).",
+          "type": "string"
+        },
+        "origin_x": {
+          "description": "X of the cell anchor inside a frame, in pixels.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "origin_y": {
+          "description": "Y of the cell anchor inside a frame, in pixels.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "palette": {
+          "additionalProperties": false,
+          "description": "Palette metadata for one frame-strip sheet.",
+          "properties": {
+            "colors": {
+              "description": "Extracted RGB colour entries.",
+              "items": {
+                "items": {
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 3,
+                "minItems": 3,
+                "type": "array"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "cram_line": {
+              "description": "CRAM line (`0..=3`, from the object's `$13` palette byte).",
+              "format": "uint8",
+              "maximum": 3,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "source": {
+              "description": "Palette provenance source description.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "transparent_index": {
+              "description": "Transparent palette index.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "png": {
+          "description": "The frame strip, pack-root-relative. Frames left to right.",
+          "type": "string"
+        },
+        "sequences": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "description": "One animation sequence.",
+            "properties": {
+              "frames": {
+                "description": "Frames in play order.",
+                "items": {
+                  "$ref": "#/$defs/SequenceFrame"
+                },
+                "type": "array"
+              },
+              "loop": {
+                "default": false,
+                "description": "Whether the sequence loops (all retail field sequences do).",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "sequence_offset": {
+                "description": "Where the cartridge's sequence table is, as `0x` hex; research only.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "description": "Named animation sequences (`idle_down`, `walk_left`, ...).",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "VehiclePaletteVariant": {
+      "additionalProperties": false,
+      "description": "One CRAM-line-3 vehicle palette used by one or more maps.",
+      "properties": {
+        "map_ids": {
+          "description": "Map ids whose vehicle sprites use this palette.",
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "sheet_ids": {
+          "description": "Three sheet ids in `Vehicle_Index` order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sheets": {
+          "default": [],
+          "description": "Additional sheets. The base variant may leave this empty and refer to\nthe ordinary `SheetFile::sheets` entries.",
+          "items": {
+            "$ref": "#/$defs/Sheet"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "map_ids",
+        "sheet_ids"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/sprites/<sheet>.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "format_version": {
+      "const": 2,
+      "description": "Pack format; checked against [`crate::PACK_FORMAT_VERSION`].",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "kind": {
+      "default": null,
+      "description": "`\"field_party\"` or the NPC counterpart.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "palette_variants": {
+      "description": "Optional per-map vehicle palette variants. The base `sheets` remain the\nselector-addressed fallback; each variant names the same three vehicle\nslots and carries only the additional sheets required by its CRAM line.",
+      "items": {
+        "$ref": "#/$defs/VehiclePaletteVariant"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "sheet_count": {
+      "description": "Declared sheet count; validated against `sheets.len()`.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sheets": {
+      "description": "The sheets.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/SheetPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/SheetPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (sprites/<sheet>.json)",
+  "type": "object"
+}

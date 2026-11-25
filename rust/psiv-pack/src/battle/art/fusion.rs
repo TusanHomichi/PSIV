@@ -10,10 +10,17 @@ use crate::decode::nemesis;
 use crate::json::Json;
 use crate::{PackError, png};
 
-/// `BattleObj_Fusion`, its first-run test and `jsr loc_12618`.
+/// `BattleObj_Fusion`, its first-run test and `jsr loc_12618`, pinned by
+/// length and SHA-256 (#461).
 const ROUTINE: usize = 0x01A090;
-const SIGNATURE: [u8; 6] = [0x08, 0xD4, 0x00, 0x07, 0x66, 0x00];
-const SIGNATURE_TAIL: [u8; 6] = [0x4E, 0xB9, 0x00, 0x01, 0x26, 0x18];
+const HEAD_PIN: crate::rom::Pin = (
+    6,
+    "ccb19f04532517769af7b2b8aeb4c536c06c60e7772a77f77f713d54f21e1ad6",
+);
+const TAIL_PIN: crate::rom::Pin = (
+    6,
+    "bb2b841da0e3c5b77ccd43f827dd6f1c1971fc92bd13cf989c77b6810242efc6",
+);
 /// `BattleObj_Fusion2`, where the first object's code ends.
 const ROUTINE_BOUND: usize = 0x01A300;
 /// `loc_10796`'s `lea (art).l, a0` / `jsr (NemDecomp).l`.
@@ -37,9 +44,9 @@ fn word(rom: &[u8], at: usize) -> Result<u16, PackError> {
 
 /// `fusion_mappings`: the distinct records `move.l #record,$C(a4)` selects.
 fn mappings(rom: &[u8]) -> Result<Vec<usize>, PackError> {
-    let tail = ROUTINE + SIGNATURE.len() + 2;
-    if rom.get(ROUTINE..ROUTINE + SIGNATURE.len()) != Some(&SIGNATURE[..])
-        || rom.get(tail..tail + SIGNATURE_TAIL.len()) != Some(&SIGNATURE_TAIL[..])
+    let tail = ROUTINE + HEAD_PIN.0 + 2;
+    if !crate::rom::matches_pin(rom, ROUTINE, HEAD_PIN)
+        || !crate::rom::matches_pin(rom, tail, TAIL_PIN)
     {
         return refuse(format!(
             "BattleObj_Fusion at {} does not start with its first-run test and loc_12618 call",

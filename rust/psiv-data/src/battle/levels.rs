@@ -1,10 +1,11 @@
 //! `battle/levels.json`: the per-character level tables.
 
 use super::NamedId;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// `battle/levels.json`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct LevelsFile {
     /// The pack format that wrote this.
     pub format_version: u32,
@@ -17,7 +18,7 @@ pub struct LevelsFile {
 }
 
 /// One character's level table.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct LevelTable {
     /// Index into `Character_Stats`.
     pub character_id: u8,
@@ -31,7 +32,7 @@ pub struct LevelTable {
 }
 
 /// One 22-byte level record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Level {
     /// The level this record grants.
     pub level: u16,
@@ -55,7 +56,7 @@ pub struct Level {
 
 /// The four base stats a level record sets.
 #[allow(missing_docs)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LevelStats {
     pub strength: u8,

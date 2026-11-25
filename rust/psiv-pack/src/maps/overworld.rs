@@ -49,26 +49,18 @@ const LAYOUT_RAM_SPAN: i64 = 0x1000;
 /// from.
 const MAP_CHANGE_COLLISION_TYPE: u8 = 0x1;
 
-/// One `lea default / btst / lea alternate` selector in the load path.
+/// One `lea default / btst / lea alternate` selector in the load path, pinned
+/// by length and SHA-256 (#461).
 #[derive(Clone, Copy)]
 struct CodeSite {
     label: &'static str,
     rom_offset: usize,
     motavia: usize,
     dezolis: usize,
+    pin: crate::rom::Pin,
 }
 
 impl CodeSite {
-    /// `lea (first).l,a2 / btst #0,($FFFFEC29).w / beq.s *+8 / lea (second).l,a2`:
-    /// the whole shape proves bit 0 clear takes the first table.
-    fn signature(&self) -> Vec<u8> {
-        let mut out = vec![0x45, 0xF9];
-        out.extend_from_slice(&(self.motavia as u32).to_be_bytes());
-        out.extend_from_slice(&[0x08, 0x38, 0x00, 0x00, 0xEC, 0x29, 0x67, 0x06, 0x45, 0xF9]);
-        out.extend_from_slice(&(self.dezolis as u32).to_be_bytes());
-        out
-    }
-
     fn table_for(&self, map_id: usize) -> usize {
         if map_id & 1 != 0 {
             self.dezolis
@@ -90,20 +82,63 @@ impl CodeSite {
     }
 }
 
-const fn site(label: &'static str, rom_offset: usize, motavia: usize, dezolis: usize) -> CodeSite {
+const fn site(
+    label: &'static str,
+    rom_offset: usize,
+    motavia: usize,
+    dezolis: usize,
+    pin: crate::rom::Pin,
+) -> CodeSite {
     CodeSite {
         label,
         rom_offset,
         motavia,
         dezolis,
+        pin,
     }
 }
 
 const PLANES: [Plane; 2] = [Plane::Fg, Plane::Bg];
-const PAGE_TABLE_FG: CodeSite = site("loc_53A26", 0x053A44, 0x107DC2, 0x115584);
-const PAGE_TABLE_BG: CodeSite = site("loc_53A8E", 0x053AAC, 0x10BE02, 0x1175C4);
-const PATCH_TABLE_FG: CodeSite = site("loc_53BB6", 0x053BC2, 0x053BDC, 0x053BFC);
-const PATCH_TABLE_BG: CodeSite = site("loc_53CAE", 0x053CBA, 0x053CD4, 0x053CF4);
+const PAGE_TABLE_FG: CodeSite = site(
+    "loc_53A26",
+    0x053A44,
+    0x107DC2,
+    0x115584,
+    (
+        20,
+        "c6d540d9651b5931d4584d83a5b48a8a9a3a495d7ca3199e5a4dbd99f3757b53",
+    ),
+);
+const PAGE_TABLE_BG: CodeSite = site(
+    "loc_53A8E",
+    0x053AAC,
+    0x10BE02,
+    0x1175C4,
+    (
+        20,
+        "3977000fcb3aec630945d329d8498dc525a248ad97b55fb1121b2982e13395b4",
+    ),
+);
+const PATCH_TABLE_FG: CodeSite = site(
+    "loc_53BB6",
+    0x053BC2,
+    0x053BDC,
+    0x053BFC,
+    (
+        20,
+        "33cf0bc3739c0dd253ba142eec988ce0b37c52d62a78a66b7632e73d0f4d4d84",
+    ),
+);
+const PATCH_TABLE_BG: CodeSite = site(
+    "loc_53CAE",
+    0x053CBA,
+    0x053CD4,
+    0x053CF4,
+    (
+        20,
+        "c0b3734f7837e481db525a771b25b4ee559c3d9836a56a2fcc0002a0330125b5",
+    ),
+);
 
 fn page_table_site(plane: Plane) -> CodeSite {
     match plane {
@@ -121,29 +156,19 @@ fn patch_table_site(plane: Plane) -> CodeSite {
 
 const PAGE_COPY_FG: usize = 0x053BB6;
 const PAGE_COPY_BG: usize = 0x053CAE;
-/// `move.w #$FF,d2 / move.l (a0)+,(a1)+ / dbf d2 / add.w d1,d1`.
-const PAGE_COPY_SIGNATURE: [u8; 10] = [0x34, 0x3C, 0x00, 0xFF, 0x22, 0xD8, 0x51, 0xCA, 0xFF, 0xFC];
-const PAGE_COPY_SIGNATURE_TAIL: [u8; 2] = [0xD2, 0x41];
+/// `move.w #$FF,d2 / move.l (a0)+,(a1)+ / dbf d2 / add.w d1,d1`, pinned by
+/// length and SHA-256 (#461).
+const PAGE_COPY_PIN: crate::rom::Pin = (
+    12,
+    "9f17ad7ccdb526f59b00abf64fc559691aef978e4ac102d31862a94f54d04ab2",
+);
 const GET_MAP_LAYOUT_CHUNK_FG: usize = 0x053EE6;
 const GET_MAP_LAYOUT_CHUNK_BG: usize = 0x053EEC;
-const GET_MAP_LAYOUT_CHUNK_SIGNATURE: [u8; 20] = [
-    0x43, 0xF8, 0xA0, 0x00, 0x60, 0x04, 0x43, 0xF8, 0xB0, 0x00, 0x02, 0x41, 0x00, 0x1F, 0xEF, 0x49,
-    0xD0, 0x41, 0x43, 0xF1,
-];
-const GET_MAP_LAYOUT_CHUNK_SIGNATURE_TAIL: [u8; 4] = [0x00, 0x00, 0x4E, 0x75];
+const GET_MAP_LAYOUT_CHUNK_PIN: crate::rom::Pin = (
+    24,
+    "8d567d0670069dad08956c6adfe7e8d6f8e2a2274646805c4159aa73b1b5d998",
+);
 const EVENT_FLAGS_TEST: u32 = 0x057624;
-
-fn page_copy_signature() -> Vec<u8> {
-    [&PAGE_COPY_SIGNATURE[..], &PAGE_COPY_SIGNATURE_TAIL].concat()
-}
-
-fn get_map_layout_chunk_signature() -> Vec<u8> {
-    [
-        &GET_MAP_LAYOUT_CHUNK_SIGNATURE[..],
-        &GET_MAP_LAYOUT_CHUNK_SIGNATURE_TAIL,
-    ]
-    .concat()
-}
 
 /// The loader's own test: `Field_Map_Index & $FFFE == 0`.
 pub fn is_overworld(map_id: usize) -> bool {
@@ -159,18 +184,13 @@ fn require_overworld(map_id: usize) -> Result<(), PackError> {
     )))
 }
 
-fn check_bytes(rom: &[u8], offset: usize, expected: &[u8], what: &str) -> Result<(), PackError> {
-    let end = (offset + expected.len()).min(rom.len());
-    let actual = rom.get(offset..end).unwrap_or(&[]);
-    if actual == expected {
-        return Ok(());
-    }
-    Err(PackError(format!(
-        "{what} at {}: expected {}, got {}",
-        hex6(offset),
-        hex(expected),
-        hex(actual)
-    )))
+fn check_pin<'a>(
+    rom: &'a [u8],
+    offset: usize,
+    pin: crate::rom::Pin,
+    what: &str,
+) -> Result<&'a [u8], PackError> {
+    crate::rom::pinned(rom, offset, pin, what)
 }
 
 fn upper(plane: Plane) -> String {
@@ -184,18 +204,21 @@ pub fn check_code_sites(rom: &[u8]) -> Result<Json, PackError> {
     for plane in PLANES {
         let site = page_table_site(plane);
         let what = format!("{} page table selector", upper(plane));
-        check_bytes(rom, site.rom_offset, &site.signature(), &what)?;
+        check_pin(rom, site.rom_offset, site.pin, &what)?;
     }
     for plane in PLANES {
         let site = patch_table_site(plane);
         let what = format!("{} patch table selector", upper(plane));
-        check_bytes(rom, site.rom_offset, &site.signature(), &what)?;
+        check_pin(rom, site.rom_offset, site.pin, &what)?;
     }
-    let copy = page_copy_signature();
-    check_bytes(rom, PAGE_COPY_FG, &copy, "FG page copy loop")?;
-    check_bytes(rom, PAGE_COPY_BG, &copy, "BG page copy loop")?;
-    let chunk = get_map_layout_chunk_signature();
-    check_bytes(rom, GET_MAP_LAYOUT_CHUNK_FG, &chunk, "GetMapLayoutChunkFG")?;
+    let copy = check_pin(rom, PAGE_COPY_FG, PAGE_COPY_PIN, "FG page copy loop")?;
+    check_pin(rom, PAGE_COPY_BG, PAGE_COPY_PIN, "BG page copy loop")?;
+    let chunk = check_pin(
+        rom,
+        GET_MAP_LAYOUT_CHUNK_FG,
+        GET_MAP_LAYOUT_CHUNK_PIN,
+        "GetMapLayoutChunkFG",
+    )?;
     Ok(Json::object()
         .with(
             "page_tables",
@@ -218,7 +241,7 @@ pub fn check_code_sites(rom: &[u8]) -> Result<Json, PackError> {
                         .with("fg", hex6(PAGE_COPY_FG))
                         .with("bg", hex6(PAGE_COPY_BG)),
                 )
-                .with("signature_hex", hex(&copy))
+                .with("signature_hex", hex(copy))
                 .with("compression", Json::Null)
                 .with("longs_copied", PAGE_BYTES / 4),
         )
@@ -227,7 +250,7 @@ pub fn check_code_sites(rom: &[u8]) -> Result<Json, PackError> {
             Json::object()
                 .with("fg", hex6(GET_MAP_LAYOUT_CHUNK_FG))
                 .with("bg", hex6(GET_MAP_LAYOUT_CHUNK_BG))
-                .with("signature_hex", hex(&chunk))
+                .with("signature_hex", hex(chunk))
                 .with("window_rows", WINDOW_ROWS)
                 .with("row_bytes", ROW_BYTES),
         ))
@@ -314,7 +337,7 @@ pub fn read_page_table(rom: &[u8], map_id: usize, plane: Plane) -> Result<PageTa
     require_overworld(map_id)?;
     let site = page_table_site(plane);
     let what = format!("{} page table selector", upper(plane));
-    check_bytes(rom, site.rom_offset, &site.signature(), &what)?;
+    check_pin(rom, site.rom_offset, site.pin, &what)?;
     let offset = site.table_for(map_id);
     if offset + PAGE_COUNT * 4 > rom.len() {
         return Err(PackError(format!(

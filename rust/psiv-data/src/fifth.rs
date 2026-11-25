@@ -2,6 +2,7 @@
 //! ([retired fifth_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/fifth_pack.py)): the five friends waiting at the Mota Spaceport
 //! and the records the routine refills.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{DataError, RomHash};
@@ -10,7 +11,7 @@ use crate::{DataError, RomHash};
 pub const FIFTH_ROWS: usize = 5;
 
 /// Where the pack keeps the table's JSON.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct FifthFile {
     /// Relative JSON path.
     pub path: String,
@@ -19,7 +20,7 @@ pub struct FifthFile {
 }
 
 /// One row of `loc_72182`, without its art byte.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct FifthRowRecord {
     /// Where the friend stands: X in pixels.
     pub x: u16,
@@ -33,7 +34,7 @@ pub struct FifthRowRecord {
     pub picked_flag: u8,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 pub(crate) struct FifthJson {
     format_version: u32,
     kind: String,

@@ -13,9 +13,10 @@ pub const FIELD_OBJECTS_JMP_TBL: usize = 0x04AA6C;
 pub const FIELD_OBJECT_COUNT: usize = 222;
 const FIELD_OBJECT_STRIDE: usize = 4;
 const FIELD_OBJ_ANIMATE: usize = 0x044728;
-const FIELD_OBJ_ANIMATE_SIGNATURE: [u8; 14] = [
-    0x08, 0xEC, 0x00, 0x05, 0x00, 0x02, 0x30, 0x2C, 0x00, 0x06, 0x22, 0x6C, 0x00, 0x08,
-];
+const FIELD_OBJ_ANIMATE_PIN: crate::rom::Pin = (
+    14,
+    "81857df7d10ea01fc5e1c060ce867452f497ef3ffe21ef36d374758f8825bc91",
+);
 const FIELD_OBJ_ANIMATE2: usize = FIELD_OBJ_ANIMATE + 6;
 
 const MOVE_L_TO_A4: u16 = 0x297C;
@@ -46,8 +47,14 @@ pub const RENDER_FLAG_CAMERA_BYPASS: u32 = 0;
 pub const RENDER_FLAG_INTERACTABLE: u32 = 3;
 pub const INTERACTION_CHK_OBJECTS: usize = 0x058D50;
 pub const FIELD_OBJ_DO_OBJ_COLLISION: usize = 0x047DA8;
-const INTERACTION_LOOP_SIGNATURE: [u8; 6] = [0x7E, 0x33, 0x4A, 0x53, 0x67, 0x00];
-const INTERACTION_BTST_SIGNATURE: [u8; 8] = [0x08, 0x2B, 0x00, 0x03, 0x00, 0x02, 0x67, 0x00];
+const INTERACTION_LOOP_PIN: crate::rom::Pin = (
+    6,
+    "3befbe1274f26d7b410dd0016065074f6ca442462729af7f8111fa8bc61eda72",
+);
+const INTERACTION_BTST_PIN: crate::rom::Pin = (
+    8,
+    "2c2cc875ad88bc9a39971efbb57354b9b598324c484e4271fc08cc794c323a84",
+);
 
 /// What one routine sets up before it starts running.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,8 +105,7 @@ fn check_jump_table(rom: &[u8]) -> Result<(), PackError> {
             "FieldObjectsJmpTbl is longer than {FIELD_OBJECT_COUNT} entries"
         )));
     }
-    let signature = &FIELD_OBJ_ANIMATE_SIGNATURE;
-    if rom.get(FIELD_OBJ_ANIMATE..FIELD_OBJ_ANIMATE + signature.len()) != Some(signature) {
+    if !crate::rom::matches_pin(rom, FIELD_OBJ_ANIMATE, FIELD_OBJ_ANIMATE_PIN) {
         return Err(PackError(format!(
             "FieldObj_Animate at {} does not match its signature",
             hex6(FIELD_OBJ_ANIMATE)
@@ -114,18 +120,14 @@ fn check_interaction_readers(rom: &[u8]) -> Result<(), PackError> {
         ("FieldObj_DoObjCollision", FIELD_OBJ_DO_OBJ_COLLISION),
     ] {
         let head = offset + 4;
-        if rom.get(head..head + INTERACTION_LOOP_SIGNATURE.len())
-            != Some(&INTERACTION_LOOP_SIGNATURE)
-        {
+        if !crate::rom::matches_pin(rom, head, INTERACTION_LOOP_PIN) {
             return Err(PackError(format!(
                 "{label} at {} does not open its slot loop",
                 hex6(offset)
             )));
         }
         let btst = head + 8;
-        if rom.get(btst..btst + INTERACTION_BTST_SIGNATURE.len())
-            != Some(&INTERACTION_BTST_SIGNATURE)
-        {
+        if !crate::rom::matches_pin(rom, btst, INTERACTION_BTST_PIN) {
             return Err(PackError(format!(
                 "{label} at {} does not test render_flags bit {RENDER_FLAG_INTERACTABLE}",
                 hex6(offset)

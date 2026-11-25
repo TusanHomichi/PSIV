@@ -9,11 +9,12 @@
 
 use std::collections::BTreeMap;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 /// One sprite-sheet index file (`sprites/party.json` or `sprites/npcs.json`).
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct SheetFile {
     /// Pack format; checked against [`crate::PACK_FORMAT_VERSION`].
     pub format_version: u32,
@@ -32,11 +33,12 @@ pub struct SheetFile {
     /// What the pack carries and the game doesn't read (`field_objects`,
     /// `palette_source`): it has no typed home yet.
     #[serde(flatten)]
+    #[schemars(skip)]
     pub research: Map<String, Value>,
 }
 
 /// One CRAM-line-3 vehicle palette used by one or more maps.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct VehiclePaletteVariant {
     /// Map ids whose vehicle sprites use this palette.
@@ -50,7 +52,7 @@ pub struct VehiclePaletteVariant {
 }
 
 /// One frame-strip sheet.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct Sheet {
     /// Sheet id: a party member's name, or an NPC art id like
     /// `NPCType2_a2bfdc9c` (symbol + content hash).
@@ -69,14 +71,36 @@ pub struct Sheet {
     pub origin_y: i32,
     /// Named animation sequences (`idle_down`, `walk_left`, ...).
     pub sequences: BTreeMap<String, Sequence>,
-    /// What the pack carries and the game doesn't read (the palette, mirrors,
+    /// Palette metadata (`cram_line` feeds the runtime palette choice).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub palette: Option<SheetPalette>,
+    /// What the pack carries and the game doesn't read (mirrors,
     /// art provenance, placements): it has no typed home yet.
     #[serde(flatten)]
+    #[schemars(skip)]
     pub research: Map<String, Value>,
 }
 
+/// Palette metadata for one frame-strip sheet.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
+pub struct SheetPalette {
+    /// CRAM line (`0..=3`, from the object's `$13` palette byte).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(max = 3))]
+    pub cram_line: Option<u8>,
+    /// Extracted RGB colour entries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub colors: Option<Vec<[u8; 3]>>,
+    /// Palette provenance source description.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    /// Transparent palette index.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transparent_index: Option<u8>,
+}
+
 /// One animation sequence.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Sequence {
     /// Frames in play order.
@@ -90,7 +114,7 @@ pub struct Sequence {
 }
 
 /// One step of a sequence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SequenceFrame {
     /// Frame index into the strip.
@@ -105,8 +129,7 @@ impl Sheet {
     /// object's `$13` palette byte), when the pack records one.
     #[must_use]
     pub fn cram_line(&self) -> Option<u8> {
-        let line = self.research.get("palette")?.get("cram_line")?.as_u64()?;
-        u8::try_from(line).ok().filter(|line| *line < 4)
+        self.palette.as_ref()?.cram_line.filter(|line| *line < 4)
     }
 
     /// The named sequence, if the sheet defines it.
@@ -130,7 +153,7 @@ mod tests {
             "sequence_offset":"0x000001"}}}]}"#;
         let file: SheetFile = serde_json::from_str(text).unwrap();
         assert!(file.research.contains_key("field_objects"));
-        assert!(file.sheets[0].research.contains_key("palette"));
+        assert!(file.sheets[0].research.contains_key("mirrors"));
         assert_eq!(file.sheets[0].cram_line(), Some(2));
         let back = serde_json::to_value(&file).unwrap();
         assert_eq!(back, serde_json::from_str::<Value>(text).unwrap());

@@ -1,0 +1,174 @@
+{
+  "$defs": {
+    "Slot": {
+      "additionalProperties": false,
+      "description": "One party slot.",
+      "properties": {
+        "empty": {
+          "description": "Whether the slot is empty.",
+          "type": "boolean"
+        },
+        "id": {
+          "description": "The character id, when it isn't.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "empty"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/game_start.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "format_version": {
+      "const": 2,
+      "description": "The pack format version.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "kind": {
+      "description": "`game_start`.",
+      "type": "string"
+    },
+    "new_game_init": {
+      "additionalProperties": false,
+      "description": "What `loc_44414` writes.",
+      "properties": {
+        "flags": {
+          "additionalProperties": false,
+          "description": "The flag banks.",
+          "properties": {
+            "extended_event_flags": {
+              "additionalProperties": false,
+              "description": "The extended event flags.",
+              "properties": {
+                "set": {
+                  "description": "Set flags, as `0x` hex.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            },
+            "town_flags": {
+              "additionalProperties": false,
+              "description": "The town flags.",
+              "properties": {
+                "set": {
+                  "description": "Set flags, as `0x` hex.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "money": {
+          "description": "Initial meseta.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "party_slots": {
+          "description": "The six party slots.",
+          "items": {
+            "$ref": "#/$defs/Slot"
+          },
+          "maxItems": 6,
+          "minItems": 6,
+          "type": "array"
+        },
+        "settings": {
+          "additionalProperties": false,
+          "description": "The settings.",
+          "properties": {
+            "battle_speed": {
+              "description": "Battle speed.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "message_speed": {
+              "description": "Text speed.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "world_index": {
+              "description": "Planet selector.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "title_handoff": {
+      "additionalProperties": false,
+      "description": "What the title screen leaves behind.",
+      "properties": {
+        "event_index": {
+          "additionalProperties": false,
+          "description": "The event START dispatches.",
+          "properties": {
+            "value": {
+              "description": "The index.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "scene_map": {
+          "additionalProperties": false,
+          "description": "The map the opening scene plays on.",
+          "properties": {
+            "id": {
+              "description": "Map id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "symbol": {
+              "default": null,
+              "description": "The `MapID_*` symbol.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (game_start.json)",
+  "type": "object"
+}

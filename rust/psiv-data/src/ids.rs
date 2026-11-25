@@ -1,6 +1,8 @@
 //! Identifier newtypes: map ids and the ROM hash the pack was built from.
 
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::borrow::Cow;
 use std::fmt;
 
 /// A field-map id: an index into `FieldMapPtrs`, which the ROM addresses with
@@ -8,7 +10,7 @@ use std::fmt;
 ///
 /// Displayed the way the disassembly and the extractor both write it -- `0x010`
 /// -- so an error message can be pasted straight into a symbol search.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
 pub struct MapId(pub u16);
 
@@ -86,6 +88,22 @@ impl<'de> Deserialize<'de> for RomHash {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let text = String::deserialize(deserializer)?;
         RomHash::parse(&text).map_err(serde::de::Error::custom)
+    }
+}
+
+impl JsonSchema for RomHash {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("RomHash")
+    }
+
+    fn json_schema(_generator: &mut SchemaGenerator) -> Schema {
+        json_schema!({
+            "type": "string",
+            "minLength": 64,
+            "maxLength": 64,
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "description": "SHA-256 digest as 64 hexadecimal characters."
+        })
     }
 }
 

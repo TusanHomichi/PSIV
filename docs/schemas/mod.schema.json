@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Schema for `<mod-dir>/mod.json`, generated directly from `psiv_data::mods::ModManifest`.",
+  "properties": {
+    "author": {
+      "description": "Optional author attribution.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "description": {
+      "description": "Optional short summary of what the mod changes.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "enabled": {
+      "default": true,
+      "description": "Whether directory discovery loads this mod automatically.",
+      "type": "boolean"
+    },
+    "format_version": {
+      "default": 1,
+      "description": "Mod manifest format version; checked against [`MOD_FORMAT_COMPATIBILITY`].",
+      "format": "uint32",
+      "maximum": 1,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "id": {
+      "description": "Stable slug (`[a-z0-9_-]`), used for load ordering and error reporting.",
+      "maxLength": 64,
+      "minLength": 1,
+      "not": {
+        "enum": [
+          "con",
+          "prn",
+          "aux",
+          "nul",
+          "com1",
+          "com2",
+          "com3",
+          "com4",
+          "com5",
+          "com6",
+          "com7",
+          "com8",
+          "com9",
+          "lpt1",
+          "lpt2",
+          "lpt3",
+          "lpt4",
+          "lpt5",
+          "lpt6",
+          "lpt7",
+          "lpt8",
+          "lpt9"
+        ]
+      },
+      "pattern": "^[a-z0-9_-]+$",
+      "type": "string"
+    },
+    "name": {
+      "description": "Human-readable display name.",
+      "minLength": 1,
+      "pattern": "\\S",
+      "type": "string"
+    },
+    "order": {
+      "default": 100,
+      "description": "Sort key relative to other mods (lower loads earlier; ties break by `id`).",
+      "format": "int32",
+      "type": "integer"
+    },
+    "pack_format_version": {
+      "default": 2,
+      "description": "Target runtime pack format version; checked against [`PACK_FORMAT_COMPATIBILITY`].",
+      "format": "uint32",
+      "maximum": 2,
+      "minimum": 2,
+      "type": "integer"
+    },
+    "version": {
+      "description": "Mod version string (for display and sharing).",
+      "minLength": 1,
+      "pattern": "\\S",
+      "type": "string"
+    }
+  },
+  "required": [
+    "format_version",
+    "id",
+    "name",
+    "version"
+  ],
+  "title": "PSIV Mod Manifest (mod.json)",
+  "type": "object"
+}

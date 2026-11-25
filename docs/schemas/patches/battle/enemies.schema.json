@@ -1,0 +1,269 @@
+{
+  "$defs": {
+    "EnemyPatch": {
+      "additionalProperties": false,
+      "description": "One 48-byte `EnemyData` record.",
+      "properties": {
+        "ai": {
+          "additionalProperties": false,
+          "description": "The AI's ability lists.",
+          "properties": {
+            "condition_ids": {
+              "description": "Four condition ids, `0` terminating.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "conditional_ability_ids": {
+              "description": "The ability each condition substitutes when it fires.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "regular_ability_ids": {
+              "description": "The eight the per-turn roll picks between.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "attack": {
+          "additionalProperties": false,
+          "description": "What a plain attack from this enemy carries and inflicts.",
+          "properties": {
+            "element": {
+              "additionalProperties": false,
+              "description": "What element a plain attack carries.",
+              "properties": {
+                "id": {
+                  "description": "The raw id.",
+                  "format": "uint16",
+                  "maximum": 65535,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "name": {
+                  "default": null,
+                  "description": "What it is called, when it is called anything.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object"
+            },
+            "status_effect": {
+              "additionalProperties": false,
+              "description": "What status it inflicts, `0` for none.",
+              "properties": {
+                "id": {
+                  "description": "The raw id.",
+                  "format": "uint16",
+                  "maximum": 65535,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "name": {
+                  "default": null,
+                  "description": "What it is called, when it is called anything.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "display_name": {
+          "default": null,
+          "description": "The cartridge's own name, when it has one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hp": {
+          "description": "Starting and maximum HP.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "description": "Index into `EnemyData`.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "properties": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "description": "One element resistance.",
+            "properties": {
+              "value": {
+                "description": "The raw byte, 0..=4.",
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "description": "Resistance to each element, keyed by slot name. Values are 0 (immune)\nthrough 4 (very weak); the damage pipeline multiplies by this and\ndivides by four.",
+          "type": "object"
+        },
+        "rewards": {
+          "additionalProperties": false,
+          "description": "What it leaves behind.",
+          "properties": {
+            "experience": {
+              "description": "Added to `$FFFF41CE`.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "meseta": {
+              "description": "Added to `$FFFF41D0`.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "stats": {
+          "additionalProperties": false,
+          "description": "The seven combat stats.",
+          "properties": {
+            "agility": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "attack": {
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "defense": {
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "dexterity": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "magic_defense": {
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "mental": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "strength": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "symbol": {
+          "description": "The disassembly's identifier, which disambiguates duplicate display\nnames.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/battle/enemies.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "count": {
+      "description": "How many records the file declares.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "enemies": {
+      "description": "The records, in id order.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/EnemyPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/EnemyPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "format_version": {
+      "const": 2,
+      "description": "The pack format that wrote this.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "properties": {
+      "default": [],
+      "description": "Census of element-property names (alphabetical in extracted packs).\nThis list is not the cartridge's element-id order.",
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (battle/enemies.json)",
+  "type": "object"
+}

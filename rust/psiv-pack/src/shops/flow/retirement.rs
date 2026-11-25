@@ -112,14 +112,16 @@ fn retail_signatures_have_their_declared_counts_and_damage_fails_closed() {
         (REST_EVENT, "RestEvent"),
     ] {
         let found = sites(data, pin, label).unwrap();
-        assert_eq!(found.len(), pin.1, "{label}");
-        let mut broken = data.to_vec();
-        broken[found[0]] ^= 0xff;
-        let error = match read_flow(&Rom::for_tests(broken)) {
-            Err(error) => error,
-            Ok(_) => panic!("lost {label} signature was accepted"),
-        };
-        assert!(error.0.contains(label), "{label}: {error}");
+        assert_eq!(found, pin.0, "{label}");
+        for &at in &found {
+            let mut broken = data.to_vec();
+            broken[at] ^= 0xff;
+            let error = match read_flow(&Rom::for_tests(broken)) {
+                Err(error) => error,
+                Ok(_) => panic!("mutated {label} pin at 0x{at:06X} was accepted"),
+            };
+            assert!(error.0.contains(label), "{label}: {error}");
+        }
     }
     let scan = site(data, COUNTER_SCAN, "CounterScan").unwrap();
     let sell = site(data, SELL_PRICE, "SellPrice").unwrap();

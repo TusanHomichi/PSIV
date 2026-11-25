@@ -34,6 +34,7 @@
 use crate::error::DataError;
 use crate::manifest::PACK_FORMAT_VERSION;
 use crate::mods::PackOverlay;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -389,14 +390,14 @@ versioned!(
 // ---------------------------------------------------------------------------
 
 /// One element resistance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Property {
     /// The raw byte, 0..=4.
     pub value: u8,
 }
 
 /// An id with the extractor's name beside it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct NamedId {
     /// The raw id.
     pub id: u16,

@@ -24,9 +24,8 @@ use sha2::{Digest as _, Sha256};
 
 use crate::png::hex;
 use crate::sound_defs::{
-    ANCHORS, COMMAND_SPECS, CommandSpec, EXPECTED_SHORT_BYTES, KNOWN_REGIONS, META_PAN_ANIM,
-    META_PAN_ANIM_LENGTH, META_PAN_ANIM_PAYLOAD, META_PAN_ANIM_TYPE, MUSIC_NAMES, SFX_NAMES,
-    SPECIAL_NAMES,
+    ANCHORS, COMMAND_SPECS, CommandSpec, KNOWN_REGIONS, META_PAN_ANIM, META_PAN_ANIM_LENGTH,
+    META_PAN_ANIM_PAYLOAD, META_PAN_ANIM_TYPE, MUSIC_NAMES, SFX_NAMES, SPECIAL_NAMES,
 };
 use crate::{PackError, Rom};
 
@@ -116,15 +115,6 @@ fn range<'a>(data: &'a [u8], start: usize, end: usize, label: &str) -> Result<&'
     Ok(&data[start..end])
 }
 
-/// `bytes.fromhex`: pairs of hex digits, spaces between them ignored.
-fn from_hex(text: &str) -> Vec<u8> {
-    let digits: Vec<u8> = text.bytes().filter(|b| *b != b' ').collect();
-    digits
-        .chunks(2)
-        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-        .collect()
-}
-
 fn hex_list(values: impl IntoIterator<Item = u8>) -> Vec<String> {
     values.into_iter().map(|v| hx(usize::from(v), 2)).collect()
 }
@@ -138,14 +128,12 @@ fn counts(counts: &BTreeMap<u8, u32>) -> BTreeMap<String, u32> {
 
 /// The ROM hash is [`Rom`]'s check; these pin the driver itself.
 fn verify_provenance(rom: &[u8]) -> Result<(), PackError> {
-    for (offset, expected) in ANCHORS {
-        let expected = from_hex(expected);
-        let actual = range(rom, *offset, offset + expected.len(), "anchor")?;
-        if actual != expected.as_slice() {
+    for &(offset, length, expected_sha) in ANCHORS {
+        let actual = range(rom, offset, offset + length, "anchor")?;
+        if sha(actual) != expected_sha {
             return Err(error(format!(
-                "sound provenance anchor mismatch at {}: expected {}, got {}",
-                rom_offset(*offset),
-                hex(&expected),
+                "sound provenance anchor mismatch at {}: got {}",
+                rom_offset(offset),
                 hex(actual)
             )));
         }
@@ -157,14 +145,6 @@ fn verify_provenance(rom: &[u8]) -> Result<(), PackError> {
                 "sound region {label} ({name}) changed at {}:{}",
                 rom_offset(*start),
                 rom_offset(*end)
-            )));
-        }
-        let short = EXPECTED_SHORT_BYTES.iter().find(|(n, _)| n == name);
-        if let Some((_, bytes)) = short
-            && actual != from_hex(bytes).as_slice()
-        {
-            return Err(error(format!(
-                "sound constant {label} bytes do not match the disassembly"
             )));
         }
     }

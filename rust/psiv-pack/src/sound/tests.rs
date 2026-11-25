@@ -112,7 +112,7 @@ fn a_voice_table_pads_with_zeros_and_covers_every_used_voice() {
 fn another_image_fails_the_first_anchor() {
     let error = verify_provenance(&vec![0; 0x100000]).unwrap_err().0;
     assert!(
-        error.starts_with("sound provenance anchor mismatch at 0x0D0008: expected "),
+        error.starts_with("sound provenance anchor mismatch at 0x0D0008: got "),
         "{error}"
     );
 }

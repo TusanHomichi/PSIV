@@ -1,0 +1,639 @@
+{
+  "$defs": {
+    "EnemyAnimationPatch": {
+      "additionalProperties": false,
+      "description": "One enemy's selected attack routine and the presentation facts it proves.",
+      "properties": {
+        "composition": {
+          "additionalProperties": false,
+          "default": {
+            "reason": "field absent from an older animation pack",
+            "status": "deferred"
+          },
+          "description": "Mapping-to-art composition evidence from the wave-1 enemy banks.",
+          "properties": {
+            "reason": {
+              "description": "Retail/provenance reason for the status.",
+              "type": "string"
+            },
+            "status": {
+              "description": "`exact`, `partial`, or `deferred`.",
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "dispatch": {
+          "additionalProperties": false,
+          "description": "The selected dispatch write.",
+          "properties": {
+            "kind": {
+              "description": "Dispatch kind.",
+              "type": "string"
+            },
+            "object_id": {
+              "description": "Object that owns the write, or `null` for a routine-level write.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "rom_offset": {
+              "description": "ROM address of the write.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "display_name": {
+          "description": "Cartridge display name, when decoded.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enemy_id": {
+          "description": "Enemy record id.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "flash_timing_proven": {
+          "description": "Fixed-frame timing is available for the presentation flash beat.",
+          "type": "boolean"
+        },
+        "frame_sequence": {
+          "additionalProperties": false,
+          "description": "One fixed mapping sequence consumed by retail's `loc_256AE` helper.",
+          "properties": {
+            "assignment_offset": {
+              "description": "ROM address of the assignment instruction.",
+              "type": "string"
+            },
+            "frame_count": {
+              "description": "Number of mapping pointers.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "frame_duration": {
+              "description": "Number of ticks the first mapping pointer remains active.  Variable\nand selector records retain the complete duration vector below.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "frame_durations": {
+              "default": [],
+              "description": "Exact duration for every mapping/selector frame.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "frame_timer_helper": {
+              "description": "The helper that consumes this timing, when proven.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "mapping_offset": {
+              "description": "ROM address of the `[duration, frame_count, pointers...]` record.",
+              "type": "string"
+            },
+            "mapping_pointers": {
+              "description": "Retail mapping record pointers, or stable `oracle:` frame identifiers\nfor a receipt-backed observed sprite-table clock.",
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": "array"
+            },
+            "object_id": {
+              "description": "Object whose `$8(a4)` mapping pointer is assigned.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "timing_model": {
+              "default": "",
+              "description": "`fixed`, `variable`, `selector`, or `observed`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "total_frames": {
+              "description": "Sum of the per-frame durations.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "movement": {
+          "additionalProperties": false,
+          "default": {
+            "reason": "field absent from an older animation pack",
+            "status": "deferred"
+          },
+          "description": "Normalized movement evidence from the selected object graph.",
+          "properties": {
+            "reason": {
+              "description": "Retail/provenance reason for the status.",
+              "type": "string"
+            },
+            "status": {
+              "description": "`exact`, `partial`, or `deferred`.",
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "movement_proven": {
+          "description": "Kept as a compact boolean for older callers and the runtime sidecar.",
+          "type": "boolean"
+        },
+        "object_ids": {
+          "description": "Recursively reachable object ids, in deterministic discovery order.",
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "root_object_ids": {
+          "description": "Object ids created directly by the attack routine.",
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "routine_offset": {
+          "description": "Resolved `EnemyAttackOffs` target.",
+          "type": "string"
+        },
+        "sfx_id": {
+          "description": "First direct retail `Sound_Index` id in the reachable animation graph.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sfx_name": {
+          "description": "Name of `sfx_id` in the extracted sound vocabulary.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sfx_writes": {
+          "description": "Every direct and object-local sound write retained for provenance.",
+          "items": {
+            "$ref": "#/$defs/EnemyAnimationSfxWrite"
+          },
+          "type": "array"
+        },
+        "sprite_sheet_proven": {
+          "description": "The selected mapping records are safe to render as attack frames.",
+          "type": "boolean"
+        },
+        "symbol": {
+          "description": "Disassembly symbol from the stable enemy vocabulary.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "EnemyAnimationSfxWrite": {
+      "additionalProperties": false,
+      "description": "One direct or object-local retail sound write.",
+      "properties": {
+        "dispatch": {
+          "description": "`Sound_Index` or the delayed object-local sound byte.",
+          "type": "string"
+        },
+        "object_id": {
+          "description": "Battle object id, or `null` when the attack routine writes directly.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rom_offset": {
+          "description": "ROM address of the write.",
+          "type": "string"
+        },
+        "sound_id": {
+          "description": "Raw retail sound id.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sound_name": {
+          "description": "Symbolic name when the sound table names this id.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "rom_offset",
+        "dispatch",
+        "sound_id"
+      ],
+      "type": "object"
+    },
+    "EnemyAnimationTableSource": {
+      "additionalProperties": false,
+      "description": "One retail pointer table included in the animation extraction.",
+      "properties": {
+        "entry_bytes": {
+          "description": "Bytes per entry.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "entry_count": {
+          "description": "Number of entries.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "grand_cross": {
+          "description": "Must be zero for every table in the pack.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Table label.",
+          "type": "string"
+        },
+        "rom_offset": {
+          "description": "First ROM byte.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "rom_offset",
+        "entry_count",
+        "entry_bytes",
+        "grand_cross"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/battle/enemy_animations.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "animations": {
+      "description": "One record per enemy.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/EnemyAnimationPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `enemy_id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `enemy_id`.",
+          "items": {
+            "$ref": "#/$defs/EnemyAnimationPatch",
+            "required": [
+              "enemy_id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "census": {
+      "additionalProperties": false,
+      "description": "Extraction census.",
+      "properties": {
+        "attack_plc_distinct_records": {
+          "default": 0,
+          "description": "Distinct PLC table records decoded from those calls.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "attack_plc_loads": {
+          "default": 0,
+          "description": "Proven `LoadPLC1` call records retained in the pack.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "deferred_routine_bodies": {
+          "default": 0,
+          "description": "Distinct routine bodies represented by deferred enemy records.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "deferred_routine_classifications": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "default": {},
+          "description": "Routine classes among enemies without a decoded mapping sequence.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "distinct_attack_routines": {
+          "description": "Distinct `EnemyAttackOffs` routine targets.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enemy_count": {
+          "description": "Enemy records covered.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "exact_sfx": {
+          "description": "Enemies with an exact direct `Sound_Index` write.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "flash_timing": {
+          "description": "Enemy roots with proven fixed-frame timing.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frame_sequence_deferred": {
+          "description": "Enemy roots whose mapping/sprite answer remains deferred.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frame_sequence_records": {
+          "description": "Enemy roots with a decoded mapping sequence in the object graph.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "generic_sfx": {
+          "description": "Enemies without an exact per-enemy sound binding.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "movement_deferred": {
+          "description": "Enemy roots whose movement is not represented by the current Godot body.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "movement_exact": {
+          "default": 0,
+          "description": "Enemy roots whose movement writes are fully normalized for playback.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "movement_partial": {
+          "default": 0,
+          "description": "Enemy roots with movement writes that remain only partially modeled.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "movement_status_deferred": {
+          "default": 0,
+          "description": "Enemy roots with no movement clock that can be attached to a frame.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "object_classifications": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "default": {},
+          "description": "Object-graph classifications, including repeated shared objects.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "routine_classifications": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "default": {},
+          "description": "Per-enemy routine classes selected by the structural decoder.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "sprite_sheet_deferred": {
+          "description": "Enemy roots whose retail sprite-sheet composition is not yet decoded.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sprite_sheet_exact": {
+          "default": 0,
+          "description": "Enemy roots whose selected mapping records compose exactly.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "sprite_sheet_partial": {
+          "default": 0,
+          "description": "Enemy roots with some mapping records but unresolved composition.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "sprite_sheet_status_deferred": {
+          "default": 0,
+          "description": "Enemy roots whose mapping records are not renderable yet.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "timed_frame_sequences": {
+          "description": "Enemy roots with a positive-duration mapping consumed by a retail frame helper.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "count": {
+      "description": "Record count declared by the extractor.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "format_version": {
+      "const": 2,
+      "description": "Pack format version.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "source": {
+      "additionalProperties": false,
+      "description": "Retail provenance.",
+      "properties": {
+        "grand_cross": {
+          "description": "Must be zero: the pack is retail, not the Grand Cross build.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "label": {
+          "description": "Retail table label.",
+          "type": "string"
+        },
+        "record_bytes": {
+          "description": "Bytes per attack pointer entry.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "record_count": {
+          "description": "Number of enemy attack records.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reference_clone": {
+          "description": "The reference source's build setting, retained to make the trap visible.",
+          "type": "string"
+        },
+        "reference_grand_cross": {
+          "description": "The reference source is known to be Grand Cross.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reference_role": {
+          "description": "Why the reference source cannot be byte authority.",
+          "type": "string"
+        },
+        "rom_offset": {
+          "description": "First byte of `EnemyAttackOffs`.",
+          "type": "string"
+        },
+        "rom_sha256": {
+          "description": "Verified ROM SHA-256.",
+          "type": "string"
+        },
+        "rom_size": {
+          "description": "Verified ROM size.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "table_end": {
+          "description": "Exclusive end of the attack pointer table.",
+          "type": "string"
+        },
+        "tables": {
+          "description": "All pointer tables whose bytes were transcribed into this file.",
+          "items": {
+            "$ref": "#/$defs/EnemyAnimationTableSource"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (battle/enemy_animations.json)",
+  "type": "object"
+}

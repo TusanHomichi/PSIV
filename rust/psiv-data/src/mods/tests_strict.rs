@@ -1,8 +1,8 @@
 use super::*;
 use crate::GameData;
-use patch::{FilePattern, KEYED_ARRAYS, array_key_field};
 use serde_json::json;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use tables::{FilePattern, KEYED_ARRAYS, array_key_field};
 
 static STRICT_NEXT_ID: AtomicUsize = AtomicUsize::new(1);
 
@@ -18,6 +18,12 @@ fn temp_dir(label: &str) -> PathBuf {
 }
 
 fn real_pack() -> Option<PathBuf> {
+    if let Some(env_pack) = std::env::var_os("PSIV_RUNTIME_PACK") {
+        let pack = PathBuf::from(env_pack);
+        if pack.join("manifest.json").is_file() {
+            return Some(pack);
+        }
+    }
     let pack = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
     pack.join("manifest.json").is_file().then_some(pack)
 }
@@ -183,9 +189,36 @@ fn apply_json_patch_fails_closed_on_unknown_fields_and_supports_allowed_optional
     assert_eq!(map["treasure_chests"][0]["item_id"], json!(42));
 }
 
+fn wrap_keyed_fixture(
+    sample_file: &str,
+    path: &[&str],
+    mut base: serde_json::Value,
+    mut patch_val: serde_json::Value,
+) -> (serde_json::Value, serde_json::Value) {
+    let mut idx = path.len();
+    while idx > 0 {
+        idx -= 1;
+        if path[idx] == "*" {
+            let parent_key = array_key_field(sample_file, &path[..idx])
+                .expect("wildcard parent must itself be a keyed array");
+            base = match base {
+                serde_json::Value::Object(mut map) => {
+                    map.insert(parent_key.to_owned(), json!(7));
+                    serde_json::Value::Array(vec![serde_json::Value::Object(map)])
+                }
+                _ => unreachable!("wildcard segment always follows a field"),
+            };
+            patch_val = json!({"7": patch_val});
+        } else {
+            base = json!({ path[idx]: base });
+            patch_val = json!({ path[idx]: patch_val });
+        }
+    }
+    (base, patch_val)
+}
+
 #[test]
 fn keyed_arrays_match_fixture_schemas_and_round_trip() {
-    // Every entry in KEYED_ARRAYS must resolve via array_key_field and round-trip sparse patches.
     for spec in KEYED_ARRAYS {
         let sample_file = match spec.file {
             FilePattern::Exact(file) => file.to_owned(),
@@ -198,31 +231,12 @@ fn keyed_arrays_match_fixture_schemas_and_round_trip() {
             spec.path
         );
 
-        let mut base = json!([
+        let leaf_base = json!([
             { spec.key_field: 1, "value": 10 },
             { spec.key_field: 2, "value": 20 }
         ]);
-        let mut patch_val = json!({"1": {"value": 99}});
-        for seg in spec.path.iter().rev() {
-            if *seg == "*" {
-                let star_idx = spec.path.iter().position(|s| *s == "*").unwrap();
-                let parent_path = &spec.path[..star_idx];
-                let parent_key = array_key_field(&sample_file, parent_path)
-                    .expect("wildcard parent must itself be a keyed array");
-                let after_star = spec.path[star_idx + 1];
-                let mut child_obj = serde_json::Map::new();
-                child_obj.insert(parent_key.to_owned(), json!(7));
-                child_obj.insert(after_star.to_owned(), base);
-                base = serde_json::Value::Array(vec![serde_json::Value::Object(child_obj)]);
-                patch_val = json!({"7": { after_star: patch_val }});
-            } else {
-                if spec.path.contains(&"*") && *seg == spec.path[spec.path.len() - 1] {
-                    continue;
-                }
-                base = json!({ *seg: base });
-                patch_val = json!({ *seg: patch_val });
-            }
-        }
+        let leaf_patch = json!({"1": {"value": 99}});
+        let (base, patch_val) = wrap_keyed_fixture(&sample_file, spec.path, leaf_base, leaf_patch);
 
         let mut applied = base.clone();
         apply_json_patch(&mut applied, &patch_val, &sample_file)
@@ -233,70 +247,36 @@ fn keyed_arrays_match_fixture_schemas_and_round_trip() {
         assert_eq!(round_trip, patch_val, "{sample_file} {:?}", spec.path);
     }
 
-    // Verify MapRecord's actual serialized field names include all five map keyed arrays
-    // (guards against struct field renames even in ROM-free CI runs).
-    let sample_map = crate::MapRecord {
-        format_version: PACK_FORMAT_VERSION,
-        id: crate::MapId(0x010),
-        symbol: Some("Piata".into()),
-        png: "maps/010_Piata.png".into(),
+    // Verify MapRecord's serialized field names match every map KEYED_ARRAYS spec.
+    let mut sample_map =
+        serde_json::from_value::<crate::MapRecord>(minimal_valid_map_json()).unwrap();
+    sample_map.map_updates = Some(Vec::new());
+    sample_map.patch_tiles = Some(crate::PatchTiles {
+        png: "maps/010_patch.png".into(),
         png_over: None,
-        dimensions: crate::Dimensions {
-            width_cells: 2,
-            height_cells: 2,
-            width_chunks: 1,
-            height_chunks: 1,
-            width_pixels: 32,
-            height_pixels: 32,
-            cell_pixels: 16,
-        },
-        collision: crate::Collision {
-            plane: crate::Plane::Fg,
-            plane_byte: 0,
-            grid: crate::CollisionGrid::new(2, 2, vec![crate::CollisionType::Normal; 4]).unwrap(),
-        },
-        scroll: crate::MapScroll::default(),
-        music: crate::Music {
-            id: 0,
-            symbol: None,
-            changes_music: false,
-        },
-        flags: crate::Flags {
-            poison: 0,
-            random_battles: 0,
-            town_teleport: 0,
-            dungeon_teleport_index: None,
-        },
-        dialogue_tree: 1,
-        events: vec![0],
-        warps: Vec::new(),
-        interaction_areas: Vec::new(),
-        npcs: Vec::new(),
-        treasure_chests: Vec::new(),
-        map_effects: Vec::new(),
-        map_updates: Some(Vec::new()),
-        map_update_palette: None,
-        map_update_images: BTreeMap::new(),
-        art_cycle_images: BTreeMap::new(),
-        layout_variants: Vec::new(),
-        vehicle_battle: None,
-        patch_tiles: None,
-        layout_patches: Vec::new(),
-        overworld_patches: None,
-        chunk_def_copies: Vec::new(),
-    };
+        tile_pixels: 32,
+        count: 0,
+        tiles: Vec::new(),
+    });
+    sample_map.overworld_patches = Some(Vec::new());
     let map_val = serde_json::to_value(&sample_map).unwrap();
     for spec in KEYED_ARRAYS
         .iter()
         .filter(|s| s.file.matches("maps/010_Piata.json"))
     {
-        let field = spec.path[0];
+        let mut cursor = &map_val;
+        for seg in spec.path {
+            cursor = cursor.get(*seg).unwrap_or_else(|| {
+                panic!(
+                    "MapRecord JSON must carry field `{seg}` for {:?}",
+                    spec.path
+                )
+            });
+        }
         assert!(
-            map_val
-                .get(field)
-                .and_then(serde_json::Value::as_array)
-                .is_some(),
-            "MapRecord JSON must carry array field `{field}`"
+            cursor.as_array().is_some(),
+            "MapRecord JSON must carry array at {:?}",
+            spec.path
         );
     }
 }
@@ -320,6 +300,9 @@ fn keyed_arrays_match_real_runtime_pack() {
         out: &mut Vec<&'a [serde_json::Value]>,
     ) -> Result<(), String> {
         let Some((head, tail)) = path.split_first() else {
+            if value.is_null() {
+                return Ok(());
+            }
             let arr = value
                 .as_array()
                 .ok_or_else(|| "expected JSON array at keyed path".to_owned())?;
@@ -335,10 +318,12 @@ fn keyed_arrays_match_real_runtime_pack() {
             }
             return Ok(());
         }
-        let next = value
-            .as_object()
-            .and_then(|obj| obj.get(*head))
-            .ok_or_else(|| format!("missing field `{head}`"))?;
+        let Some(next) = value.as_object().and_then(|obj| obj.get(*head)) else {
+            return Ok(());
+        };
+        if next.is_null() {
+            return Ok(());
+        }
         walk_arrays(next, tail, out)
     }
 

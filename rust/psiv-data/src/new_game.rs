@@ -1,5 +1,6 @@
 //! The title initializer, distinct from the manifest's post-opening spawn.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::DataError;
@@ -30,7 +31,7 @@ pub struct NewGame {
 }
 
 /// `game_start.json`, the record the pack builder writes and [`NewGame::load`] reads.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct File {
     /// The pack format version.
     pub format_version: u32,
@@ -43,7 +44,7 @@ pub struct File {
 }
 
 /// `new_game_init`: what `loc_44414` writes.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Init {
     /// Initial meseta.
     pub money: u32,
@@ -56,7 +57,7 @@ pub struct Init {
 }
 
 /// One party slot.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Slot {
     /// Whether the slot is empty.
     pub empty: bool,
@@ -65,7 +66,7 @@ pub struct Slot {
 }
 
 /// The flag banks a new game starts with.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Flags {
     /// The extended event flags.
     pub extended_event_flags: FlagList,
@@ -74,14 +75,14 @@ pub struct Flags {
 }
 
 /// One bank's set flags, as `0x` hex.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct FlagList {
     /// Set flags, as `0x` hex.
     pub set: Vec<String>,
 }
 
 /// The settings a new game starts with.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Settings {
     /// Text speed.
     pub message_speed: u16,
@@ -92,7 +93,7 @@ pub struct Settings {
 }
 
 /// `title_handoff`: what the title screen leaves when START is chosen.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Handoff {
     /// The map the opening scene plays on.
     pub scene_map: crate::GameStartMap,
@@ -101,7 +102,7 @@ pub struct Handoff {
 }
 
 /// An event index.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Event {
     /// The index.
     pub value: u16,

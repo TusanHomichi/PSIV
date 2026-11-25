@@ -100,11 +100,13 @@ const ART_SYMBOLS: [&str; COUNT] = [
     "DarkForce1",
 ];
 
-/// `Battle_SetupBackground`, and its `Event_Battle_Index` test.
+/// `Battle_SetupBackground`, and its `Event_Battle_Index` test, pinned by
+/// length and SHA-256 (#461).
 const SETUP: usize = 0x006BFC;
-const SETUP_SIGNATURE: [u8; 12] = [
-    0x70, 0x00, 0x10, 0x39, 0x00, 0xff, 0xec, 0xfc, 0x6b, 0x0a, 0x41, 0xfa,
-];
+const SETUP_PIN: crate::rom::Pin = (
+    12,
+    "36532da7ab0f62e18eb591b3e0c02810ae588bedbc986c357c989d6c8e0d1ad8",
+);
 const EVENT_INDEXES: usize = 0x006C8C;
 const EVENT_COUNT: usize = 27;
 const FIELD_INDEXES: usize = 0x006CA8;
@@ -137,7 +139,7 @@ type Selection = (Json, Vec<u8>, Vec<u8>, Vec<u8>);
 
 /// `background_selection`: the three tables, checked at both ends.
 fn selection(rom: &[u8]) -> Result<Selection, PackError> {
-    if slice(rom, SETUP, SETUP_SIGNATURE.len())? != SETUP_SIGNATURE {
+    if !crate::rom::matches_pin(rom, SETUP, SETUP_PIN) {
         return refuse(format!(
             "Battle_SetupBackground at {} does not start with its Event_Battle_Index test",
             hex6(SETUP)

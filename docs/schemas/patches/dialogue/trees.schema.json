@@ -1,0 +1,1100 @@
+{
+  "$defs": {
+    "ActionKind": {
+      "description": "What a `$F2` action does, by `TextActionsOffs` index.",
+      "oneOf": [
+        {
+          "const": "load_panel",
+          "description": "0: load cutscene panel `panel`.",
+          "type": "string"
+        },
+        {
+          "const": "destroy_last_panel",
+          "description": "1: destroy the most recent panel.",
+          "type": "string"
+        },
+        {
+          "const": "destroy_all_panels",
+          "description": "2: destroy every panel.",
+          "type": "string"
+        },
+        {
+          "const": "load_sound",
+          "description": "3: play sound `sound`.",
+          "type": "string"
+        },
+        {
+          "const": "load_sound_2",
+          "description": "4: the second sound entry point.",
+          "type": "string"
+        },
+        {
+          "const": "update_palette",
+          "description": "6: reload the palette.",
+          "type": "string"
+        },
+        {
+          "const": "zio_eyes_red",
+          "description": "7: Zio's eyes turn red.",
+          "type": "string"
+        },
+        {
+          "const": "pause_music",
+          "description": "8: pause the music.",
+          "type": "string"
+        },
+        {
+          "const": "resume_music",
+          "description": "9: resume the music.",
+          "type": "string"
+        },
+        {
+          "const": "sabotage_alarm_red_palette",
+          "description": "10: the sabotage alarm's red palette.",
+          "type": "string"
+        },
+        {
+          "const": "set_event_flag",
+          "description": "11: set event flag `flag`.",
+          "type": "string"
+        },
+        {
+          "const": "elsydeon_broken",
+          "description": "12: Elsydeon breaks.",
+          "type": "string"
+        }
+      ]
+    },
+    "Ctrl": {
+      "description": "Every control code the retail trees contain, as\n`TextCtrlCodesJmpTbl` dispatches them.\n\nThe census is closed on purpose: `$F0`, `$F1`, `$F8` and `$FB` are\n`TextCtrlCode_Null` and `$FE`/`$FF` terminate, so the decoder ends the entry\non them and never emits a segment for one. A name outside this list means\nthe pack was written by a decoder this build does not understand, and the\nload fails rather than guessing.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "`$F2`: `TextActionsOffs` sub-dispatch.",
+          "properties": {
+            "action": {
+              "$ref": "#/$defs/ActionKind",
+              "description": "Which action, by name."
+            },
+            "action_id": {
+              "description": "The `TextActionsOffs` index.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "code": {
+              "description": "Raw code byte, `0xF2`.",
+              "pattern": "^0[xX][0-9a-fA-F]{1,2}$",
+              "type": "string"
+            },
+            "ctrl": {
+              "const": "action",
+              "type": "string"
+            },
+            "flag": {
+              "default": null,
+              "description": "Event flag, for `set_event_flag`.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "operands": {
+              "description": "The bytes that followed it.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "panel": {
+              "default": null,
+              "description": "Panel id, for `load_panel`. A word: `$F2 00` takes two operand\nbytes and retail data reaches 397.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "sound": {
+              "default": null,
+              "description": "Sound id, for the two sound actions.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "ctrl",
+            "code",
+            "operands",
+            "action",
+            "action_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`$F3`: preamble only -- the NPC does not turn to face the player.",
+          "properties": {
+            "code": {
+              "description": "Raw code byte, `0xF3`.",
+              "pattern": "^0[xX][0-9a-fA-F]{1,2}$",
+              "type": "string"
+            },
+            "ctrl": {
+              "const": "keep_npc_facing",
+              "type": "string"
+            },
+            "operands": {
+              "description": "Always empty.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "ctrl",
+            "code",
+            "operands"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`$F4`: show portrait `id`; id 0 hides the portrait window.",
+          "properties": {
+            "code": {
+              "description": "Raw code byte, `0xF4`.",
+              "pattern": "^0[xX][0-9a-fA-F]{1,2}$",
+              "type": "string"
+            },
+            "ctrl": {
+              "const": "portrait",
+              "type": "string"
+            },
+            "id": {
+              "description": "Portrait id into `DialoguePortraitArtPtrs`.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "operands": {
+              "description": "One byte, or two in a talk tree.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "position": {
+              "default": null,
+              "description": "Talk-mode slot; shifts the portrait right by 12 tiles per slot.\n`None` outside talk trees.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "ctrl",
+            "code",
+            "operands",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`$F5`: yes/no window; each answer is an entry id in this tree.",
+          "properties": {
+            "code": {
+              "description": "Raw code byte, `0xF5`.",
+              "pattern": "^0[xX][0-9a-fA-F]{1,2}$",
+              "type": "string"
+            },
+            "ctrl": {
+              "const": "yes_no",
+              "type": "string"
+            },
+            "no_entry": {
+              "description": "NO offset, using the same relative cursor as YES.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "operands": {
+              "description": "Relative entry counts, starting after both operands.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "yes_entry": {
+              "description": "YES offset. Zero continues inside this entry; positive values\ncount following `$FF` delimiters.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "ctrl",
+            "code",
+            "operands",
+            "yes_entry",
+            "no_entry"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`$F6`: preamble only -- fire event `id` instead of showing anything.",
+          "properties": {
+            "code": {
+              "description": "Raw code byte, `0xF6`.",
+              "pattern": "^0[xX][0-9a-fA-F]{1,2}$",
+              "type": "string"
+            },
+            "ctrl": {
+              "const": "event",
+              "type": "string"
+            },
+            "id": {
+              "description": "Event id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "operands": {
+              "description": "The event id as a word.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "ctrl",
+            "code",
+            "operands",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`$F7`: close the window; the caller resumes after this byte.",
+          "properties": {
+            "code": {
+              "description": "Raw code byte, `0xF7`.",
+              "pattern": "^0[xX][0-9a-fA-F]{1,2}$",
+              "type": "string"
+            },
+            "ctrl": {
+              "const": "close",
+              "type": "string"
+            },
+            "operands": {
+              "description": "Always empty.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "ctrl",
+            "code",
+            "operands"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`$F9`: hold for `frames` frames.",
+          "properties": {
+            "code": {
+              "description": "Raw code byte, `0xF9`.",
+              "pattern": "^0[xX][0-9a-fA-F]{1,2}$",
+              "type": "string"
+            },
+            "ctrl": {
+              "const": "delay",
+              "type": "string"
+            },
+            "frames": {
+              "description": "Frames to hold.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "operands": {
+              "description": "One byte.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "ctrl",
+            "code",
+            "operands",
+            "frames"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`$FA`: if the event flag is set, continue at `then_entry`.",
+          "properties": {
+            "code": {
+              "description": "Raw code byte, `0xFA`.",
+              "pattern": "^0[xX][0-9a-fA-F]{1,2}$",
+              "type": "string"
+            },
+            "ctrl": {
+              "const": "flag_check",
+              "type": "string"
+            },
+            "flag": {
+              "description": "Event flag number.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "operands": {
+              "description": "Flag then target entry.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "scope": {
+              "$ref": "#/$defs/FlagScope",
+              "description": "What kind of flag it is; always `event_flag` in retail data."
+            },
+            "then_entry": {
+              "description": "Entry to continue at when the flag is set.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "ctrl",
+            "code",
+            "operands",
+            "flag",
+            "scope",
+            "then_entry"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`$FC`: newline. Does not check the two-line limit.",
+          "properties": {
+            "code": {
+              "description": "Raw code byte, `0xFC`.",
+              "pattern": "^0[xX][0-9a-fA-F]{1,2}$",
+              "type": "string"
+            },
+            "ctrl": {
+              "const": "newline",
+              "type": "string"
+            },
+            "operands": {
+              "description": "Always empty.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "ctrl",
+            "code",
+            "operands"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`$FD`: show the arrow, wait for input, clear, restart at line 0.",
+          "properties": {
+            "code": {
+              "description": "Raw code byte, `0xFD`.",
+              "pattern": "^0[xX][0-9a-fA-F]{1,2}$",
+              "type": "string"
+            },
+            "ctrl": {
+              "const": "wait",
+              "type": "string"
+            },
+            "operands": {
+              "description": "Always empty.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "ctrl",
+            "code",
+            "operands"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "DialogueEntryPatch": {
+      "additionalProperties": false,
+      "dependentRequired": {
+        "keep_portrait": [
+          "lines"
+        ]
+      },
+      "description": "One entry: what an NPC says, from the byte after the previous `$FF` to the\nnext one.",
+      "properties": {
+        "id": {
+          "description": "Entry id within its tree.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "keep_portrait": {
+          "default": true,
+          "description": "Valid only alongside `lines`: whether to keep the entry's leading portrait control code.",
+          "type": "boolean"
+        },
+        "lines": {
+          "description": "Dialogue patch shorthand: replaces entry text cleanly as a single page of lines (`[\"Line 1\", \"Line 2\"]`) or multiple pages (`[[\"P1 L1\", \"P1 L2\"], [\"P2\"]]`).",
+          "oneOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          ]
+        },
+        "pages": {
+          "description": "What the cartridge's text loop would show, window by window. The\nrenderer derives the same thing from `segments` at runtime; this is the\nextractor's own answer, which makes it the oracle the runtime is tested\nagainst.",
+          "items": {
+            "$ref": "#/$defs/Page"
+          },
+          "type": "array"
+        },
+        "replace": {
+          "description": "Dialogue patch shorthand: list of [old, new] substring replacements applied across segments, pages, and text in lockstep.",
+          "items": {
+            "items": false,
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "segments": {
+          "description": "The byte stream regrouped: text runs and control codes in order.",
+          "items": {
+            "$ref": "#/$defs/Segment"
+          },
+          "type": "array"
+        },
+        "text": {
+          "description": "The decoded text with `$FC` newlines as `\\n` and control codes\ndropped; for logs and searching, never for layout.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "DialogueTreePatch": {
+      "additionalProperties": false,
+      "description": "One Kosinski tree.",
+      "properties": {
+        "entries": {
+          "description": "Entries in id order, ids dense from 0.",
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/DialogueEntryPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `id`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `id`.",
+              "items": {
+                "$ref": "#/$defs/DialogueEntryPatch",
+                "required": [
+                  "id"
+                ]
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "entry_count": {
+          "description": "Declared entry count, validated against `entries.len()`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "is_talk_tree": {
+          "description": "Talk-mode trees take a second `$F4` operand: the portrait slot.",
+          "type": "boolean"
+        },
+        "label": {
+          "description": "Disassembly label, such as `DialogueTree1`.",
+          "type": "string"
+        },
+        "portrait_operand_bytes": {
+          "description": "1 for field trees, 2 for talk trees.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rom_offset": {
+          "default": null,
+          "description": "Original compressed-tree address used by scene `DialogueTreesToRAM`\ncalls. Older hand-authored fixtures may omit provenance.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tree": {
+          "description": "1-based tree number, the value a map record's `dialogue_tree` holds.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "FlagScope": {
+      "description": "What a `$FA` check reads. Retail data only ever checks event flags.",
+      "oneOf": [
+        {
+          "const": "event_flag",
+          "description": "The event flag array.",
+          "type": "string"
+        }
+      ]
+    },
+    "Page": {
+      "additionalProperties": false,
+      "description": "One windowful of text.",
+      "properties": {
+        "end": {
+          "$ref": "#/$defs/PageEnd",
+          "description": "Why the page ended."
+        },
+        "lines": {
+          "description": "One or two lines, already broken exactly as the cartridge breaks them.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "lines",
+        "end"
+      ],
+      "type": "object"
+    },
+    "PageEnd": {
+      "description": "Why a page ended -- which is also what the player has to do about it.",
+      "oneOf": [
+        {
+          "const": "full",
+          "description": "Both lines filled with text still to come: the arrow appears and the\nwindow waits, exactly as `$FD` does.",
+          "type": "string"
+        },
+        {
+          "const": "wait",
+          "description": "`$FD`: show the arrow, wait, clear, restart at line 0.",
+          "type": "string"
+        },
+        {
+          "const": "close",
+          "description": "`$F7`: the caller resumes after this byte.",
+          "type": "string"
+        },
+        {
+          "const": "choice",
+          "description": "`$F5`: a yes/no choice follows.",
+          "type": "string"
+        },
+        {
+          "const": "end",
+          "description": "The entry ran out ($FE/$FF, or a null code).",
+          "type": "string"
+        }
+      ]
+    },
+    "Segment": {
+      "description": "One dialogue entry piece: either a text run (`{\"text\": \"...\"}`) or a tagged control code.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/Ctrl"
+        }
+      ]
+    },
+    "TalkOptionEntryPatch": {
+      "additionalProperties": false,
+      "description": "One `(event_flag, entry)` row of `TalkOption_DialogueIDs` (`$05DF52`).",
+      "properties": {
+        "entry": {
+          "description": "Dialogue entry id within the talk trees (`DialogueTree31`/`32`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "flag": {
+          "description": "Event flag tested in priority order; first set flag wins.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/dialogue/trees.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "entry_count": {
+      "description": "Declared entry count across all trees.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "format_version": {
+      "const": 2,
+      "description": "Pack format; checked against [`DIALOGUE_FORMAT_VERSION`].",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "system_messages": {
+      "additionalProperties": false,
+      "description": "The uncompressed system-message block.",
+      "properties": {
+        "cannot_get_off": {
+          "additionalProperties": false,
+          "description": "One entry: what an NPC says, from the byte after the previous `$FF` to the\nnext one.",
+          "properties": {
+            "id": {
+              "description": "Entry id within its tree.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "pages": {
+              "description": "What the cartridge's text loop would show, window by window. The\nrenderer derives the same thing from `segments` at runtime; this is the\nextractor's own answer, which makes it the oracle the runtime is tested\nagainst.",
+              "items": {
+                "$ref": "#/$defs/Page"
+              },
+              "type": "array"
+            },
+            "segments": {
+              "description": "The byte stream regrouped: text runs and control codes in order.",
+              "items": {
+                "$ref": "#/$defs/Segment"
+              },
+              "type": "array"
+            },
+            "text": {
+              "description": "The decoded text with `$FC` newlines as `\\n` and control codes\ndropped; for logs and searching, never for layout.",
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "label": {
+          "default": null,
+          "description": "The disassembly label the block came from.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "messages": {
+          "description": "One message per party member, index = character slot (Chaz 0, ...).",
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/DialogueEntryPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `id`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `id`.",
+              "items": {
+                "$ref": "#/$defs/DialogueEntryPatch",
+                "required": [
+                  "id"
+                ]
+              },
+              "type": "array"
+            }
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "talk_options": {
+      "additionalProperties": false,
+      "description": "Camp `TALK` / `MUMBL` selection table (`Win_TalkDialogue`, `$05DEBC`).",
+      "properties": {
+        "anger_tower_clear_flag": {
+          "description": "Event flag (`EventFlag_AngerTowerEnd`, `$E7`) that ends the override.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "anger_tower_entry": {
+          "description": "Override entry id (`$32`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "anger_tower_map": {
+          "description": "Map id (`MapID_AngerTower_F2`, `$00FE`) that overrides the entry while\n`anger_tower_clear_flag` is still clear.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "default_entry": {
+          "description": "Entry selected when no flag in `entries` is set (`0`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "entries": {
+          "description": "Priority-ordered `(flag, entry)` rows read from `TalkOption_DialogueIDs`.",
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/TalkOptionEntryPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `flag`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `flag`.",
+              "items": {
+                "$ref": "#/$defs/TalkOptionEntryPatch",
+                "required": [
+                  "flag"
+                ]
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "tree_high": {
+          "description": "Tree holding entries `>= tree_high_from` (`DialogueTree32`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tree_high_from": {
+          "description": "Inclusive entry cutoff where `tree_high` replaces `tree_low` (`$1A`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tree_low": {
+          "description": "Tree holding entries `< tree_high_from` (`DialogueTree31`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "tree_count": {
+      "description": "Declared tree count, validated against `trees.len()`.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "trees": {
+      "description": "The trees, in tree order (`tree` is 1-based and dense).",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/DialogueTreePatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `tree`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `tree`.",
+          "items": {
+            "$ref": "#/$defs/DialogueTreePatch",
+            "required": [
+              "tree"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "window": {
+      "additionalProperties": false,
+      "description": "The window metrics the text loop itself implies, as the decoder read\nthem out of `RunText_CharacterLoop`. Cross-checked against\n`window.json` by the renderer, not here: this is the text side.",
+      "properties": {
+        "chars_per_line": {
+          "description": "32.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "glyph_height": {
+          "description": "16.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "glyph_width": {
+          "description": "8.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lines_per_window": {
+          "description": "2.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rect": {
+          "additionalProperties": false,
+          "description": "The text area itself, without the frame, in Genesis screen pixels.",
+          "properties": {
+            "height": {
+              "description": "Height.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "width": {
+              "description": "Width.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "x": {
+              "description": "Left edge.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "y": {
+              "description": "Top edge.",
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "scroll_arrow": {
+          "additionalProperties": false,
+          "description": "Where the scroll arrow sprite sits when a page waits.",
+          "properties": {
+            "height": {
+              "description": "Sprite height in pixels: 8.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "png": {
+              "description": "The extracted 2x1 hardware sprite, pack-root-relative.",
+              "type": "string"
+            },
+            "screen_x": {
+              "description": "Screen x, in Genesis pixels.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "screen_y": {
+              "description": "Screen y, in Genesis pixels.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "width": {
+              "description": "Sprite width in pixels: 16.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "world_interaction": {
+      "additionalProperties": false,
+      "description": "Type-0 area's world-indexed table and the first world's high-entry branch.\nDecoded from `Interaction_DisplayDialogue` ($058844), not map geography.",
+      "properties": {
+        "first_world_override": {
+          "additionalProperties": false,
+          "description": "The first world's alternate tree for unsigned high entry ids.",
+          "properties": {
+            "entry_from": {
+              "description": "Inclusive unsigned entry cutoff read from the cartridge instruction.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "tree": {
+              "description": "The tree at the alternate pointer-table slot.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "world_trees": {
+          "description": "One tree per destination-menu world byte, in index order.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (dialogue/trees.json)",
+  "type": "object"
+}

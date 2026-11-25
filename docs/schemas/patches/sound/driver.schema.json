@@ -1,0 +1,428 @@
+{
+  "$defs": {
+    "DacBank": {
+      "additionalProperties": false,
+      "description": "One DAC bank.",
+      "properties": {
+        "bank": {
+          "description": "Bank number.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "entry_count": {
+          "description": "Samples in the bank.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rom_base": {
+          "description": "ROM base, `0xNNNNNN`.",
+          "type": "string"
+        },
+        "samples": {
+          "description": "The bank's samples.",
+          "items": {
+            "$ref": "#/$defs/DacSample"
+          },
+          "type": "array"
+        },
+        "table_raw_file": {
+          "description": "Raw copy of the bank's sample table, relative to `sound/`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "bank",
+        "rom_base",
+        "entry_count",
+        "table_raw_file",
+        "samples"
+      ],
+      "type": "object"
+    },
+    "DacSample": {
+      "additionalProperties": false,
+      "description": "One DAC sample.",
+      "properties": {
+        "bank": {
+          "description": "Bank number.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "length_bytes": {
+          "description": "Length.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "raw_file": {
+          "description": "Raw copy, relative to `sound/`.",
+          "type": "string"
+        },
+        "raw_sha256": {
+          "description": "SHA-256 of the raw copy.",
+          "type": "string"
+        },
+        "rom_offset": {
+          "description": "Start, `0xNNNNNN`.",
+          "type": "string"
+        },
+        "sample": {
+          "description": "Sample number within the bank.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sound_id": {
+          "description": "The DAC sound id that plays it.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "table_rom_offset": {
+          "description": "Its sample-table entry, `0xNNNNNN`.",
+          "type": "string"
+        },
+        "z80_start": {
+          "description": "Z80 start address, `0xNNNN`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sound_id",
+        "bank",
+        "sample",
+        "table_rom_offset",
+        "z80_start",
+        "length_bytes",
+        "rom_offset",
+        "raw_file",
+        "raw_sha256"
+      ],
+      "type": "object"
+    },
+    "DacTableEntry": {
+      "additionalProperties": false,
+      "description": "One `zBankTbl` entry.",
+      "properties": {
+        "bank": {
+          "description": "Bank number.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sample": {
+          "description": "Sample number within the bank.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sound_id": {
+          "description": "The DAC sound id it serves.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sound_id",
+        "bank",
+        "sample"
+      ],
+      "type": "object"
+    },
+    "Envelope": {
+      "additionalProperties": false,
+      "description": "One envelope stream, through its terminal control byte.",
+      "properties": {
+        "index": {
+          "description": "Table index.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "raw_file": {
+          "description": "Raw copy, relative to `sound/`.",
+          "type": "string"
+        },
+        "raw_hex": {
+          "description": "The bytes, as lowercase hex.",
+          "type": "string"
+        },
+        "raw_sha256": {
+          "description": "SHA-256 of the raw copy.",
+          "type": "string"
+        },
+        "rom_offset": {
+          "description": "Start, `0xNNNNNN`.",
+          "type": "string"
+        },
+        "size_bytes": {
+          "description": "Length, the terminal byte included.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "terminal": {
+          "description": "The terminal control byte, `0xNN`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "rom_offset",
+        "size_bytes",
+        "terminal",
+        "raw_file",
+        "raw_sha256",
+        "raw_hex"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/sound/driver.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "driver": {
+      "additionalProperties": false,
+      "description": "The driver's tables.",
+      "properties": {
+        "command_vocabulary": {
+          "description": "The documented command set (research)."
+        },
+        "dac": {
+          "additionalProperties": false,
+          "description": "The Z80 DAC driver and its sample banks.",
+          "properties": {
+            "bank_rom_bases": {
+              "description": "Each bank's ROM base, `0xNNNNNN`.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "bank_table": {
+              "additionalProperties": false,
+              "description": "`zBankTbl`.",
+              "properties": {
+                "raw_file": {
+                  "description": "Raw copy, relative to `sound/`.",
+                  "type": "string"
+                },
+                "raw_hex": {
+                  "description": "The bytes, as lowercase hex.",
+                  "type": "string"
+                },
+                "raw_sha256": {
+                  "description": "SHA-256 of the raw copy.",
+                  "type": "string"
+                },
+                "rom_offset": {
+                  "description": "Start, `0xNNNNNN`.",
+                  "type": "string"
+                },
+                "size_bytes": {
+                  "description": "Length.",
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "source_label": {
+                  "description": "Disassembly label.",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "bank_table_entries": {
+              "description": "`zBankTbl`, entry by entry.",
+              "items": {
+                "$ref": "#/$defs/DacTableEntry"
+              },
+              "type": "array"
+            },
+            "banks": {
+              "description": "The banks and their samples.",
+              "items": {
+                "$ref": "#/$defs/DacBank"
+              },
+              "type": "array"
+            },
+            "table_entry_size_bytes": {
+              "description": "Size of one sample-table entry.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "table_word_encoding": {
+              "description": "How the table's Z80 words are stored.",
+              "type": "string"
+            },
+            "z80_driver": {
+              "additionalProperties": false,
+              "description": "The Z80 driver program.",
+              "properties": {
+                "raw_file": {
+                  "description": "Raw copy, relative to `sound/`.",
+                  "type": "string"
+                },
+                "raw_hex": {
+                  "description": "The bytes, as lowercase hex.",
+                  "type": "string"
+                },
+                "raw_sha256": {
+                  "description": "SHA-256 of the raw copy.",
+                  "type": "string"
+                },
+                "rom_offset": {
+                  "description": "Start, `0xNNNNNN`.",
+                  "type": "string"
+                },
+                "size_bytes": {
+                  "description": "Length.",
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "source_label": {
+                  "description": "Disassembly label.",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "envelopes": {
+          "additionalProperties": false,
+          "description": "Modulation and volume envelopes.",
+          "properties": {
+            "modulation": {
+              "description": "Modulation envelopes, by `ModEnvPtrs` index.",
+              "items": {
+                "$ref": "#/$defs/Envelope"
+              },
+              "type": "array"
+            },
+            "modulation_control_bytes": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "What each modulation control byte does, keyed by `0xNN`.",
+              "type": "object"
+            },
+            "volume": {
+              "description": "Volume envelopes, by `VolEnvPtrs` index.",
+              "items": {
+                "$ref": "#/$defs/Envelope"
+              },
+              "type": "array"
+            },
+            "volume_control_bytes": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "What each volume control byte does, keyed by `0xNN`.",
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "fixed_constants": {
+          "description": "Fixed driver constants (research)."
+        },
+        "loop_commands": {
+          "description": "Loop and call command layouts (research)."
+        },
+        "pointer_tables": {
+          "description": "The driver's pointer tables (research)."
+        },
+        "provenance": {
+          "description": "Where the extraction's facts come from (research)."
+        },
+        "regions": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "description": "A verified ROM region and its raw copy.",
+            "properties": {
+              "raw_file": {
+                "description": "Raw copy, relative to `sound/`.",
+                "type": "string"
+              },
+              "raw_hex": {
+                "description": "The bytes, as lowercase hex.",
+                "type": "string"
+              },
+              "raw_sha256": {
+                "description": "SHA-256 of the raw copy.",
+                "type": "string"
+              },
+              "rom_offset": {
+                "description": "Start, `0xNNNNNN`.",
+                "type": "string"
+              },
+              "size_bytes": {
+                "description": "Length.",
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "source_label": {
+                "description": "Disassembly label.",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "description": "Verified driver regions by name.",
+          "type": "object"
+        },
+        "timing": {
+          "description": "Tempo and tick notes (research)."
+        }
+      },
+      "type": "object"
+    },
+    "format_version": {
+      "const": 1,
+      "description": "[`SOUND_FORMAT_VERSION`].",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "kind": {
+      "description": "`\"sound_driver\"`.",
+      "type": "string"
+    },
+    "rom": {
+      "additionalProperties": false,
+      "description": "The source ROM.",
+      "properties": {
+        "sha256": {
+          "description": "Lowercase SHA-256 of the image.",
+          "type": "string"
+        },
+        "size_bytes": {
+          "description": "Image size.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (sound/driver.json)",
+  "type": "object"
+}
