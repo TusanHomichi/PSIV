@@ -891,4 +891,38 @@ fn data_scene_validation_tracks_branch_dependent_map_contexts() {
         ),
         "expected map 0x011 NPC rejection at op 1, got {err}"
     );
+
+    // Unknown-map skip edge: omitting target_map and skipping past SkipUnlessMap into an NPC
+    // reference leaves the map context unresolved and must fail closed at load time.
+    let skip_edge_unresolved_npc = r#"{
+        "format_version": 1,
+        "name": "SkipEdgeUnresolvedNpc",
+        "event_id": 32524,
+        "ops": [
+            {
+                "op": "skip_unless_map",
+                "maps": [16],
+                "skip": 1
+            },
+            { "op": "end" },
+            {
+                "op": "face",
+                "actor": { "kind": "npc", "index": 0 },
+                "facing": "down"
+            }
+        ]
+    }"#;
+    let err = rt
+        .register_data_scene_json(skip_edge_unresolved_npc)
+        .expect_err("unresolved map context on SkipUnlessMap skip edge must reject NPC ref");
+    assert!(
+        matches!(
+            err,
+            DataSceneLoadError::PackCrossRef {
+                op_index: Some(2),
+                ref reason
+            } if reason.contains("resolved map context")
+        ),
+        "expected unresolved map context rejection at op 2, got {err}"
+    );
 }
