@@ -1,6 +1,6 @@
 {
   "$defs": {
-    "MenuWindow": {
+    "MenuWindowPatch": {
       "additionalProperties": false,
       "description": "One `WinGroup_Menu` record, in screen cells with the frame included.",
       "properties": {
@@ -35,49 +35,9 @@
           "type": "integer"
         }
       },
-      "required": [
-        "index",
-        "width_cells",
-        "height_cells",
-        "x_cell",
-        "y_cell"
-      ],
       "type": "object"
     },
-    "PixelRect": {
-      "additionalProperties": false,
-      "description": "A rect in Genesis screen pixels.",
-      "properties": {
-        "height": {
-          "description": "Height.",
-          "format": "int32",
-          "type": "integer"
-        },
-        "width": {
-          "description": "Width.",
-          "format": "int32",
-          "type": "integer"
-        },
-        "x": {
-          "description": "Left edge.",
-          "format": "int32",
-          "type": "integer"
-        },
-        "y": {
-          "description": "Top edge.",
-          "format": "int32",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "x",
-        "y",
-        "width",
-        "height"
-      ],
-      "type": "object"
-    },
-    "WindowRecord": {
+    "WindowRecordPatch": {
       "additionalProperties": false,
       "description": "One `WinGroup_Dialogue` record.",
       "properties": {
@@ -98,8 +58,31 @@
           "type": "string"
         },
         "rect": {
-          "$ref": "#/$defs/PixelRect",
-          "description": "Its rect in Genesis screen pixels, frame included."
+          "additionalProperties": false,
+          "description": "Its rect in Genesis screen pixels, frame included.",
+          "properties": {
+            "height": {
+              "description": "Height.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "width": {
+              "description": "Width.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "x": {
+              "description": "Left edge.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "y": {
+              "description": "Top edge.",
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          "type": "object"
         },
         "width_cells": {
           "description": "Width in cells, frame included.",
@@ -108,13 +91,6 @@
           "type": "integer"
         }
       },
-      "required": [
-        "index",
-        "name",
-        "rect",
-        "width_cells",
-        "height_cells"
-      ],
       "type": "object"
     }
   },
@@ -123,6 +99,7 @@
   "description": "Sparse JSON patch schema for `patches/dialogue/window.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
   "properties": {
     "format_version": {
+      "const": 2,
       "description": "Pack format; checked against [`DIALOGUE_FORMAT_VERSION`].",
       "format": "uint32",
       "minimum": 0,
@@ -180,10 +157,28 @@
     },
     "menu_windows": {
       "description": "Every window in `WinGroup_Menu`, the camp menu's group, in record\norder: the record a routine passes `Window_Create` is its index.",
-      "items": {
-        "$ref": "#/$defs/MenuWindow"
-      },
-      "type": "array"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/MenuWindowPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/MenuWindowPatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
     },
     "palette": {
       "additionalProperties": false,
@@ -409,10 +404,28 @@
     },
     "windows": {
       "description": "Every window in `WinGroup_Dialogue`, in record order.",
-      "items": {
-        "$ref": "#/$defs/WindowRecord"
-      },
-      "type": "array"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/WindowRecordPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/WindowRecordPatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
     }
   },
   "title": "PSIV Mod Patch Schema (dialogue/window.json)",

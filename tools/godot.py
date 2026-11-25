@@ -278,6 +278,20 @@ def find(env: Mapping[str, str] | None = None,
     return Path(found) if found else None
 
 
+def linux_runtime_env_file(env: Mapping[str, str] | None = None,
+                           which: Callable[..., str | None] = shutil.which) -> Path | None:
+    """Sibling `share/godot-runtime-env.json` beside the flake's Godot wrapper, if any."""
+    found = find(env, which)
+    if found is None:
+        return None
+    try:
+        resolved = found.resolve()
+    except OSError:
+        resolved = found
+    candidate = resolved.parent.parent / "share" / "godot-runtime-env.json"
+    return candidate if candidate.is_file() else None
+
+
 def check(path: Path | None, version_file: Path = VERSION_FILE) -> Path:
     """`path`, once it is an executable reporting the pinned version.
 

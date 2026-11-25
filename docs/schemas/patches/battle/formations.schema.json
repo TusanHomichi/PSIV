@@ -1,6 +1,6 @@
 {
   "$defs": {
-    "EncounterGroup": {
+    "EncounterGroupPatch": {
       "additionalProperties": false,
       "description": "One encounter group.",
       "properties": {
@@ -21,13 +21,9 @@
           "type": "integer"
         }
       },
-      "required": [
-        "group",
-        "formation_ids"
-      ],
       "type": "object"
     },
-    "FormationEnemy": {
+    "FormationEnemyPatch": {
       "additionalProperties": false,
       "description": "One enemy slot of a formation.",
       "properties": {
@@ -53,11 +49,6 @@
           "type": "integer"
         }
       },
-      "required": [
-        "slot",
-        "enemy_id",
-        "position"
-      ],
       "type": "object"
     },
     "FormationPatch": {
@@ -106,10 +97,28 @@
         },
         "enemies": {
           "description": "The enemies, in slot order.",
-          "items": {
-            "$ref": "#/$defs/FormationEnemy"
-          },
-          "type": "array"
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/FormationEnemyPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `slot`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `slot`.",
+              "items": {
+                "$ref": "#/$defs/FormationEnemyPatch",
+                "required": [
+                  "slot"
+                ]
+              },
+              "type": "array"
+            }
+          ]
         },
         "event_battle_index": {
           "description": "`Event_Battle_Index`, on a boss formation.",
@@ -141,7 +150,7 @@
       },
       "type": "object"
     },
-    "InlineFormation": {
+    "InlineFormationPatch": {
       "additionalProperties": false,
       "description": "A formation record stored uncompressed in a battle object's code.\n\nThe object copies the whole record - header included - over\n`Enemy_Formation_Data` (`$FFFF41F0`, whose second byte is\n`Enemy_Run_Chance`) and calls `loc_14D46` (`ps4.asm:29735`) to rebuild the\nenemy side, so every header byte takes effect, not just the enemies.",
       "properties": {
@@ -187,10 +196,28 @@
         },
         "enemies": {
           "description": "The enemies, in slot order.",
-          "items": {
-            "$ref": "#/$defs/FormationEnemy"
-          },
-          "type": "array"
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/FormationEnemyPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `slot`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `slot`.",
+              "items": {
+                "$ref": "#/$defs/FormationEnemyPatch",
+                "required": [
+                  "slot"
+                ]
+              },
+              "type": "array"
+            }
+          ]
         },
         "event_battle_index": {
           "description": "`Event_Battle_Index`, on a boss formation.",
@@ -232,18 +259,6 @@
           "type": "integer"
         }
       },
-      "required": [
-        "label",
-        "rom_offset",
-        "loaded_by",
-        "ambush_chance",
-        "run_chance",
-        "can_run",
-        "drop_rate",
-        "count",
-        "count_matches_entries",
-        "enemies"
-      ],
       "type": "object"
     },
     "MapBindingPatch": {
@@ -331,32 +346,7 @@
       },
       "type": "object"
     },
-    "NamedMapRef": {
-      "additionalProperties": false,
-      "description": "A map reference as the battle files spell it.",
-      "properties": {
-        "id": {
-          "description": "Map id.",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "symbol": {
-          "default": null,
-          "description": "The `MapID_*` symbol.",
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "type": "object"
-    },
-    "PositionGrid": {
+    "PositionGridPatch": {
       "additionalProperties": false,
       "description": "One overworld's formation-group grid.",
       "properties": {
@@ -368,16 +358,83 @@
         },
         "cells": {
           "description": "Rows of columns — `cells[y][x]`, exactly the cartridge's\n`(y >> 6) * 64 + (x >> 6)`. A value `>= 0x80` means the fallback.",
-          "items": {
-            "items": {
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0,
-              "type": "integer"
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "description": "Sparse cell-level 2D grid patch (`[row, col, value]` tuples or `{\"row\", \"col\", \"value\"}` objects).",
+              "properties": {
+                "cells": {
+                  "items": {
+                    "oneOf": [
+                      {
+                        "items": false,
+                        "maxItems": 3,
+                        "minItems": 3,
+                        "prefixItems": [
+                          {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          {
+                            "maximum": 255,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        ],
+                        "type": "array"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "col": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "row": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "value": {
+                            "maximum": 255,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "row",
+                          "col",
+                          "value"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "cells"
+              ],
+              "type": "object"
             },
-            "type": "array"
-          },
-          "type": "array"
+            {
+              "description": "Rows of columns — `cells[y][x]`, exactly the cartridge's\n`(y >> 6) * 64 + (x >> 6)`. A value `>= 0x80` means the fallback.",
+              "items": {
+                "items": {
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            }
+          ]
         },
         "columns": {
           "description": "Grid width in cells.",
@@ -409,7 +466,10 @@
             "minimum": 0,
             "type": "integer"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "indexing": {
           "default": null,
@@ -428,8 +488,26 @@
           ]
         },
         "map": {
-          "$ref": "#/$defs/NamedMapRef",
-          "description": "The map this grid serves."
+          "additionalProperties": false,
+          "description": "The map this grid serves.",
+          "properties": {
+            "id": {
+              "description": "Map id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "symbol": {
+              "default": null,
+              "description": "The `MapID_*` symbol.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
         },
         "name": {
           "description": "The binding key (`motavia` / `dezolis`).",
@@ -450,15 +528,6 @@
           "type": "integer"
         }
       },
-      "required": [
-        "name",
-        "map",
-        "columns",
-        "rows",
-        "cell_size_pixels",
-        "fallback_group",
-        "cells"
-      ],
       "type": "object"
     }
   },
@@ -481,7 +550,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `event_battle_index`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },
@@ -515,10 +584,28 @@
         },
         "groups": {
           "description": "The groups, in index order.",
-          "items": {
-            "$ref": "#/$defs/EncounterGroup"
-          },
-          "type": "array"
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/EncounterGroupPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `group`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `group`.",
+              "items": {
+                "$ref": "#/$defs/EncounterGroupPatch",
+                "required": [
+                  "group"
+                ]
+              },
+              "type": "array"
+            }
+          ]
         }
       },
       "type": [
@@ -527,6 +614,7 @@
       ]
     },
     "format_version": {
+      "const": 2,
       "description": "The pack format that wrote this.",
       "format": "uint32",
       "minimum": 0,
@@ -547,7 +635,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `id`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },
@@ -564,14 +652,31 @@
       ]
     },
     "inline_formations": {
-      "default": [],
       "description": "The formations battle objects keep in their own code and copy over\n`Enemy_Formation_Data` mid-battle (Fusion's, COMBINE's). Absent from a\npack written before they were decoded.",
-      "items": {
-        "$ref": "#/$defs/InlineFormation"
-      },
-      "type": [
-        "array",
-        "null"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/InlineFormationPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `label`.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `label`.",
+          "items": {
+            "$ref": "#/$defs/InlineFormationPatch",
+            "required": [
+              "label"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "map_bindings": {
@@ -583,7 +688,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `map_id`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },
@@ -603,14 +708,31 @@
       ]
     },
     "position_grids": {
-      "default": [],
       "description": "The two overworld position grids, 64px cells, indexed `[y][x]`.",
-      "items": {
-        "$ref": "#/$defs/PositionGrid"
-      },
-      "type": [
-        "array",
-        "null"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/PositionGridPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `name`.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `name`.",
+          "items": {
+            "$ref": "#/$defs/PositionGridPatch",
+            "required": [
+              "name"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
       ]
     }
   },

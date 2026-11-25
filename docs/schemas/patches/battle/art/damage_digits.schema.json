@@ -1,6 +1,6 @@
 {
   "$defs": {
-    "CommandUiTile": {
+    "CommandUiTilePatch": {
       "additionalProperties": false,
       "description": "One 8x8 pattern, keyed by the VRAM tile the cartridge loads it to.",
       "properties": {
@@ -19,10 +19,6 @@
           "type": "integer"
         }
       },
-      "required": [
-        "vram_tile",
-        "rows"
-      ],
       "type": "object"
     }
   },
@@ -31,6 +27,7 @@
   "description": "Sparse JSON patch schema for `patches/battle/art/damage_digits.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
   "properties": {
     "format_version": {
+      "const": 2,
       "description": "The pack format that wrote it.",
       "format": "uint32",
       "minimum": 0,
@@ -44,10 +41,28 @@
     },
     "tiles": {
       "description": "The tiles, in VRAM order.",
-      "items": {
-        "$ref": "#/$defs/CommandUiTile"
-      },
-      "type": "array"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/CommandUiTilePatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `vram_tile`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `vram_tile`.",
+          "items": {
+            "$ref": "#/$defs/CommandUiTilePatch",
+            "required": [
+              "vram_tile"
+            ]
+          },
+          "type": "array"
+        }
+      ]
     }
   },
   "title": "PSIV Mod Patch Schema (battle/art/damage_digits.json)",

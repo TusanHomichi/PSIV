@@ -77,7 +77,7 @@
       ],
       "type": "object"
     },
-    "ShipWindow": {
+    "ShipWindowPatch": {
       "additionalProperties": false,
       "description": "One `WinGroup_Event` record: a window's size and position in cells.",
       "properties": {
@@ -117,13 +117,6 @@
           "type": "integer"
         }
       },
-      "required": [
-        "id",
-        "width",
-        "height",
-        "x",
-        "y"
-      ],
       "type": "object"
     }
   },
@@ -188,6 +181,7 @@
       ]
     },
     "format_version": {
+      "const": 1,
       "description": "The file's version.",
       "format": "uint32",
       "minimum": 0,
@@ -212,14 +206,31 @@
       "type": "array"
     },
     "place_windows": {
-      "default": [],
       "description": "`WinGroup_PlaceName`, by name length.",
-      "items": {
-        "$ref": "#/$defs/ShipWindow"
-      },
-      "type": [
-        "array",
-        "null"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/ShipWindowPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/ShipWindowPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "prompt": {
@@ -235,10 +246,28 @@
     },
     "windows": {
       "description": "`WinGroup_Event`'s records for this screen.",
-      "items": {
-        "$ref": "#/$defs/ShipWindow"
-      },
-      "type": "array"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/ShipWindowPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/ShipWindowPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
     }
   },
   "title": "PSIV Mod Patch Schema (ship_menu/ship_menu.json)",

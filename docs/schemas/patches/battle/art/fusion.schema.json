@@ -1,6 +1,6 @@
 {
   "$defs": {
-    "FusionFrame": {
+    "FusionFramePatch": {
       "additionalProperties": false,
       "description": "One frame: its PNG, and its top-left and size relative to the piece's\nposition.",
       "properties": {
@@ -35,12 +35,6 @@
           "type": "array"
         }
       },
-      "required": [
-        "index",
-        "png",
-        "origin",
-        "size"
-      ],
       "type": "object"
     }
   },
@@ -49,6 +43,7 @@
   "description": "Sparse JSON patch schema for `patches/battle/art/fusion.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
   "properties": {
     "format_version": {
+      "const": 2,
       "description": "The pack's format version.",
       "format": "uint32",
       "minimum": 0,
@@ -56,10 +51,28 @@
     },
     "frames": {
       "description": "The frames, in the order the routine selects them.",
-      "items": {
-        "$ref": "#/$defs/FusionFrame"
-      },
-      "type": "array"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/FusionFramePatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/FusionFramePatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
     },
     "palette_enemy_id": {
       "description": "The enemy whose palette the frames use: the casting Zol slug.",

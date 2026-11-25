@@ -224,7 +224,7 @@
       ],
       "type": "object"
     },
-    "ShopPortrait": {
+    "ShopPortraitPatch": {
       "additionalProperties": false,
       "description": "A shopkeeper portrait the counters point at by ROM art address.",
       "properties": {
@@ -237,10 +237,6 @@
           "type": "string"
         }
       },
-      "required": [
-        "art",
-        "png"
-      ],
       "type": "object"
     }
   },
@@ -257,7 +253,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `id`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },
@@ -282,7 +278,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `index`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },
@@ -307,7 +303,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `index`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },
@@ -352,14 +348,31 @@
       ]
     },
     "portraits": {
-      "default": [],
       "description": "The shopkeeper portraits, by art address.",
-      "items": {
-        "$ref": "#/$defs/ShopPortrait"
-      },
-      "type": [
-        "array",
-        "null"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/ShopPortraitPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `png`.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `png`.",
+          "items": {
+            "$ref": "#/$defs/ShopPortraitPatch",
+            "required": [
+              "png"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
       ]
     }
   },

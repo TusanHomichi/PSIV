@@ -30,6 +30,7 @@
   "description": "Sparse JSON patch schema for `patches/game_start.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
   "properties": {
     "format_version": {
+      "const": 2,
       "description": "The pack format version.",
       "format": "uint32",
       "minimum": 0,

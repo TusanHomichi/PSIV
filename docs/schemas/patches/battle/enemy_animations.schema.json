@@ -1,20 +1,55 @@
 {
   "$defs": {
-    "EnemyAnimation": {
+    "EnemyAnimationPatch": {
       "additionalProperties": false,
       "description": "One enemy's selected attack routine and the presentation facts it proves.",
       "properties": {
         "composition": {
-          "$ref": "#/$defs/EnemyAnimationEvidence",
+          "additionalProperties": false,
           "default": {
             "reason": "field absent from an older animation pack",
             "status": "deferred"
           },
-          "description": "Mapping-to-art composition evidence from the wave-1 enemy banks."
+          "description": "Mapping-to-art composition evidence from the wave-1 enemy banks.",
+          "properties": {
+            "reason": {
+              "description": "Retail/provenance reason for the status.",
+              "type": "string"
+            },
+            "status": {
+              "description": "`exact`, `partial`, or `deferred`.",
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "dispatch": {
-          "$ref": "#/$defs/EnemyAnimationDispatch",
-          "description": "The selected dispatch write."
+          "additionalProperties": false,
+          "description": "The selected dispatch write.",
+          "properties": {
+            "kind": {
+              "description": "Dispatch kind.",
+              "type": "string"
+            },
+            "object_id": {
+              "description": "Object that owns the write, or `null` for a routine-level write.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "rom_offset": {
+              "description": "ROM address of the write.",
+              "type": "string"
+            }
+          },
+          "type": "object"
         },
         "display_name": {
           "description": "Cartridge display name, when decoded.",
@@ -35,23 +70,114 @@
           "type": "boolean"
         },
         "frame_sequence": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/EnemyAnimationFrameSequence"
+          "additionalProperties": false,
+          "description": "One fixed mapping sequence consumed by retail's `loc_256AE` helper.",
+          "properties": {
+            "assignment_offset": {
+              "description": "ROM address of the assignment instruction.",
+              "type": "string"
             },
-            {
-              "type": "null"
+            "frame_count": {
+              "description": "Number of mapping pointers.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "frame_duration": {
+              "description": "Number of ticks the first mapping pointer remains active.  Variable\nand selector records retain the complete duration vector below.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "frame_durations": {
+              "default": [],
+              "description": "Exact duration for every mapping/selector frame.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "frame_timer_helper": {
+              "description": "The helper that consumes this timing, when proven.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "mapping_offset": {
+              "description": "ROM address of the `[duration, frame_count, pointers...]` record.",
+              "type": "string"
+            },
+            "mapping_pointers": {
+              "description": "Retail mapping record pointers, or stable `oracle:` frame identifiers\nfor a receipt-backed observed sprite-table clock.",
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": "array"
+            },
+            "object_id": {
+              "description": "Object whose `$8(a4)` mapping pointer is assigned.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "timing_model": {
+              "default": "",
+              "description": "`fixed`, `variable`, `selector`, or `observed`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "total_frames": {
+              "description": "Sum of the per-frame durations.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
             }
-          ],
-          "description": "Fixed timing only when the helper and record are both proven."
+          },
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "movement": {
-          "$ref": "#/$defs/EnemyAnimationEvidence",
+          "additionalProperties": false,
           "default": {
             "reason": "field absent from an older animation pack",
             "status": "deferred"
           },
-          "description": "Normalized movement evidence from the selected object graph."
+          "description": "Normalized movement evidence from the selected object graph.",
+          "properties": {
+            "reason": {
+              "description": "Retail/provenance reason for the status.",
+              "type": "string"
+            },
+            "status": {
+              "description": "`exact`, `partial`, or `deferred`.",
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "movement_proven": {
           "description": "Kept as a compact boolean for older callers and the runtime sidecar.",
@@ -111,154 +237,6 @@
           "type": "string"
         }
       },
-      "required": [
-        "enemy_id",
-        "symbol",
-        "routine_offset",
-        "root_object_ids",
-        "object_ids",
-        "sfx_id",
-        "dispatch",
-        "sfx_writes",
-        "movement_proven",
-        "flash_timing_proven",
-        "sprite_sheet_proven"
-      ],
-      "type": "object"
-    },
-    "EnemyAnimationDispatch": {
-      "additionalProperties": false,
-      "description": "The selected retail write for an enemy attack.",
-      "properties": {
-        "kind": {
-          "description": "Dispatch kind.",
-          "type": "string"
-        },
-        "object_id": {
-          "description": "Object that owns the write, or `null` for a routine-level write.",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "rom_offset": {
-          "description": "ROM address of the write.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "kind",
-        "rom_offset"
-      ],
-      "type": "object"
-    },
-    "EnemyAnimationEvidence": {
-      "additionalProperties": false,
-      "description": "A three-way extraction result.  `partial` is deliberately distinct from\n`deferred`: the renderer may use an exact subset only when the sidecar says\nso, and never by treating a missing field as a green result.",
-      "properties": {
-        "reason": {
-          "description": "Retail/provenance reason for the status.",
-          "type": "string"
-        },
-        "status": {
-          "description": "`exact`, `partial`, or `deferred`.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "status",
-        "reason"
-      ],
-      "type": "object"
-    },
-    "EnemyAnimationFrameSequence": {
-      "additionalProperties": false,
-      "description": "One fixed mapping sequence consumed by retail's `loc_256AE` helper.",
-      "properties": {
-        "assignment_offset": {
-          "description": "ROM address of the assignment instruction.",
-          "type": "string"
-        },
-        "frame_count": {
-          "description": "Number of mapping pointers.",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "frame_duration": {
-          "description": "Number of ticks the first mapping pointer remains active.  Variable\nand selector records retain the complete duration vector below.",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "frame_durations": {
-          "default": [],
-          "description": "Exact duration for every mapping/selector frame.",
-          "items": {
-            "format": "uint8",
-            "maximum": 255,
-            "minimum": 0,
-            "type": "integer"
-          },
-          "type": "array"
-        },
-        "frame_timer_helper": {
-          "description": "The helper that consumes this timing, when proven.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "mapping_offset": {
-          "description": "ROM address of the `[duration, frame_count, pointers...]` record.",
-          "type": "string"
-        },
-        "mapping_pointers": {
-          "description": "Retail mapping record pointers, or stable `oracle:` frame identifiers\nfor a receipt-backed observed sprite-table clock.",
-          "items": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "type": "array"
-        },
-        "object_id": {
-          "description": "Object whose `$8(a4)` mapping pointer is assigned.",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "timing_model": {
-          "default": "",
-          "description": "`fixed`, `variable`, `selector`, or `observed`.",
-          "type": "string"
-        },
-        "total_frames": {
-          "description": "Sum of the per-frame durations.",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "assignment_offset",
-        "mapping_offset",
-        "frame_duration",
-        "frame_count",
-        "total_frames",
-        "mapping_pointers"
-      ],
       "type": "object"
     },
     "EnemyAnimationSfxWrite": {
@@ -353,10 +331,28 @@
   "properties": {
     "animations": {
       "description": "One record per enemy.",
-      "items": {
-        "$ref": "#/$defs/EnemyAnimation"
-      },
-      "type": "array"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/EnemyAnimationPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `enemy_id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `enemy_id`.",
+          "items": {
+            "$ref": "#/$defs/EnemyAnimationPatch",
+            "required": [
+              "enemy_id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
     },
     "census": {
       "additionalProperties": false,
@@ -561,6 +557,7 @@
       "type": "integer"
     },
     "format_version": {
+      "const": 2,
       "description": "Pack format version.",
       "format": "uint32",
       "minimum": 0,

@@ -112,6 +112,82 @@
       ],
       "type": "object"
     },
+    "SheetPatch": {
+      "additionalProperties": false,
+      "description": "One frame-strip sheet.",
+      "properties": {
+        "frame_count": {
+          "description": "Number of frames in the strip.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frame_height": {
+          "description": "Frame height in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frame_width": {
+          "description": "Frame width in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "description": "Sheet id: a party member's name, or an NPC art id like\n`NPCType2_a2bfdc9c` (symbol + content hash).",
+          "type": "string"
+        },
+        "origin_x": {
+          "description": "X of the cell anchor inside a frame, in pixels.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "origin_y": {
+          "description": "Y of the cell anchor inside a frame, in pixels.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "png": {
+          "description": "The frame strip, pack-root-relative. Frames left to right.",
+          "type": "string"
+        },
+        "sequences": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "description": "One animation sequence.",
+            "properties": {
+              "frames": {
+                "description": "Frames in play order.",
+                "items": {
+                  "$ref": "#/$defs/SequenceFrame"
+                },
+                "type": "array"
+              },
+              "loop": {
+                "default": false,
+                "description": "Whether the sequence loops (all retail field sequences do).",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "sequence_offset": {
+                "description": "Where the cartridge's sequence table is, as `0x` hex; research only.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "description": "Named animation sequences (`idle_down`, `walk_left`, ...).",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
     "VehiclePaletteVariant": {
       "additionalProperties": false,
       "description": "One CRAM-line-3 vehicle palette used by one or more maps.",
@@ -154,6 +230,7 @@
   "description": "Sparse JSON patch schema for `patches/sprites/<sheet>.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
   "properties": {
     "format_version": {
+      "const": 2,
       "description": "Pack format; checked against [`crate::PACK_FORMAT_VERSION`].",
       "format": "uint32",
       "minimum": 0,
@@ -185,10 +262,28 @@
     },
     "sheets": {
       "description": "The sheets.",
-      "items": {
-        "$ref": "#/$defs/Sheet"
-      },
-      "type": "array"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/SheetPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/SheetPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
     }
   },
   "title": "PSIV Mod Patch Schema (sprites/<sheet>.json)",

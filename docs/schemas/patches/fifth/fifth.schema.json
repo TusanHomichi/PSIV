@@ -55,6 +55,7 @@
   "description": "Sparse JSON patch schema for `patches/fifth/fifth.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
   "properties": {
     "format_version": {
+      "const": 1,
       "format": "uint32",
       "minimum": 0,
       "type": "integer"

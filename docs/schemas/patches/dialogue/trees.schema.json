@@ -498,44 +498,6 @@
         }
       ]
     },
-    "DialogueEntry": {
-      "additionalProperties": false,
-      "description": "One entry: what an NPC says, from the byte after the previous `$FF` to the\nnext one.",
-      "properties": {
-        "id": {
-          "description": "Entry id within its tree.",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "pages": {
-          "description": "What the cartridge's text loop would show, window by window. The\nrenderer derives the same thing from `segments` at runtime; this is the\nextractor's own answer, which makes it the oracle the runtime is tested\nagainst.",
-          "items": {
-            "$ref": "#/$defs/Page"
-          },
-          "type": "array"
-        },
-        "segments": {
-          "description": "The byte stream regrouped: text runs and control codes in order.",
-          "items": {
-            "$ref": "#/$defs/Segment"
-          },
-          "type": "array"
-        },
-        "text": {
-          "description": "The decoded text with `$FC` newlines as `\\n` and control codes\ndropped; for logs and searching, never for layout.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "text",
-        "segments",
-        "pages"
-      ],
-      "type": "object"
-    },
     "DialogueEntryPatch": {
       "additionalProperties": false,
       "dependentRequired": {
@@ -631,7 +593,7 @@
               },
               "description": "Sparse ID-keyed patch map keyed by `id`.",
               "propertyNames": {
-                "pattern": "^[0-9]+$"
+                "pattern": "^(0|[1-9][0-9]*)$"
               },
               "type": "object"
             },
@@ -768,7 +730,7 @@
         }
       ]
     },
-    "TalkOptionEntry": {
+    "TalkOptionEntryPatch": {
       "additionalProperties": false,
       "description": "One `(event_flag, entry)` row of `TalkOption_DialogueIDs` (`$05DF52`).",
       "properties": {
@@ -787,10 +749,6 @@
           "type": "integer"
         }
       },
-      "required": [
-        "flag",
-        "entry"
-      ],
       "type": "object"
     }
   },
@@ -805,6 +763,7 @@
       "type": "integer"
     },
     "format_version": {
+      "const": 2,
       "description": "Pack format; checked against [`DIALOGUE_FORMAT_VERSION`].",
       "format": "uint32",
       "minimum": 0,
@@ -859,10 +818,28 @@
         },
         "messages": {
           "description": "One message per party member, index = character slot (Chaz 0, ...).",
-          "items": {
-            "$ref": "#/$defs/DialogueEntry"
-          },
-          "type": "array"
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/DialogueEntryPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `id`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `id`.",
+              "items": {
+                "$ref": "#/$defs/DialogueEntryPatch",
+                "required": [
+                  "id"
+                ]
+              },
+              "type": "array"
+            }
+          ]
         }
       },
       "type": [
@@ -904,10 +881,28 @@
         },
         "entries": {
           "description": "Priority-ordered `(flag, entry)` rows read from `TalkOption_DialogueIDs`.",
-          "items": {
-            "$ref": "#/$defs/TalkOptionEntry"
-          },
-          "type": "array"
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/TalkOptionEntryPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `flag`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `flag`.",
+              "items": {
+                "$ref": "#/$defs/TalkOptionEntryPatch",
+                "required": [
+                  "flag"
+                ]
+              },
+              "type": "array"
+            }
+          ]
         },
         "tree_high": {
           "description": "Tree holding entries `>= tree_high_from` (`DialogueTree32`).",
@@ -951,7 +946,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `tree`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },

@@ -1,6 +1,6 @@
 {
   "$defs": {
-    "DungeonDestination": {
+    "DungeonDestinationPatch": {
       "additionalProperties": false,
       "description": "An eight-byte DungeonTeleportPlaces record.",
       "properties": {
@@ -47,14 +47,6 @@
           "type": "integer"
         }
       },
-      "required": [
-        "index",
-        "map",
-        "x",
-        "y",
-        "facing",
-        "alignment"
-      ],
       "type": "object"
     },
     "PlaceEntry": {
@@ -95,7 +87,7 @@
       ],
       "type": "object"
     },
-    "TownDestination": {
+    "TownDestinationPatch": {
       "additionalProperties": false,
       "description": "A destination shown by RYUKA's visited-town list.",
       "properties": {
@@ -146,18 +138,9 @@
           "type": "integer"
         }
       },
-      "required": [
-        "world",
-        "index",
-        "town_flag",
-        "name",
-        "previous_map",
-        "x",
-        "y"
-      ],
       "type": "object"
     },
-    "WorldMapAsset": {
+    "WorldMapAssetPatch": {
       "additionalProperties": false,
       "description": "One planet overview image decoded from `FieldRoutine_WorldMap`\n(`ps4.asm:136977-137245`, #122).",
       "properties": {
@@ -202,15 +185,6 @@
           "type": "integer"
         }
       },
-      "required": [
-        "world",
-        "name",
-        "png",
-        "width",
-        "height",
-        "scroll_y",
-        "initial_y"
-      ],
       "type": "object"
     }
   },
@@ -220,10 +194,28 @@
   "properties": {
     "dungeons": {
       "description": "HINAS rows keyed by their explicit index.",
-      "items": {
-        "$ref": "#/$defs/DungeonDestination"
-      },
-      "type": "array"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/DungeonDestinationPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/DungeonDestinationPatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
     },
     "entries": {
       "description": "Map-entry registration and inherited-exit selectors.",
@@ -233,6 +225,7 @@
       "type": "array"
     },
     "format_version": {
+      "const": 2,
       "description": "The file's version.",
       "format": "uint32",
       "minimum": 0,
@@ -274,20 +267,55 @@
     },
     "towns": {
       "description": "RYUKA rows in retail display order.",
-      "items": {
-        "$ref": "#/$defs/TownDestination"
-      },
-      "type": "array"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/TownDestinationPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `town_flag`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `town_flag`.",
+          "items": {
+            "$ref": "#/$defs/TownDestinationPatch",
+            "required": [
+              "town_flag"
+            ]
+          },
+          "type": "array"
+        }
+      ]
     },
     "world_maps": {
-      "default": [],
       "description": "Decoded overworld planet overview images (`FieldRoutine_WorldMap`, #122).",
-      "items": {
-        "$ref": "#/$defs/WorldMapAsset"
-      },
-      "type": [
-        "array",
-        "null"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/WorldMapAssetPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `name`.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `name`.",
+          "items": {
+            "$ref": "#/$defs/WorldMapAssetPatch",
+            "required": [
+              "name"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
       ]
     }
   },

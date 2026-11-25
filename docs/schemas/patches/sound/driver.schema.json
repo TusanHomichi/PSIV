@@ -395,6 +395,7 @@
       "type": "object"
     },
     "format_version": {
+      "const": 1,
       "description": "[`SOUND_FORMAT_VERSION`].",
       "format": "uint32",
       "minimum": 0,

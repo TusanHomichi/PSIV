@@ -26,7 +26,7 @@ import unittest
 import zipfile
 from unittest import mock
 
-from tools.package import notices, release, symbols
+from tools.package import linux_runtime, notices, release, symbols
 from tools.package.notices import FILES as NOTICE_FILES
 from tools.package.notices import NoticeError, Texts
 from tools.package.release import PLATFORMS, ReleaseError
@@ -835,6 +835,160 @@ class ReleaseWorkflowPublishesRealNotes(unittest.TestCase):
         )
         self.assertIn("docs/PLAYING.md", step)
         self.assertIn("docs/MODDING.md", step)
+
+
+def flake_egl_runtime_problems(text: str) -> list[str]:
+    """Verify `flake.nix` configures Mesa EGL, runtime-env metadata, and EGL check."""
+    problems = []
+    for needle, label in (
+        ("--set __EGL_VENDOR_LIBRARY_DIRS", "godot wrapper must set __EGL_VENDOR_LIBRARY_DIRS"),
+        ("godot-runtime-env.json", "flake must emit godot-runtime-env.json"),
+        ("PSIV_LINUX_RUNTIME_ENV", "devShell must export PSIV_LINUX_RUNTIME_ENV"),
+        ("--rendering-driver opengl3_es", "godot-gl check must exercise EGL (opengl3_es)"),
+        ("EGL_EXT_platform_base not found", "godot-gl check must reject missing EGL vendor ICDs"),
+    ):
+        if needle not in text:
+            problems.append(label)
+    return problems
+
+
+class LinuxRuntimeEnvironmentConfiguresMesaAndEgl(unittest.TestCase):
+    def setUp(self):
+        self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        self.mesa = self.dir / "mesa"
+        (self.mesa / "lib" / "dri").mkdir(parents=True)
+        (self.mesa / "lib" / "dri" / "libdril_dri.so").write_bytes(b"")
+        (self.mesa / "share" / "glvnd" / "egl_vendor.d").mkdir(parents=True)
+        (self.mesa / "share" / "glvnd" / "egl_vendor.d" / "50_mesa.json").write_text("{}\n")
+        self.ld_so = self.dir / "glibc" / "lib" / "ld-linux-x86-64.so.2"
+        self.ld_so.parent.mkdir(parents=True)
+        self.ld_so.write_bytes(b"\x7fELF")
+        self.spec = self.dir / "godot-runtime-env.json"
+        self.spec.write_text(json.dumps({
+            "LD_LIBRARY_PATH": f"{self.mesa / 'lib'}:/nix/store/x11/lib",
+            "LIBGL_DRIVERS_PATH": str(self.mesa / "lib" / "dri"),
+            "__GLX_VENDOR_LIBRARY_NAME": "mesa",
+            "__EGL_VENDOR_LIBRARY_DIRS": str(self.mesa / "share" / "glvnd" / "egl_vendor.d"),
+            "NIX_LD": str(self.ld_so),
+        }))
+        self.empty_sys_egl = (self.dir / "no-egl-vendor.d",)
+
+    def test_runtime_env_json_prepends_mesa_sets_egl_and_aligns_nix_ld(self):
+        base = {"LD_LIBRARY_PATH": "/custom/lib", "NIX_LD": "/run/current-system/sw/share/nix-ld/lib/ld.so"}
+        source = {**base, linux_runtime.RUNTIME_ENV_VAR: str(self.spec)}
+        out = linux_runtime.apply_linux_runtime_env(
+            base, source_env=source, system_egl_dirs=self.empty_sys_egl, is_linux=True,
+        )
+        self.assertEqual(out["LD_LIBRARY_PATH"], f"{self.mesa / 'lib'}:/nix/store/x11/lib:/custom/lib")
+        self.assertEqual(out["LIBGL_DRIVERS_PATH"], str(self.mesa / "lib" / "dri"))
+        self.assertEqual(out["__GLX_VENDOR_LIBRARY_NAME"], "mesa")
+        self.assertEqual(out["__EGL_VENDOR_LIBRARY_DIRS"], str(self.mesa / "share" / "glvnd" / "egl_vendor.d"))
+        self.assertEqual(out["NIX_LD"], str(self.ld_so))
+        self.assertNotIn(linux_runtime.RUNTIME_ENV_VAR, out)
+
+    def test_standard_fhs_linux_without_nix_runtime_env_is_unchanged(self):
+        sys_egl = self.dir / "usr" / "share" / "glvnd" / "egl_vendor.d"
+        sys_egl.mkdir(parents=True)
+        (sys_egl / "50_mesa.json").write_text("{}\n")
+        base = {"PATH": "/usr/bin"}
+        out = linux_runtime.apply_linux_runtime_env(
+            base, source_env=base, system_egl_dirs=(sys_egl,),
+            runtime_env_file=self.dir / "missing.json", is_linux=True,
+        )
+        self.assertEqual(out, base)
+        self.assertNotIn("NIX_LD", out)
+
+    def test_derives_mesa_egl_vendor_dir_from_manual_glx_env_when_system_lacks_glvnd(self):
+        # Matches core.768664: LIBGL_DRIVERS_PATH + LD_LIBRARY_PATH set, no __EGL_VENDOR_LIBRARY_DIRS.
+        base = {
+            "LD_LIBRARY_PATH": str(self.mesa / "lib"),
+            "LIBGL_DRIVERS_PATH": str(self.mesa / "lib" / "dri"),
+            "__GLX_VENDOR_LIBRARY_NAME": "mesa",
+        }
+        self.assertNotIn("__EGL_VENDOR_LIBRARY_DIRS", base)  # negative control before helper
+        out = linux_runtime.apply_linux_runtime_env(
+            base, source_env=base, system_egl_dirs=self.empty_sys_egl,
+            runtime_env_file=self.dir / "missing.json", is_linux=True,
+        )
+        self.assertEqual(out["__EGL_VENDOR_LIBRARY_DIRS"], str(self.mesa / "share" / "glvnd" / "egl_vendor.d"))
+
+    def test_negative_control_missing_egl_json_is_not_fabricated_and_non_linux_is_noop(self):
+        (self.mesa / "share" / "glvnd" / "egl_vendor.d" / "50_mesa.json").unlink()
+        base = {"LIBGL_DRIVERS_PATH": str(self.mesa / "lib" / "dri")}
+        out = linux_runtime.apply_linux_runtime_env(
+            base, source_env=base, system_egl_dirs=self.empty_sys_egl,
+            runtime_env_file=self.dir / "missing.json", is_linux=True,
+        )
+        self.assertNotIn("__EGL_VENDOR_LIBRARY_DIRS", out)
+        non_linux = linux_runtime.apply_linux_runtime_env(
+            {"PATH": "/bin"}, source_env={linux_runtime.RUNTIME_ENV_VAR: str(self.spec)},
+            system_egl_dirs=self.empty_sys_egl, is_linux=False,
+        )
+        self.assertEqual(non_linux, {"PATH": "/bin"})
+
+    def test_first_run_environment_applies_runtime_env_on_linux_only_and_strips_psiv_var(self):
+        with mock.patch.dict(os.environ, {linux_runtime.RUNTIME_ENV_VAR: str(self.spec)}, clear=True), \
+                mock.patch.object(sys, "platform", "linux"):
+            linux_env = release.first_run_environment(
+                self.dir / "home", self.dir / "saves", platform=PLATFORMS["linux"],
+            )
+            win_env = release.first_run_environment(
+                self.dir / "home", self.dir / "saves", platform=PLATFORMS["windows"],
+            )
+        self.assertEqual(linux_env["__EGL_VENDOR_LIBRARY_DIRS"],
+                         str(self.mesa / "share" / "glvnd" / "egl_vendor.d"))
+        self.assertNotIn(linux_runtime.RUNTIME_ENV_VAR, linux_env)
+        self.assertNotIn("__EGL_VENDOR_LIBRARY_DIRS", win_env)
+
+    def test_flake_sets_egl_vendor_dir_emits_runtime_env_and_checks_egl(self):
+        flake = (ROOT / "flake.nix").read_text(encoding="utf-8")
+        self.assertEqual(flake_egl_runtime_problems(flake), [])
+        broken = flake.replace("--set __EGL_VENDOR_LIBRARY_DIRS", "# omitted")
+        self.assertTrue(flake_egl_runtime_problems(broken))
+
+
+class SmokeXvfbDisplayMode(unittest.TestCase):
+    def setUp(self):
+        self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        self.archive = tar_archive(
+            self.dir / f"{PLATFORMS['linux'].archive_name(VERSION)}.tar.gz",
+            release_files(PLATFORMS["linux"]),
+        )
+
+    def test_xvfb_mode_runs_under_xvfb_with_software_gl_and_records_runtime_env_on_crash(self):
+        seen_cmds, seen_envs = [], []
+
+        def fake_run(command, *, env, **options):
+            seen_cmds.append(command)
+            seen_envs.append(env)
+            log = pathlib.Path(command[command.index("--log-file") + 1])
+            log.write_text(f"{release.SETUP_SHOWN}x\n{release.BUILD_STARTED}x\n"
+                           f"{release.NOT_THE_ROM_NAME} {release.NOT_THE_ROM}\n")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with mock.patch.object(sys, "platform", "linux"), \
+                mock.patch.object(release.shutil, "which", return_value="/usr/bin/xvfb-run"), \
+                mock.patch.dict(os.environ, {"XAUTHORITY": "/tmp/host-xauth"}), \
+                mock.patch.object(release.subprocess, "run", fake_run):
+            release.smoke(self.archive, PLATFORMS["linux"],
+                          display="xvfb", rendering_driver="opengl3_es")
+        self.assertEqual(seen_cmds[0][:4], ["xvfb-run", "-a", "-s", release.XVFB_SERVER_ARGS])
+        self.assertIn("--rendering-driver", seen_cmds[0])
+        self.assertIn("opengl3_es", seen_cmds[0])
+        self.assertNotIn("--headless", seen_cmds[0])
+        self.assertEqual(seen_envs[0]["LIBGL_ALWAYS_SOFTWARE"], "1")
+        self.assertNotIn("XAUTHORITY", seen_envs[0])
+
+    def test_negative_controls_reject_invalid_display_and_driver_combinations(self):
+        with self.assertRaisesRegex(ReleaseError, "--display xvfb"):
+            release.smoke(self.archive, PLATFORMS["linux"],
+                          display="headless", rendering_driver="opengl3_es")
+        with self.assertRaisesRegex(ReleaseError, "Linux only"):
+            release.smoke(self.archive, PLATFORMS["windows"], display="xvfb")
+        with mock.patch.object(sys, "platform", "linux"), \
+                mock.patch.object(release.shutil, "which", return_value=None), \
+                self.assertRaisesRegex(ReleaseError, "xvfb-run"):
+            release.smoke(self.archive, PLATFORMS["linux"], display="xvfb")
 
 
 if __name__ == "__main__":

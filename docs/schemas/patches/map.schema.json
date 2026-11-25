@@ -507,13 +507,116 @@
       },
       "type": "object"
     },
-    "LayoutVariant": {
+    "LayoutVariantPatch": {
       "additionalProperties": false,
       "description": "A whole-layout replacement, decoded like a base layout.",
       "properties": {
         "collision": {
-          "$ref": "#/$defs/VariantCollision",
-          "description": "The variant's collision grid."
+          "additionalProperties": false,
+          "description": "The variant's collision grid.",
+          "properties": {
+            "height_cells": {
+              "description": "Height in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "plane": {
+              "default": null,
+              "description": "The plane collision reads on this map.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rows": {
+              "description": "Row-major cell types.",
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "description": "Sparse cell-level 2D grid patch (`[row, col, value]` tuples or `{\"row\", \"col\", \"value\"}` objects).",
+                  "properties": {
+                    "cells": {
+                      "items": {
+                        "oneOf": [
+                          {
+                            "items": false,
+                            "maxItems": 3,
+                            "minItems": 3,
+                            "prefixItems": [
+                              {
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "maximum": 15,
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            ],
+                            "type": "array"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "col": {
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "row": {
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "value": {
+                                "maximum": 15,
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "row",
+                              "col",
+                              "value"
+                            ],
+                            "type": "object"
+                          }
+                        ]
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "cells"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "description": "Row-major cell types.",
+                  "items": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "type": "array"
+                }
+              ]
+            },
+            "width_cells": {
+              "description": "Width in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
         },
         "planes": {
           "default": [],
@@ -521,7 +624,10 @@
           "items": {
             "$ref": "#/$defs/VariantPlane"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "png": {
           "description": "The variant render.",
@@ -536,22 +642,116 @@
           ]
         },
         "vehicle_battle": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/VehicleBattleLayout"
+          "additionalProperties": false,
+          "description": "Raw chunk ids in the collision-authoritative layout plane.",
+          "properties": {
+            "height_chunks": {
+              "description": "Height in 32-pixel chunks.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
             },
-            {
-              "type": "null"
+            "plane": {
+              "default": null,
+              "description": "`fg` or `bg`, matching the decoded map plane.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rows": {
+              "description": "Row-major raw chunk ids.",
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "description": "Sparse cell-level 2D grid patch (`[row, col, value]` tuples or `{\"row\", \"col\", \"value\"}` objects).",
+                  "properties": {
+                    "cells": {
+                      "items": {
+                        "oneOf": [
+                          {
+                            "items": false,
+                            "maxItems": 3,
+                            "minItems": 3,
+                            "prefixItems": [
+                              {
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "maximum": 65535,
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            ],
+                            "type": "array"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "col": {
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "row": {
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "value": {
+                                "maximum": 65535,
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "row",
+                              "col",
+                              "value"
+                            ],
+                            "type": "object"
+                          }
+                        ]
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "cells"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "description": "Row-major raw chunk ids.",
+                  "items": {
+                    "items": {
+                      "format": "uint16",
+                      "maximum": 65535,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "type": "array"
+                }
+              ]
+            },
+            "width_chunks": {
+              "description": "Width in 32-pixel chunks.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
             }
-          ],
-          "default": null,
-          "description": "The variant's raw chunk grid, when its layout can feed vehicle battle\nbackground selection."
+          },
+          "type": [
+            "object",
+            "null"
+          ]
         }
       },
-      "required": [
-        "png",
-        "collision"
-      ],
       "type": "object"
     },
     "MapEffect": {
@@ -1315,31 +1515,6 @@
       ],
       "type": "object"
     },
-    "OverworldPatch": {
-      "additionalProperties": false,
-      "description": "One flag's final composed chunks after all its page hooks run.",
-      "properties": {
-        "event_flag": {
-          "description": "Event bank bit index; active when set.",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "tiles": {
-          "description": "Distinct touched chunks in world coordinates.",
-          "items": {
-            "$ref": "#/$defs/OverworldPatchTile"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "event_flag",
-        "tiles"
-      ],
-      "type": "object"
-    },
     "OverworldPatchFlag": {
       "additionalProperties": false,
       "description": "Source event-flag identity for a page hook.",
@@ -1367,6 +1542,27 @@
         "id",
         "id_hex"
       ],
+      "type": "object"
+    },
+    "OverworldPatchPatch": {
+      "additionalProperties": false,
+      "description": "One flag's final composed chunks after all its page hooks run.",
+      "properties": {
+        "event_flag": {
+          "description": "Event bank bit index; active when set.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tiles": {
+          "description": "Distinct touched chunks in world coordinates.",
+          "items": {
+            "$ref": "#/$defs/OverworldPatchTile"
+          },
+          "type": "array"
+        }
+      },
       "type": "object"
     },
     "OverworldPatchTile": {
@@ -1633,7 +1829,7 @@
       ],
       "type": "object"
     },
-    "PatchTile": {
+    "PatchTilePatch": {
       "additionalProperties": false,
       "description": "One atlas tile.",
       "properties": {
@@ -1696,7 +1892,10 @@
           "description": "How many of the tile's 8px cells carry the priority bit.",
           "format": "uint32",
           "minimum": 0,
-          "type": "integer"
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "x": {
           "description": "Pixel x of this tile inside the atlas PNG.",
@@ -1705,10 +1904,6 @@
           "type": "integer"
         }
       },
-      "required": [
-        "index",
-        "x"
-      ],
       "type": "object"
     },
     "ResolvedCell": {
@@ -1972,51 +2167,6 @@
       ],
       "type": "object"
     },
-    "VariantCollision": {
-      "additionalProperties": false,
-      "description": "A variant's collision grid, rows of 4-bit types.",
-      "properties": {
-        "height_cells": {
-          "description": "Height in cells.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "plane": {
-          "default": null,
-          "description": "The plane collision reads on this map.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "rows": {
-          "description": "Row-major cell types.",
-          "items": {
-            "items": {
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "type": "array"
-          },
-          "type": "array"
-        },
-        "width_cells": {
-          "description": "Width in cells.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "width_cells",
-        "height_cells",
-        "rows"
-      ],
-      "type": "object"
-    },
     "VariantPlane": {
       "additionalProperties": false,
       "description": "One plane of a layout variant.",
@@ -2041,51 +2191,6 @@
       },
       "required": [
         "plane"
-      ],
-      "type": "object"
-    },
-    "VehicleBattleLayout": {
-      "additionalProperties": false,
-      "description": "Raw chunk ids in the collision-authoritative layout plane.",
-      "properties": {
-        "height_chunks": {
-          "description": "Height in 32-pixel chunks.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "plane": {
-          "default": null,
-          "description": "`fg` or `bg`, matching the decoded map plane.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "rows": {
-          "description": "Row-major raw chunk ids.",
-          "items": {
-            "items": {
-              "format": "uint16",
-              "maximum": 65535,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "type": "array"
-          },
-          "type": "array"
-        },
-        "width_chunks": {
-          "description": "Width in 32-pixel chunks.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "width_chunks",
-        "height_chunks",
-        "rows"
       ],
       "type": "object"
     },
@@ -2354,23 +2459,90 @@
         },
         "rows": {
           "description": "Collision rows: each row is either a hex-nibble string or an array of 4-bit collision codes (0..=15).",
-          "items": {
-            "oneOf": [
-              {
-                "pattern": "^[0-9a-fA-F]*$",
-                "type": "string"
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "description": "Sparse cell-level 2D grid patch (`[row, col, value]` tuples or `{\"row\", \"col\", \"value\"}` objects).",
+              "properties": {
+                "cells": {
+                  "items": {
+                    "oneOf": [
+                      {
+                        "items": false,
+                        "maxItems": 3,
+                        "minItems": 3,
+                        "prefixItems": [
+                          {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          {
+                            "maximum": 15,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        ],
+                        "type": "array"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "col": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "row": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "value": {
+                            "maximum": 15,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "row",
+                          "col",
+                          "value"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                }
               },
-              {
-                "items": {
-                  "maximum": 15,
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                "type": "array"
-              }
-            ]
-          },
-          "type": "array"
+              "required": [
+                "cells"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "Collision rows: each row is either a hex-nibble string or an array of 4-bit collision codes (0..=15).",
+              "items": {
+                "oneOf": [
+                  {
+                    "pattern": "^[0-9a-fA-F]*$",
+                    "type": "string"
+                  },
+                  {
+                    "items": {
+                      "maximum": 15,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ]
         },
         "width_cells": {
           "format": "uint32",
@@ -2490,6 +2662,7 @@
       "type": "object"
     },
     "format_version": {
+      "const": 2,
       "description": "The pack format this record was written in. Repeated per map so a single\nfile is self-describing.",
       "format": "uint32",
       "minimum": 0,
@@ -2511,7 +2684,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `index`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },
@@ -2541,14 +2714,31 @@
       ]
     },
     "layout_variants": {
-      "default": [],
       "description": "Decoded whole-layout replacements referenced by `layout_replace`\nwrites, shipped as first-class variants with their own collision.",
-      "items": {
-        "$ref": "#/$defs/LayoutVariant"
-      },
-      "type": [
-        "array",
-        "null"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/LayoutVariantPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `png`.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `png`.",
+          "items": {
+            "$ref": "#/$defs/LayoutVariantPatch",
+            "required": [
+              "png"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "map_effects": {
@@ -2598,7 +2788,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `index`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },
@@ -2652,7 +2842,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `index`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },
@@ -2670,12 +2860,30 @@
     },
     "overworld_patches": {
       "description": "Flag-selected, composed page-hook results for this full-map build.\nRetail also replays hooks when a page streams mid-map; this record does\nnot claim to model a flag changing while the same map remains loaded.",
-      "items": {
-        "$ref": "#/$defs/OverworldPatch"
-      },
-      "type": [
-        "array",
-        "null"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/OverworldPatchPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `event_flag`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `event_flag`.",
+          "items": {
+            "$ref": "#/$defs/OverworldPatchPatch",
+            "required": [
+              "event_flag"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "patch_tiles": {
@@ -2708,10 +2916,28 @@
         },
         "tiles": {
           "description": "Raw tiles first by chunk id, then composed FG/BG pairs by ids.",
-          "items": {
-            "$ref": "#/$defs/PatchTile"
-          },
-          "type": "array"
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/PatchTilePatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `index`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `index`.",
+              "items": {
+                "$ref": "#/$defs/PatchTilePatch",
+                "required": [
+                  "index"
+                ]
+              },
+              "type": "array"
+            }
+          ]
         }
       },
       "type": [
@@ -2849,7 +3075,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `index`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },
@@ -2885,16 +3111,83 @@
         },
         "rows": {
           "description": "Row-major raw chunk ids.",
-          "items": {
-            "items": {
-              "format": "uint16",
-              "maximum": 65535,
-              "minimum": 0,
-              "type": "integer"
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "description": "Sparse cell-level 2D grid patch (`[row, col, value]` tuples or `{\"row\", \"col\", \"value\"}` objects).",
+              "properties": {
+                "cells": {
+                  "items": {
+                    "oneOf": [
+                      {
+                        "items": false,
+                        "maxItems": 3,
+                        "minItems": 3,
+                        "prefixItems": [
+                          {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          {
+                            "maximum": 65535,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        ],
+                        "type": "array"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "col": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "row": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "value": {
+                            "maximum": 65535,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "row",
+                          "col",
+                          "value"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "cells"
+              ],
+              "type": "object"
             },
-            "type": "array"
-          },
-          "type": "array"
+            {
+              "description": "Row-major raw chunk ids.",
+              "items": {
+                "items": {
+                  "format": "uint16",
+                  "maximum": 65535,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            }
+          ]
         },
         "width_chunks": {
           "description": "Width in 32-pixel chunks.",
@@ -2917,7 +3210,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `index`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },

@@ -22,7 +22,7 @@
       ],
       "type": "object"
     },
-    "PanelRecord": {
+    "PanelRecordPatch": {
       "additionalProperties": false,
       "properties": {
         "art_tile_a": {
@@ -56,11 +56,6 @@
           ]
         }
       },
-      "required": [
-        "id",
-        "art_tile_a",
-        "art_tile_b"
-      ],
       "type": "object"
     }
   },
@@ -78,12 +73,30 @@
       ]
     },
     "panels": {
-      "items": {
-        "$ref": "#/$defs/PanelRecord"
-      },
-      "type": [
-        "array",
-        "null"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/PanelRecordPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/PanelRecordPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
       ]
     }
   },

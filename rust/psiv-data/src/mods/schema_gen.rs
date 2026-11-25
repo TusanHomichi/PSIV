@@ -10,11 +10,16 @@ use super::compat::{
     MAX_SUPPORTED_MOD_FORMAT_VERSION, MAX_SUPPORTED_PACK_FORMAT_VERSION,
     MIN_SUPPORTED_MOD_FORMAT_VERSION, MIN_SUPPORTED_PACK_FORMAT_VERSION, MOD_FORMAT_VERSION,
 };
-use super::patch::{array_key_field, is_dialogue_entry, is_dynamic_map};
+use super::dialogue_patch::is_dialogue_entry;
+use super::grid::{CellValueKind, cell_grid_spec};
 use super::profile::{MOD_PROFILE_FORMAT_VERSION, ModProfile};
 use super::schema_check::for_each_patchable_table;
+use super::tables::{array_key_field, is_dynamic_map};
 use super::{ModError, ModManifest, WINDOWS_RESERVED_NAMES};
+use crate::dialogue::DIALOGUE_FORMAT_VERSION;
 use crate::manifest::PACK_FORMAT_VERSION;
+use crate::sound::SOUND_FORMAT_VERSION;
+use crate::sound_test::SOUND_TEST_VERSION;
 use schemars::JsonSchema;
 use schemars::generate::SchemaSettings;
 use serde_json::{Map, Value, json};
@@ -344,8 +349,69 @@ fn build_patch_schema<T: JsonSchema>(sample_rel_file: &str, display_target: &str
             "Sparse JSON patch schema for `patches/{display_target}`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`)."
         )),
     );
+    if let Some(props) = obj.get_mut("properties").and_then(Value::as_object_mut)
+        && let Some(fv) = props
+            .get_mut("format_version")
+            .and_then(Value::as_object_mut)
+    {
+        let expected = expected_table_format_version(sample_rel_file).unwrap_or_else(|| {
+            panic!(
+                "patchable table `{sample_rel_file}` has `format_version` without a loader-pinned constant"
+            )
+        });
+        fv.insert("const".to_owned(), json!(expected));
+    }
     attach_defs(obj, out_defs);
     canonicalize_json(transformed)
+}
+
+fn expected_table_format_version(sample_rel_file: &str) -> Option<u32> {
+    match sample_rel_file {
+        "battle/enemies.json"
+        | "battle/equipment.json"
+        | "battle/characters.json"
+        | "battle/abilities.json"
+        | "battle/formations.json"
+        | "battle/levels.json"
+        | "battle/enemy_animations.json"
+        | "battle/art/backgrounds.json"
+        | "battle/art/command_ui.json"
+        | "battle/art/damage_digits.json"
+        | "battle/art/fusion.json"
+        | "game_start.json" => Some(PACK_FORMAT_VERSION),
+        "dialogue/trees.json"
+        | "dialogue/font.json"
+        | "dialogue/portraits.json"
+        | "dialogue/window.json" => Some(DIALOGUE_FORMAT_VERSION),
+        "sound/index.json" | "sound/driver.json" | "sound/music.json" | "sound/sfx.json" => {
+            Some(SOUND_FORMAT_VERSION)
+        }
+        "title/sound_test.json" => Some(SOUND_TEST_VERSION),
+        "guild/guild.json" | "fifth/fifth.json" | "ship_menu/ship_menu.json" => Some(1),
+        "travel.json" => Some(2),
+        file if file.starts_with("maps/") && file.ends_with(".json") => Some(PACK_FORMAT_VERSION),
+        file if file.starts_with("sprites/") && file.ends_with(".json") => {
+            Some(PACK_FORMAT_VERSION)
+        }
+        _ => None,
+    }
+}
+
+fn key_field_is_integer(item_schema: &Value, key_field: &str) -> bool {
+    let Some(prop) = item_schema
+        .as_object()
+        .and_then(|o| o.get("properties"))
+        .and_then(Value::as_object)
+        .and_then(|p| p.get(key_field))
+        .and_then(Value::as_object)
+    else {
+        return true;
+    };
+    match prop.get("type") {
+        Some(Value::String(s)) => s == "integer",
+        Some(Value::Array(arr)) => arr.iter().any(|v| v.as_str() == Some("integer")),
+        _ => false,
+    }
 }
 
 fn extract_defs(root: &mut Value) -> Map<String, Value> {
@@ -549,10 +615,11 @@ fn transform_sparse(
         return nullable;
     }
 
-    let (key_field, dialogue_entry, dynamic_map) = {
+    let (key_field, grid_spec, dialogue_entry, dynamic_map) = {
         let path_refs: Vec<&str> = path.iter().map(String::as_str).collect();
         (
             array_key_field(rel_file, &path_refs),
+            cell_grid_spec(rel_file, &path_refs),
             is_dialogue_entry(rel_file, &path_refs),
             is_dynamic_map(rel_file, &path_refs),
         )
@@ -573,6 +640,7 @@ fn transform_sparse(
                 transform_sparse(item_schema, rel_file, path, raw_defs, out_defs, visited);
             path.pop();
 
+            let key_is_int = key_field_is_integer(&sparse_item, key_field);
             let item_ref = if let Some(base_name) = base_def_name {
                 let def_name = register_patch_def(out_defs, base_name, &sparse_item);
                 json!({ "$ref": format!("#/$defs/{def_name}") })
@@ -580,10 +648,15 @@ fn transform_sparse(
                 sparse_item
             };
 
+            let property_names = if key_is_int {
+                json!({ "pattern": "^(0|[1-9][0-9]*)$" })
+            } else {
+                json!({ "minLength": 1 })
+            };
             let object_form = json!({
                 "type": "object",
                 "description": format!("Sparse ID-keyed patch map keyed by `{key_field}`."),
-                "propertyNames": { "pattern": "^[0-9]+$" },
+                "propertyNames": property_names,
                 "additionalProperties": item_ref
             });
 
@@ -606,6 +679,54 @@ fn transform_sparse(
                 out.insert("description".to_owned(), desc.clone());
             }
             out.insert("oneOf".to_owned(), Value::Array(branches));
+            return Value::Object(out);
+        }
+
+        if let Some(grid_spec) = grid_spec {
+            let max_val = match grid_spec.kind {
+                CellValueKind::CollisionNibble => 15_u64,
+                CellValueKind::U8 => u64::from(u8::MAX),
+                CellValueKind::U16 => u64::from(u16::MAX),
+            };
+            let cell_tuple = json!({
+                "type": "array",
+                "prefixItems": [
+                    { "type": "integer", "minimum": 0 },
+                    { "type": "integer", "minimum": 0 },
+                    { "type": "integer", "minimum": 0, "maximum": max_val }
+                ],
+                "minItems": 3,
+                "maxItems": 3,
+                "items": false
+            });
+            let cell_object = json!({
+                "type": "object",
+                "required": ["row", "col", "value"],
+                "additionalProperties": false,
+                "properties": {
+                    "row": { "type": "integer", "minimum": 0 },
+                    "col": { "type": "integer", "minimum": 0 },
+                    "value": { "type": "integer", "minimum": 0, "maximum": max_val }
+                }
+            });
+            let sparse_grid = json!({
+                "type": "object",
+                "description": "Sparse cell-level 2D grid patch (`[row, col, value]` tuples or `{\"row\", \"col\", \"value\"}` objects).",
+                "required": ["cells"],
+                "additionalProperties": false,
+                "properties": {
+                    "cells": {
+                        "type": "array",
+                        "items": { "oneOf": [cell_tuple, cell_object] }
+                    }
+                }
+            });
+            let wholesale = transform_complete(node, raw_defs, out_defs, visited);
+            let mut out = Map::new();
+            if let Some(desc) = obj.get("description") {
+                out.insert("description".to_owned(), desc.clone());
+            }
+            out.insert("oneOf".to_owned(), json!([sparse_grid, wholesale]));
             return Value::Object(out);
         }
 

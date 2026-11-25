@@ -1,48 +1,58 @@
 {
   "$defs": {
-    "RawRecord": {
-      "additionalProperties": false,
-      "description": "A record's place in the ROM and its raw copy.",
-      "properties": {
-        "end_offset_exclusive": {
-          "description": "End, exclusive: the next record's start.",
-          "type": "string"
-        },
-        "raw_file": {
-          "description": "Raw copy, relative to `sound/`.",
-          "type": "string"
-        },
-        "raw_sha256": {
-          "description": "SHA-256 of the raw copy.",
-          "type": "string"
-        },
-        "rom_offset": {
-          "description": "Start, `0xNNNNNN`.",
-          "type": "string"
-        },
-        "size_bytes": {
-          "description": "Length.",
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "rom_offset",
-        "end_offset_exclusive",
-        "size_bytes",
-        "raw_file",
-        "raw_sha256"
-      ],
-      "type": "object"
-    },
-    "Record": {
+    "RecordPatch": {
       "additionalProperties": false,
       "description": "One music or SFX record.",
       "properties": {
         "header": {
-          "$ref": "#/$defs/SfxHeader",
-          "description": "The record's header."
+          "additionalProperties": false,
+          "description": "The record's header.",
+          "properties": {
+            "header_size_bytes": {
+              "description": "Header and descriptors.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "tick_multiplier": {
+              "description": "Header byte 2.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "track_count": {
+              "description": "Header byte 3.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "voice_count": {
+              "description": "Whole 25-byte voices in the table.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "voice_padding_bytes": {
+              "description": "Zero bytes after the last voice.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "voice_table_relative": {
+              "description": "The voice table's offset from the record start.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "voice_table_rom_offset": {
+              "description": "The voice table, `0xNNNNNN`.",
+              "type": "string"
+            }
+          },
+          "type": "object"
         },
         "id": {
           "description": "Retail sound id.",
@@ -65,8 +75,33 @@
           ]
         },
         "record": {
-          "$ref": "#/$defs/RawRecord",
-          "description": "Where the record is and its raw copy."
+          "additionalProperties": false,
+          "description": "Where the record is and its raw copy.",
+          "properties": {
+            "end_offset_exclusive": {
+              "description": "End, exclusive: the next record's start.",
+              "type": "string"
+            },
+            "raw_file": {
+              "description": "Raw copy, relative to `sound/`.",
+              "type": "string"
+            },
+            "raw_sha256": {
+              "description": "SHA-256 of the raw copy.",
+              "type": "string"
+            },
+            "rom_offset": {
+              "description": "Start, `0xNNNNNN`.",
+              "type": "string"
+            },
+            "size_bytes": {
+              "description": "Length.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
         },
         "symbol": {
           "description": "Retail symbol.",
@@ -74,96 +109,128 @@
         },
         "tracks": {
           "description": "The record's tracks, in descriptor order.",
-          "items": {
-            "$ref": "#/$defs/Track"
-          },
-          "type": "array"
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/TrackPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `track_id`.",
+              "propertyNames": {
+                "minLength": 1
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `track_id`.",
+              "items": {
+                "$ref": "#/$defs/TrackPatch",
+                "required": [
+                  "track_id"
+                ]
+              },
+              "type": "array"
+            }
+          ]
         },
         "voices": {
           "description": "The record's whole FM voice table.",
-          "items": {
-            "$ref": "#/$defs/Voice"
-          },
-          "type": "array"
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/VoicePatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `index`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `index`.",
+              "items": {
+                "$ref": "#/$defs/VoicePatch",
+                "required": [
+                  "index"
+                ]
+              },
+              "type": "array"
+            }
+          ]
         }
       },
-      "required": [
-        "id",
-        "id_hex",
-        "symbol",
-        "record",
-        "header",
-        "voices",
-        "tracks"
-      ],
       "type": "object"
     },
-    "SfxHeader": {
-      "additionalProperties": false,
-      "description": "An SFX record's header.",
-      "properties": {
-        "header_size_bytes": {
-          "description": "Header and descriptors.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "tick_multiplier": {
-          "description": "Header byte 2.",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "track_count": {
-          "description": "Header byte 3.",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "voice_count": {
-          "description": "Whole 25-byte voices in the table.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "voice_padding_bytes": {
-          "description": "Zero bytes after the last voice.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "voice_table_relative": {
-          "description": "The voice table's offset from the record start.",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "voice_table_rom_offset": {
-          "description": "The voice table, `0xNNNNNN`.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "voice_table_relative",
-        "voice_table_rom_offset",
-        "tick_multiplier",
-        "track_count",
-        "header_size_bytes",
-        "voice_count",
-        "voice_padding_bytes"
-      ],
-      "type": "object"
-    },
-    "Track": {
+    "TrackPatch": {
       "additionalProperties": false,
       "description": "One track and its static decode.",
       "properties": {
         "decode": {
-          "$ref": "#/$defs/TrackDecode",
-          "description": "What the static walk saw."
+          "additionalProperties": false,
+          "description": "What the static walk saw.",
+          "properties": {
+            "command_counts": {
+              "additionalProperties": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "description": "Primary command counts keyed by `NN`.",
+              "type": "object"
+            },
+            "command_opcodes_seen": {
+              "description": "Primary command opcodes met, as `0xNN`, ascending.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "has_track_end": {
+              "description": "Whether an `F2` is reachable.",
+              "type": "boolean"
+            },
+            "max_call_depth": {
+              "description": "Deepest `F8` nesting.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "meta_counts": {
+              "additionalProperties": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "description": "Meta command counts keyed by `NN`.",
+              "type": "object"
+            },
+            "meta_opcodes_seen": {
+              "description": "`FF` meta opcodes met, as `0xNN`, ascending.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "reachable_byte_count": {
+              "description": "Distinct bytes on a reachable path.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "reachable_instruction_states": {
+              "description": "Distinct (position, call stack) states reached.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sequence_byte_values_seen": {
+              "description": "Every byte value on a reachable path, as `0xNN`, ascending.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
         },
         "index": {
           "description": "Index among the record's descriptors of this family.",
@@ -173,8 +240,65 @@
           "type": "integer"
         },
         "initial": {
-          "$ref": "#/$defs/TrackInitial",
-          "description": "The descriptor's initial values."
+          "additionalProperties": false,
+          "description": "The descriptor's initial values.",
+          "properties": {
+            "channel_byte": {
+              "description": "SFX: its low byte, the channel.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "channel_word": {
+              "description": "SFX: the descriptor's channel word.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "modulation_envelope": {
+              "description": "Music PSG: the modulation envelope byte.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "transpose": {
+              "description": "Transpose byte, unsigned as stored.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "volume": {
+              "description": "Volume byte, unsigned as stored.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "volume_envelope": {
+              "description": "Music PSG: the volume envelope byte.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
         },
         "instruments_used": {
           "description": "FM voices selected by `EF`, ascending.",
@@ -187,8 +311,24 @@
           "type": "array"
         },
         "kind": {
-          "$ref": "#/$defs/TrackFamily",
-          "description": "The descriptor's family."
+          "description": "The descriptor's family.",
+          "oneOf": [
+            {
+              "const": "fm",
+              "description": "A music FM descriptor.",
+              "type": "string"
+            },
+            {
+              "const": "psg",
+              "description": "A music PSG descriptor.",
+              "type": "string"
+            },
+            {
+              "const": "sfx",
+              "description": "An SFX descriptor; its channel byte names the channel.",
+              "type": "string"
+            }
+          ]
         },
         "psg_instruments_used": {
           "description": "PSG envelopes selected by `F5`, ascending.",
@@ -201,222 +341,38 @@
           "type": "array"
         },
         "source": {
-          "$ref": "#/$defs/TrackSource",
-          "description": "Where the track starts."
+          "additionalProperties": false,
+          "description": "Where the track starts.",
+          "properties": {
+            "raw_descriptor_hex": {
+              "description": "The descriptor, as lowercase hex.",
+              "type": "string"
+            },
+            "record_end_exclusive": {
+              "description": "The record's end, `0xNNNNNN`.",
+              "type": "string"
+            },
+            "record_relative_offset": {
+              "description": "Start, from the record start.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "rom_offset": {
+              "description": "Start, `0xNNNNNN`.",
+              "type": "string"
+            }
+          },
+          "type": "object"
         },
         "track_id": {
           "description": "`music:NN:fm:I`, `music:NN:psg:I` or `sfx:NN:I`.",
           "type": "string"
         }
       },
-      "required": [
-        "track_id",
-        "kind",
-        "index",
-        "source",
-        "initial",
-        "instruments_used",
-        "psg_instruments_used",
-        "decode"
-      ],
       "type": "object"
     },
-    "TrackDecode": {
-      "additionalProperties": false,
-      "description": "What the static walk of one track saw.",
-      "properties": {
-        "command_counts": {
-          "additionalProperties": {
-            "format": "uint32",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "description": "Primary command counts keyed by `NN`.",
-          "type": "object"
-        },
-        "command_opcodes_seen": {
-          "description": "Primary command opcodes met, as `0xNN`, ascending.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "has_track_end": {
-          "description": "Whether an `F2` is reachable.",
-          "type": "boolean"
-        },
-        "max_call_depth": {
-          "description": "Deepest `F8` nesting.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "meta_counts": {
-          "additionalProperties": {
-            "format": "uint32",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "description": "Meta command counts keyed by `NN`.",
-          "type": "object"
-        },
-        "meta_opcodes_seen": {
-          "description": "`FF` meta opcodes met, as `0xNN`, ascending.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "reachable_byte_count": {
-          "description": "Distinct bytes on a reachable path.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "reachable_instruction_states": {
-          "description": "Distinct (position, call stack) states reached.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "sequence_byte_values_seen": {
-          "description": "Every byte value on a reachable path, as `0xNN`, ascending.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "reachable_instruction_states",
-        "reachable_byte_count",
-        "command_opcodes_seen",
-        "command_counts",
-        "meta_opcodes_seen",
-        "meta_counts",
-        "sequence_byte_values_seen",
-        "max_call_depth",
-        "has_track_end"
-      ],
-      "type": "object"
-    },
-    "TrackFamily": {
-      "description": "A track descriptor's family.",
-      "oneOf": [
-        {
-          "const": "fm",
-          "description": "A music FM descriptor.",
-          "type": "string"
-        },
-        {
-          "const": "psg",
-          "description": "A music PSG descriptor.",
-          "type": "string"
-        },
-        {
-          "const": "sfx",
-          "description": "An SFX descriptor; its channel byte names the channel.",
-          "type": "string"
-        }
-      ]
-    },
-    "TrackInitial": {
-      "additionalProperties": false,
-      "description": "A descriptor's initial values; which are present depends on the family.",
-      "properties": {
-        "channel_byte": {
-          "description": "SFX: its low byte, the channel.",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "channel_word": {
-          "description": "SFX: the descriptor's channel word.",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "modulation_envelope": {
-          "description": "Music PSG: the modulation envelope byte.",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "transpose": {
-          "description": "Transpose byte, unsigned as stored.",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "volume": {
-          "description": "Volume byte, unsigned as stored.",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "volume_envelope": {
-          "description": "Music PSG: the volume envelope byte.",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "transpose",
-        "volume"
-      ],
-      "type": "object"
-    },
-    "TrackSource": {
-      "additionalProperties": false,
-      "description": "A track's start.",
-      "properties": {
-        "raw_descriptor_hex": {
-          "description": "The descriptor, as lowercase hex.",
-          "type": "string"
-        },
-        "record_end_exclusive": {
-          "description": "The record's end, `0xNNNNNN`.",
-          "type": "string"
-        },
-        "record_relative_offset": {
-          "description": "Start, from the record start.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "rom_offset": {
-          "description": "Start, `0xNNNNNN`.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "rom_offset",
-        "record_relative_offset",
-        "record_end_exclusive",
-        "raw_descriptor_hex"
-      ],
-      "type": "object"
-    },
-    "Voice": {
+    "VoicePatch": {
       "additionalProperties": false,
       "description": "One 25-byte FM voice.",
       "properties": {
@@ -468,15 +424,6 @@
           "type": "integer"
         }
       },
-      "required": [
-        "index",
-        "rom_offset",
-        "size_bytes",
-        "raw_hex",
-        "algorithm_feedback",
-        "operator_registers",
-        "operator_total_levels"
-      ],
       "type": "object"
     }
   },
@@ -485,6 +432,7 @@
   "description": "Sparse JSON patch schema for `patches/sound/sfx.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
   "properties": {
     "format_version": {
+      "const": 1,
       "description": "[`SOUND_FORMAT_VERSION`].",
       "format": "uint32",
       "minimum": 0,
@@ -511,10 +459,28 @@
             },
             "records": {
               "description": "The records, in table order.",
-              "items": {
-                "$ref": "#/$defs/Record"
-              },
-              "type": "array"
+              "oneOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/RecordPatch"
+                  },
+                  "description": "Sparse ID-keyed patch map keyed by `id`.",
+                  "propertyNames": {
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  },
+                  "type": "object"
+                },
+                {
+                  "description": "Array of partial record patches, each carrying `id`.",
+                  "items": {
+                    "$ref": "#/$defs/RecordPatch",
+                    "required": [
+                      "id"
+                    ]
+                  },
+                  "type": "array"
+                }
+              ]
             }
           },
           "type": "object"
@@ -532,10 +498,28 @@
             },
             "records": {
               "description": "The records, in table order.",
-              "items": {
-                "$ref": "#/$defs/Record"
-              },
-              "type": "array"
+              "oneOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/RecordPatch"
+                  },
+                  "description": "Sparse ID-keyed patch map keyed by `id`.",
+                  "propertyNames": {
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  },
+                  "type": "object"
+                },
+                {
+                  "description": "Array of partial record patches, each carrying `id`.",
+                  "items": {
+                    "$ref": "#/$defs/RecordPatch",
+                    "required": [
+                      "id"
+                    ]
+                  },
+                  "type": "array"
+                }
+              ]
             }
           },
           "type": "object"

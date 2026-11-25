@@ -1,6 +1,6 @@
 {
   "$defs": {
-    "SoundTestTrack": {
+    "SoundTestTrackPatch": {
       "additionalProperties": false,
       "description": "One entry in `SoundTestStrings` / `SoundTestData`.",
       "properties": {
@@ -33,13 +33,6 @@
           "type": "string"
         }
       },
-      "required": [
-        "index",
-        "title",
-        "sound_id",
-        "composer_id",
-        "composer"
-      ],
       "type": "object"
     }
   },
@@ -48,6 +41,7 @@
   "description": "Sparse JSON patch schema for `patches/title/sound_test.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
   "properties": {
     "format_version": {
+      "const": 1,
       "description": "Pack format version (1).",
       "format": "uint32",
       "minimum": 0,
@@ -85,10 +79,28 @@
     },
     "tracks": {
       "description": "Ordered tracks (`index == position`).",
-      "items": {
-        "$ref": "#/$defs/SoundTestTrack"
-      },
-      "type": "array"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/SoundTestTrackPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/SoundTestTrackPatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
     }
   },
   "title": "PSIV Mod Patch Schema (title/sound_test.json)",

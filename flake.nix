@@ -34,9 +34,14 @@
           # Xvfb's GLX loads the software rasterizer from LIBGL_DRIVERS_PATH; its
           # built-in path is NixOS's /run/opengl-driver, which a host without
           # graphics configured lacks, and without GLX Godot falls back to EGL.
-          # Each wrapper sets the path for its own process only, so other GL
-          # programs started from the shell keep the host's drivers.
+          # libglvnd's EGL in turn needs __EGL_VENDOR_LIBRARY_DIRS pointing at
+          # Mesa's egl_vendor.d (50_mesa.json), or Godot 4.7.2 segfaults at
+          # drivers/egl/egl_manager.cpp:470 (#770). Each wrapper sets these paths
+          # for its own process only, so other GL programs started from the shell
+          # keep the host's drivers; godot-runtime-env.json shares the exact same
+          # closure with exported Linux binaries (tools/package/linux_runtime.py).
           driPath = "${pkgs.mesa}/lib/dri";
+          eglVendorDir = "${pkgs.mesa}/share/glvnd/egl_vendor.d";
 
           # What the official binary loads at run time: X11 and software OpenGL
           # for the captures under Xvfb (tools/certify.py), fonts, audio and input.
@@ -45,6 +50,14 @@
             libxkbcommon fontconfig libglvnd mesa vulkan-loader wayland
             alsa-lib libpulseaudio dbus udev speechd-minimal
           ];
+          godotLibraryPath = lib.makeLibraryPath godotLibraries;
+          runtimeEnvJson = pkgs.writeText "godot-runtime-env.json" (builtins.toJSON {
+            LD_LIBRARY_PATH = godotLibraryPath;
+            LIBGL_DRIVERS_PATH = driPath;
+            __GLX_VENDOR_LIBRARY_NAME = "mesa";
+            __EGL_VENDOR_LIBRARY_DIRS = eglVendorDir;
+            NIX_LD = "${pkgs.glibc}/lib/ld-linux-x86-64.so.2";
+          });
         in
         {
           godot = pkgs.stdenv.mkDerivation {
@@ -62,9 +75,11 @@
             installPhase = ''
               install -Dm755 Godot_v${godotVersion}-stable_linux.x86_64 $out/libexec/godot
               makeWrapper $out/libexec/godot $out/bin/godot \
-                --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath godotLibraries} \
+                --prefix LD_LIBRARY_PATH : ${godotLibraryPath} \
                 --set __GLX_VENDOR_LIBRARY_NAME mesa \
-                --set LIBGL_DRIVERS_PATH ${driPath}
+                --set LIBGL_DRIVERS_PATH ${driPath} \
+                --set __EGL_VENDOR_LIBRARY_DIRS ${eglVendorDir}
+              install -Dm644 ${runtimeEnvJson} $out/share/godot-runtime-env.json
             '';
           };
 
@@ -384,12 +399,24 @@
             status=0
             DISPLAY=:$(head -n 1 display) LIBGL_ALWAYS_SOFTWARE=1 timeout 120 \
               godot --path project "''${godot_flags[@]}" --quit-after 10 >godot.log 2>&1 || status=$?
+            egl_status=0
+            DISPLAY=:$(head -n 1 display) LIBGL_ALWAYS_SOFTWARE=1 timeout 120 \
+              godot --path project --display-driver x11 --rendering-driver opengl3_es \
+              --audio-driver Dummy --quit-after 10 >godot-egl.log 2>&1 || egl_status=$?
             kill "$server"
             cat godot.log
             if [ "$status" != 0 ]; then echo "Godot exited $status under Xvfb"; exit 1; fi
             if grep -q '"fbc" is null' godot.log; then echo "GLX offered Godot no fbconfig"; exit 1; fi
             if ! grep -q '^OpenGL API .*llvmpipe' godot.log; then
               echo "Godot got no llvmpipe OpenGL context under Xvfb"; exit 1
+            fi
+            cat godot-egl.log
+            if [ "$egl_status" != 0 ]; then echo "Godot EGL exited $egl_status under Xvfb"; exit 1; fi
+            if grep -q 'EGL_EXT_platform_base not found' godot-egl.log; then
+              echo "EGL loaded no Mesa vendor driver under Xvfb"; exit 1
+            fi
+            if ! grep -q '^OpenGL API OpenGL ES .*llvmpipe' godot-egl.log; then
+              echo "Godot got no llvmpipe OpenGL ES (EGL) context under Xvfb"; exit 1
             fi
             touch $out
           '';
@@ -417,13 +444,17 @@
     project // {
       devShells = lib.mapAttrs (system: shells: shells // {
         default = shells.default.overrideAttrs (old:
-          let pkgs = burrow.inputs.nixpkgs.legacyPackages.${system}; in
+          let
+            pkgs = burrow.inputs.nixpkgs.legacyPackages.${system};
+            g = godotFor pkgs;
+          in
           {
             # The checks' Python goes first on PATH, ahead of the plain one
             # burrow's shell brings with ruff and uv.
             nativeBuildInputs = [ (pythonFor pkgs) ] ++ old.nativeBuildInputs;
             shellHook = (old.shellHook or "") + ''
-              export PSIV_GODOT=${(godotFor pkgs).godot}/bin/godot
+              export PSIV_GODOT=${g.godot}/bin/godot
+              export PSIV_LINUX_RUNTIME_ENV=${g.godot}/share/godot-runtime-env.json
             '';
           });
       }) project.devShells;

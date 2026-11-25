@@ -104,9 +104,9 @@ conflicts against source and fresh observations.
 
 ## Protect local inputs and evidence
 
-- The ROM, `reference/`, generated packs, saves and captures are local assets.
-  Honor [.gitignore](.gitignore); do not force-add them. The project's MIT
-  license does not relicense original-game or third-party content.
+- The ROM, `reference/`, generated packs, saves and raw visual/audio captures
+  are local assets. Honor [.gitignore](.gitignore); do not force-add them. The
+  project's MIT license does not relicense original-game or third-party content.
 - Do not run broad cleanup such as `git clean -fdx`: ignored directories can
   contain irreplaceable checkpoint evidence. Remove only known disposable
   outputs created for your task.
@@ -133,10 +133,12 @@ roadmap when a release item closes.
 
 ## Private
 
-The ROM and everything derived from it (packs, extracted tables, graphics,
-text and audio, oracle frames, captures and fixture PNGs), `reference/`, saves,
-and third-party sources such as `oracle/gpgx-src/`. How to keep them out of
-Git and safe: [Protect local inputs and evidence](#protect-local-inputs-and-evidence).
+The ROM and everything derived from it (packs, extracted tables, graphics, text
+and audio, oracle frames, raw visual/audio captures and fixture PNGs),
+`reference/`, saves, and third-party sources like `oracle/gpgx-src/`. Sanitized
+battle replay fixtures under `rust/psiv-core/src/battle/replay_fixtures/`
+(oracle observation records: observed work-RAM state, party snapshots, roll
+traces and hashes; no ROM tables, script/dialogue text or art) are allowed in Git. See [Protect local inputs and evidence](#protect-local-inputs-and-evidence).
 
 <!-- house:prs v1 begin. Copied from FieldmouseWorks/burrow house/prs.md, verbatim. Change it there, not here: burrow's house sync rewrites everything between these markers. -->
 ## Pull requests
@@ -175,10 +177,9 @@ For reviewers, the review bot included. Flag as P1:
 - tests or checks weakened, skipped or deleted to get green
 - secrets, tokens or personal data in the diff or the logs it adds
 - behavior changed beyond what the PR says it does
-- cartridge content committed: ROM bytes, extracted art, sound, text or
-  tables, saves or captures, or a `.gitignore` entry for a local input
-  loosened ([#149](https://github.com/TusanHomichi/PSIV/issues/149) is moving
-  the ones already tracked out)
+- cartridge content committed: ROM bytes, extracted art, sound, text or tables,
+  saves or raw visual/audio captures, or a `.gitignore` entry for a local input
+  loosened (sanitized battle replay fixtures under `rust/psiv-core/src/battle/replay_fixtures/` are allowed; see [Private](#private))
 - a game rule without its retail basis (a disassembly symbol or ROM offset), or
   a deliberate difference from the cartridge not recorded in
   [the source notes](docs/source-notes/README.md)

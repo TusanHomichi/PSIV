@@ -1,6 +1,6 @@
 {
   "$defs": {
-    "Portrait": {
+    "PortraitPatch": {
       "additionalProperties": false,
       "description": "One portrait.",
       "properties": {
@@ -31,11 +31,6 @@
           "type": "string"
         }
       },
-      "required": [
-        "id",
-        "symbol",
-        "png"
-      ],
       "type": "object"
     }
   },
@@ -50,6 +45,7 @@
       "type": "integer"
     },
     "format_version": {
+      "const": 2,
       "description": "Pack format; checked against [`DIALOGUE_FORMAT_VERSION`].",
       "format": "uint32",
       "minimum": 0,
@@ -92,10 +88,28 @@
     },
     "portraits": {
       "description": "The portraits, id 1 upward. Id 0 is the table's null entry and is not\nlisted: `$F4` id 0 hides the window.",
-      "items": {
-        "$ref": "#/$defs/Portrait"
-      },
-      "type": "array"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/PortraitPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/PortraitPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
     }
   },
   "title": "PSIV Mod Patch Schema (dialogue/portraits.json)",

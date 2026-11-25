@@ -287,6 +287,12 @@ fn matches_schema_pattern(pattern: &str, text: &str) -> bool {
         }
         "\\S" => text.chars().any(|c| !c.is_whitespace()),
         "^[0-9]+$" => !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit()),
+        "^(0|[1-9][0-9]*)$" => {
+            text == "0"
+                || (!text.is_empty()
+                    && matches!(text.as_bytes()[0], b'1'..=b'9')
+                    && text.bytes().all(|b| b.is_ascii_digit()))
+        }
         "^[0-9a-fA-F]{64}$" => text.len() == 64 && text.bytes().all(|b| b.is_ascii_hexdigit()),
         "^[0-9a-fA-F]*$" => text.bytes().all(|b| b.is_ascii_hexdigit()),
         "^0[xX][0-9a-fA-F]{1,2}$" => {
@@ -468,10 +474,36 @@ fn patch_schemas_validate_id_keyed_dialogue_shorthands_and_reject_bad_inputs() {
             "non-numeric ID key",
             json!({"enemies": {"zoran": {"hp": 99}}}),
         ),
+        (
+            "zero-padded numeric ID key",
+            json!({"enemies": {"010": {"hp": 99}}}),
+        ),
     ] {
         validate_against_schema(&enemies_schema, &bad_patch)
             .expect_err(&format!("enemies schema must reject {label}: {bad_patch}"));
     }
+
+    // 1b. Pinned patch `format_version` constants reject unsupported versions across tables.
+    let backgrounds_schema = load_published_schema("patches/battle/art/backgrounds.schema.json");
+    let travel_schema = load_published_schema("patches/travel.schema.json");
+    let sound_index_schema = load_published_schema("patches/sound/index.schema.json");
+    validate_against_schema(
+        &backgrounds_schema,
+        &json!({"format_version": PACK_FORMAT_VERSION}),
+    )
+    .unwrap();
+    validate_against_schema(&backgrounds_schema, &json!({"format_version": 999}))
+        .expect_err("backgrounds schema must reject unsupported format_version");
+    validate_against_schema(&travel_schema, &json!({"format_version": 2})).unwrap();
+    validate_against_schema(&travel_schema, &json!({"format_version": 1}))
+        .expect_err("travel schema must reject unsupported format_version");
+    validate_against_schema(
+        &sound_index_schema,
+        &json!({"format_version": crate::sound::SOUND_FORMAT_VERSION}),
+    )
+    .unwrap();
+    validate_against_schema(&sound_index_schema, &json!({"format_version": 99}))
+        .expect_err("sound/index schema must reject unsupported format_version");
 
     // 2. Dialogue patch: replace, 1D lines, 2D lines + keep_portrait pass; invalid forms fail.
     for valid_entry in [
@@ -520,6 +552,23 @@ fn patch_schemas_validate_id_keyed_dialogue_shorthands_and_reject_bad_inputs() {
         .expect_err("map schema must reject wrong key `treasures`");
     validate_against_schema(
         &map_schema,
+        &json!({
+            "collision": {"rows": {"cells": [[1, 1, 8], {"row": 1, "col": 2, "value": 0}]}}
+        }),
+    )
+    .unwrap();
+    validate_against_schema(
+        &map_schema,
+        &json!({"collision": {"rows": {"cells": [[1, 1, 16]]}}}),
+    )
+    .expect_err("map schema must reject out-of-range collision nibble 16");
+    validate_against_schema(
+        &map_schema,
+        &json!({"collision": {"rows": {"cells": [{"row": 1, "col": 1, "value": 8, "extra": 1}]}}}),
+    )
+    .expect_err("map schema must reject unknown field in sparse cell object");
+    validate_against_schema(
+        &map_schema,
         &json!({"map_effects": [{"entry": 1, "decoded": true, "bogus_effect_key": 7}]}),
     )
     .expect_err("map schema must reject unknown key inside unkeyed replacement array");
@@ -563,13 +612,14 @@ fn modding_guide_examples_validate_against_published_schemas() {
     }
     assert_eq!(
         blocks.len(),
-        3,
-        "expected 3 worked JSON examples in MODDING.md"
+        4,
+        "expected 4 worked JSON examples in MODDING.md"
     );
 
     let mod_val: Value = serde_json::from_str(&blocks[0]).unwrap();
     let enemy_val: Value = serde_json::from_str(&blocks[1]).unwrap();
     let dialogue_val: Value = serde_json::from_str(&blocks[2]).unwrap();
+    let map_val: Value = serde_json::from_str(&blocks[3]).unwrap();
 
     validate_against_schema(&load_published_schema(MOD_SCHEMA_FILE), &mod_val)
         .expect("MODDING.md mod.json must satisfy mod.schema.json");
@@ -583,6 +633,8 @@ fn modding_guide_examples_validate_against_published_schemas() {
         &dialogue_val,
     )
     .expect("MODDING.md dialogue patch must satisfy trees.schema.json");
+    validate_against_schema(&load_published_schema("patches/map.schema.json"), &map_val)
+        .expect("MODDING.md sparse map collision patch must satisfy map.schema.json");
 }
 
 // ---------------------------------------------------------------------------

@@ -519,7 +519,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `character_id`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },
@@ -542,6 +542,7 @@
       "type": "integer"
     },
     "format_version": {
+      "const": 2,
       "description": "The pack format that wrote this.",
       "format": "uint32",
       "minimum": 0,

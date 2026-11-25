@@ -165,7 +165,7 @@
       },
       "type": "object"
     },
-    "EquipmentType": {
+    "EquipmentTypePatch": {
       "additionalProperties": false,
       "description": "One entry of the decoded type table.",
       "properties": {
@@ -213,14 +213,6 @@
           "type": "integer"
         }
       },
-      "required": [
-        "type",
-        "name",
-        "two_handed",
-        "is_weapon",
-        "multi_target",
-        "equippable"
-      ],
       "type": "object"
     }
   },
@@ -235,6 +227,7 @@
       "type": "integer"
     },
     "format_version": {
+      "const": 2,
       "description": "The pack format that wrote this.",
       "format": "uint32",
       "minimum": 0,
@@ -249,7 +242,7 @@
           },
           "description": "Sparse ID-keyed patch map keyed by `id`.",
           "propertyNames": {
-            "pattern": "^[0-9]+$"
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "type": "object"
         },
@@ -267,10 +260,28 @@
     },
     "types": {
       "description": "`Equip_Item`'s jump table (`$05F6AE`), read out of the ROM.",
-      "items": {
-        "$ref": "#/$defs/EquipmentType"
-      },
-      "type": "array"
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/EquipmentTypePatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `name`.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `name`.",
+          "items": {
+            "$ref": "#/$defs/EquipmentTypePatch",
+            "required": [
+              "name"
+            ]
+          },
+          "type": "array"
+        }
+      ]
     }
   },
   "title": "PSIV Mod Patch Schema (battle/equipment.json)",
