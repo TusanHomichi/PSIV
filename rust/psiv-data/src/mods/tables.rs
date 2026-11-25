@@ -210,7 +210,7 @@ pub(crate) const KEYED_ARRAYS: &[KeyedArraySpec] = &[
     KeyedArraySpec {
         file: FilePattern::Exact("dialogue/trees.json"),
         path: &["talk_options", "entries"],
-        key_field: "entry",
+        key_field: "flag",
     },
     KeyedArraySpec {
         file: FilePattern::Exact("dialogue/trees.json"),

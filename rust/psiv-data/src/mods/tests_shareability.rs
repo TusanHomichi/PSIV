@@ -661,3 +661,41 @@ fn real_pack_single_cell_collision_and_keyed_map_arrays_round_trip_strict() {
 
     let _ = fs::remove_dir_all(&scratch);
 }
+
+#[test]
+fn talk_options_entries_keyed_by_flag_round_trips_entry_change() {
+    let base = json!({
+        "talk_options": {
+            "entries": [
+                {"flag": 223, "entry": 49},
+                {"flag": 222, "entry": 48}
+            ]
+        }
+    });
+    let edited = json!({
+        "talk_options": {
+            "entries": [
+                {"flag": 223, "entry": 99},
+                {"flag": 222, "entry": 48}
+            ]
+        }
+    });
+
+    let diff = diff_json(&base, &edited, "dialogue/trees.json")
+        .unwrap()
+        .expect("talk_options entry change must emit a sparse diff");
+    assert_eq!(
+        diff,
+        json!({
+            "talk_options": {
+                "entries": {
+                    "223": {"entry": 99}
+                }
+            }
+        })
+    );
+
+    let mut applied = base.clone();
+    apply_json_patch(&mut applied, &diff, "dialogue/trees.json").unwrap();
+    assert_eq!(applied, edited);
+}

@@ -134,7 +134,7 @@ loader accepts. Under `patches/<file>`:
 
 | To change | Pack file | Keyed arrays / sparse grids | Schema |
 | --- | --- | --- | --- |
-| Dialogue and text windows | `dialogue/trees.json`, `dialogue/portraits.json`, `dialogue/window.json` | `trees` → `tree`, `entries` → `id`, `talk_options.entries` → `entry`, `system_messages.messages` → `id`, `portraits` → `id`, `windows` / `menu_windows` → `index` | `rust/psiv-data/src/dialogue/trees.rs`, `dialogue/chrome.rs` |
+| Dialogue and text windows | `dialogue/trees.json`, `dialogue/portraits.json`, `dialogue/window.json` | `trees` → `tree`, `entries` → `id`, `talk_options.entries` → `flag`, `system_messages.messages` → `id`, `portraits` → `id`, `windows` / `menu_windows` → `index` | `rust/psiv-data/src/dialogue/trees.rs`, `dialogue/chrome.rs` |
 | Enemies: HP, stats, resistances, AI, rewards | `battle/enemies.json`, `battle/enemy_animations.json` | `enemies` → `id`, `animations` → `enemy_id` | `rust/psiv-data/src/battle/enemies.rs`, `battle/animations.rs` |
 | Battle formations and map encounters | `battle/formations.json` | `formations` → `id`, `boss_formations` → `event_battle_index`, `inline_formations` → `label`, `*.enemies` → `slot`, `encounter_groups.groups` → `group`, `map_bindings` → `map_id`, `position_grids` → `name` (`cells` sparse grid) | `rust/psiv-data/src/battle/formations.rs` |
 | Items and equipment | `battle/equipment.json` | `items` → `id`, `types` → `name` | `rust/psiv-data/src/battle/party.rs` |
