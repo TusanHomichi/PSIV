@@ -137,8 +137,8 @@ The ROM and everything derived from it (packs, extracted tables, graphics, text
 and audio, oracle frames, raw visual/audio captures and fixture PNGs),
 `reference/`, saves, and third-party sources like `oracle/gpgx-src/`. Sanitized
 battle replay fixtures under `rust/psiv-core/src/battle/replay_fixtures/`
-(oracle observation records: RAM values, roll traces, provenance hashes; no ROM
-tables, text or art) are allowed in Git. See [Protect local inputs and evidence](#protect-local-inputs-and-evidence).
+(oracle observation records: observed work-RAM state, party snapshots, roll
+traces and hashes; no ROM tables, script/dialogue text or art) are allowed in Git. See [Protect local inputs and evidence](#protect-local-inputs-and-evidence).
 
 <!-- house:prs v1 begin. Copied from FieldmouseWorks/burrow house/prs.md, verbatim. Change it there, not here: burrow's house sync rewrites everything between these markers. -->
 ## Pull requests
