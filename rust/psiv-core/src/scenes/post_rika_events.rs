@@ -74,7 +74,7 @@ pub static MACHINE_CENTER_APPEARING: Scene = Scene {
         // collision `$1` from that chunk, and warp 21 at (114,180) needs it.
         SceneOp::Wait { ticks: 308 },
         SceneOp::WriteMapChunks {
-            chunks: &[(57, 90, 0xD3)],
+            chunks: std::borrow::Cow::Borrowed(&[(57, 90, 0xD3)]),
         },
         SceneOp::Wait { ticks: 61 },
         SceneOp::ObjectAnimation {

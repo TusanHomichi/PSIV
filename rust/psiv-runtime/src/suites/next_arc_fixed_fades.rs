@@ -9,9 +9,9 @@ pub(super) fn assert_fades(events: &[RuntimeEvent], expected: &[SceneOp]) {
             match op {
                 SceneOp::InitVramAndCram => {
                     assert_eq!(seen.pop(), Some(SceneOp::FadeOut));
-                    seen.push(*op);
+                    seen.push(op.clone());
                 }
-                SceneOp::FadeIn | SceneOp::FadeOut => seen.push(*op),
+                SceneOp::FadeIn | SceneOp::FadeOut => seen.push(op.clone()),
                 _ => {}
             }
         }

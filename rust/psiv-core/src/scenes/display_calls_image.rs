@@ -152,13 +152,13 @@ fn a_wrong_display_record_is_reported() {
                 dropped.remove(index);
                 variants.push(dropped);
                 let mut doubled = scene.ops.to_vec();
-                doubled.insert(index, *op);
+                doubled.insert(index, op.clone());
                 variants.push(doubled);
             }
         }
         if !scene.ops.iter().any(recorded) {
             let mut added = scene.ops.to_vec();
-            added.insert(0, enable);
+            added.insert(0, enable.clone());
             variants.push(added);
         }
         for ops in variants {

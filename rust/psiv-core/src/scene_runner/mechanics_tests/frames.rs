@@ -12,7 +12,7 @@ use super::*;
 use crate::CELL_PIXELS;
 
 /// One blocking op and the frames until the scene's next op runs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Spent {
     op: SceneOp,
     frames: usize,
@@ -57,16 +57,16 @@ fn timeline(
             "{effects:?}"
         );
         if runner.pc != before && !runner.is_finished() {
-            blocked_by.push((ticks, ops[runner.pc - 1]));
+            blocked_by.push((ticks, ops[runner.pc - 1].clone()));
         }
         leader.push(leader_pixel(&runner));
     }
     let mut spent = Vec::new();
-    for (index, &(tick, op)) in blocked_by.iter().enumerate() {
-        let next = blocked_by.get(index + 1).map_or(ticks, |&(t, _)| t);
+    for (index, (tick, op)) in blocked_by.iter().enumerate() {
+        let next = blocked_by.get(index + 1).map_or(ticks, |(t, _)| *t);
         spent.push(Spent {
-            op,
-            frames: next - tick,
+            op: op.clone(),
+            frames: next - *tick,
         });
     }
     Timeline {
@@ -155,9 +155,9 @@ fn insert(ops: &[SceneOp], at: usize, op: SceneOp) -> &'static [SceneOp] {
     let shift = |to: usize| if to > at { to + 1 } else { to };
     let mut out: Vec<SceneOp> = ops
         .iter()
-        .map(|&op| match op {
-            SceneOp::Jump { to } => SceneOp::Jump { to: shift(to) },
-            SceneOp::BranchFlag {
+        .map(|op| match op {
+            &SceneOp::Jump { to } => SceneOp::Jump { to: shift(to) },
+            &SceneOp::BranchFlag {
                 flag,
                 if_set,
                 if_clear,
@@ -166,7 +166,7 @@ fn insert(ops: &[SceneOp], at: usize, op: SceneOp) -> &'static [SceneOp] {
                 if_set: shift(if_set),
                 if_clear: shift(if_clear),
             },
-            other => other,
+            other => other.clone(),
         })
         .collect();
     out.insert(at, op);
@@ -178,9 +178,9 @@ fn remove(ops: &[SceneOp], at: usize) -> &'static [SceneOp] {
     let shift = |to: usize| if to > at { to - 1 } else { to };
     let mut out: Vec<SceneOp> = ops
         .iter()
-        .map(|&op| match op {
-            SceneOp::Jump { to } => SceneOp::Jump { to: shift(to) },
-            SceneOp::BranchFlag {
+        .map(|op| match op {
+            &SceneOp::Jump { to } => SceneOp::Jump { to: shift(to) },
+            &SceneOp::BranchFlag {
                 flag,
                 if_set,
                 if_clear,
@@ -189,7 +189,7 @@ fn remove(ops: &[SceneOp], at: usize) -> &'static [SceneOp] {
                 if_set: shift(if_set),
                 if_clear: shift(if_clear),
             },
-            other => other,
+            other => other.clone(),
         })
         .collect();
     out.remove(at);

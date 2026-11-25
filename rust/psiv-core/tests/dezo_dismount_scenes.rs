@@ -271,20 +271,20 @@ fn control_the_old_transitions_fail_their_frame_checks() {
     // Main's ops before #592: on foot to op 7, the jump both branches took
     // into the tree load and dialogue `$34`; mounted, no bare frames.
     let old_trees: Vec<SceneOp> = [
-        trees[0],
+        trees[0].clone(),
         SceneOp::BranchIfVehicle {
             if_mounted: 2,
             if_on_foot: 7,
         },
-        trees[2],
-        trees[3],
-        trees[4],
-        trees[5],
-        trees[7],
+        trees[2].clone(),
+        trees[3].clone(),
+        trees[4].clone(),
+        trees[5].clone(),
+        trees[7].clone(),
         SceneOp::Jump { to: 8 },
     ]
     .into_iter()
-    .chain(trees[9..].iter().copied())
+    .chain(trees[9..].iter().cloned())
     .collect();
     assert!(matches!(old_trees[7], SceneOp::Jump { to: 8 }));
     assert!(matches!(old_trees[8], SceneOp::SetDialogueTree { .. }));

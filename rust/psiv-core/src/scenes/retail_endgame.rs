@@ -4,6 +4,8 @@
 //! Raja Sick (`$8012`) and the Rykros arrival/tower hand-off (`$801B`). The
 //! final presentation (`$8021`) is in [`super::ending`].
 
+use std::borrow::Cow;
+
 use crate::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::{CameraSubject, PresentationOp, SAVE_PALETTE};
@@ -97,7 +99,7 @@ pub static RAJA_SICK: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::RajaSickArrangeParty {
                 reference: RAJA,
-                companions: RAJA_SICK_COMPANIONS,
+                companions: Cow::Borrowed(RAJA_SICK_COMPANIONS),
             },
         },
         SceneOp::RunDialogue {
@@ -250,7 +252,7 @@ pub static RYKROS: Scene = Scene {
                 source_rom_addr: 0x0007_82DA,
                 destination_ram: 0xFFFF_FB2E,
                 words_per_frame: 9,
-                delays: RYKROS_PALETTE_DELAYS,
+                delays: Cow::Borrowed(RYKROS_PALETTE_DELAYS),
             },
         },
         SceneOp::SetRenderSpritesInCutscene { enabled: true },

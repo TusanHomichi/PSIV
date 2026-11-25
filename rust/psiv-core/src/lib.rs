@@ -148,12 +148,14 @@ pub use save::{
 };
 pub use scene::{
     ActorAnimation, ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, MoneyTest,
-    OP_BUDGET_PER_TICK, SavedByte, SceneEffect, SceneFault, SceneInput, SceneOp, ScriptedActor,
+    OP_BUDGET_PER_TICK, SavedByte, SceneEffect, SceneFault, SceneInput, SceneOp,
+    SceneValidationError, ScriptedActor, validate_scene_ops,
 };
 pub use scene_presentation::{
     CameraSubject, CounterCycle, CreditsPlane, PaletteBuffer, PaletteHold, PaletteSource,
     PresentationAsset, PresentationOp,
 };
+pub use scene_runner::drift::{CoordCmp, NpcDrift};
 pub use scene_runner::{Scene, SceneRunner, runner_for};
 pub use scene_types::{
     GetOffOp, GuildOp, ItemOp, JobBoardStep, ObjectOp, RideOp, RockyOp, SystemLine,

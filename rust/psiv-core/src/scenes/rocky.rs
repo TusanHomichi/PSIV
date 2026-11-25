@@ -119,13 +119,13 @@ pub static CATCHING_ROCKY: Scene = Scene {
     ops: &[
         // 0-6: `lea ($FFFFC5C0).w`, `$C4C0` or `$C540`, and the turn.
         SceneOp::SkipUnlessMap {
-            maps: KRUP,
+            maps: std::borrow::Cow::Borrowed(KRUP),
             skip: 2,
         },
         face_leader(AT_KRUP),
         SceneOp::SkipOps { count: 4 },
         SceneOp::SkipUnlessMap {
-            maps: MONSEN,
+            maps: std::borrow::Cow::Borrowed(MONSEN),
             skip: 2,
         },
         face_leader(AT_MONSEN),
@@ -143,7 +143,7 @@ pub static CATCHING_ROCKY: Scene = Scene {
         set_flag(0x23, false),
         // 11-21: Krup's row, `$35`, `$22`.
         SceneOp::SkipUnlessMap {
-            maps: KRUP,
+            maps: std::borrow::Cow::Borrowed(KRUP),
             skip: 10,
         },
         standard(0x35),
@@ -158,7 +158,7 @@ pub static CATCHING_ROCKY: Scene = Scene {
         SceneOp::End,
         // 22-32: Monsen's row, `$2A`, `$23`.
         SceneOp::SkipUnlessMap {
-            maps: MONSEN,
+            maps: std::borrow::Cow::Borrowed(MONSEN),
             skip: 10,
         },
         standard(0x2A),
@@ -184,13 +184,13 @@ pub static CATCHING_ROCKY: Scene = Scene {
         SceneOp::End,
         // 43-49: `loc_727CA`, the row's last byte.
         SceneOp::SkipUnlessMap {
-            maps: KRUP,
+            maps: std::borrow::Cow::Borrowed(KRUP),
             skip: 2,
         },
         standard(0x36),
         SceneOp::SkipOps { count: 4 },
         SceneOp::SkipUnlessMap {
-            maps: MONSEN,
+            maps: std::borrow::Cow::Borrowed(MONSEN),
             skip: 2,
         },
         standard(0x2B),

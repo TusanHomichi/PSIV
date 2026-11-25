@@ -57,7 +57,7 @@ fn run(event: u16, done: impl Fn(&[Tick]) -> bool) -> Option<Vec<Tick>> {
                 runtime.dialogue_closed();
             }
             if let RuntimeEvent::ScenePresentation { op, .. } = item {
-                ops.push(*op);
+                ops.push(op.clone());
             }
         }
         let view = runtime.cram();

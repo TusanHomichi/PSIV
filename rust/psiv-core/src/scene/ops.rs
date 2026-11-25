@@ -1,5 +1,7 @@
 //! The scene instruction vocabulary, separate from its public facade and runner.
 
+use std::borrow::Cow;
+
 use crate::geom::{Cell, Direction};
 use crate::scene_presentation::PresentationOp;
 use crate::scene_runner::actor::ActorAnimation;
@@ -16,7 +18,7 @@ use crate::scene_types::{
 ///
 /// Jump targets are op indices into the same scene slice, so a scene is
 /// self-contained data with no labels to resolve at runtime.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SceneOp {
     /// `loc_64C4A`: prepare the planet screen and its instant packed caption.
     FlightPlanet,
@@ -84,7 +86,7 @@ pub enum SceneOp {
     /// the runtime verifies the literal id before removing an overlay.
     RestoreMapChunks {
         /// Collision-authoritative base chunks written by the scene.
-        chunks: &'static [(u32, u32, u16)],
+        chunks: Cow<'static, [(u32, u32, u16)]>,
     },
     /// Write original map chunks relative to an actor's pixel position.
     /// The pack supplies both the chunk graphics and its collision values.
@@ -93,7 +95,7 @@ pub enum SceneOp {
         actor: ActorRef,
         /// (Pixel X offset, pixel Y offset, chunk id), divided into 32px
         /// chunk coordinates after adding the actor's current position.
-        chunks: &'static [(i32, i32, u16)],
+        chunks: Cow<'static, [(i32, i32, u16)]>,
     },
     /// Write original map chunks at absolute chunk coordinates.
     ///
@@ -108,7 +110,7 @@ pub enum SceneOp {
     /// See `docs/scenes/LIVE_LAYOUT_WRITES.md`.
     WriteMapChunks {
         /// (Chunk x, chunk y, replacement chunk id) in chunk coordinates.
-        chunks: &'static [(u32, u32, u16)],
+        chunks: Cow<'static, [(u32, u32, u16)]>,
     },
     /// Replace the live map layout, both planes: `KosDecomp` of `fg` into
     /// `Map_Layout_FG` and of `bg` into `Map_Layout_BG`, the shape
@@ -235,7 +237,7 @@ pub enum SceneOp {
     /// the cartridge's rate and occupancy follows frame by frame.
     DriftNpcs {
         /// The objects and their step constants.
-        drifts: &'static [NpcDrift],
+        drifts: Cow<'static, [NpcDrift]>,
         /// Loop iterations.
         frames: u16,
     },
@@ -924,7 +926,7 @@ pub enum SceneOp {
     /// (Field_Map_Index).w` pair (`ps4.asm:133667-133674`).
     SkipUnlessMap {
         /// The maps that do not skip.
-        maps: &'static [u16],
+        maps: Cow<'static, [u16]>,
         /// Ops skipped otherwise.
         skip: u16,
     },

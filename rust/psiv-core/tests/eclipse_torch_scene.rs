@@ -280,7 +280,7 @@ fn control_the_old_flash_and_spawn_timing_fail_the_frame_check() {
     // A frame after each creation.
     let mut spawn_frames = Vec::new();
     for (index, op) in torch.iter().enumerate() {
-        spawn_frames.push(*op);
+        spawn_frames.push(op.clone());
         if (objects..objects + 9).contains(&index) {
             spawn_frames.push(SceneOp::WaitFrames { frames: 1 });
         }

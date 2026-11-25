@@ -137,6 +137,12 @@ impl GameData {
         self.scene_palettes = palettes;
     }
 
+    /// Attaches a dialogue set to a synthetic pack assembled via
+    /// [`GameData::from_parts`].
+    pub fn set_dialogue(&mut self, dialogue: Arc<crate::DialogueSet>) {
+        self.dialogue = Some(dialogue);
+    }
+
     /// The pack index: the ROM hash, the inventory and the skipped maps.
     pub fn manifest(&self) -> &Manifest {
         &self.manifest

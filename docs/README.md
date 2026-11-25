@@ -77,7 +77,8 @@ hardware's behavior through the oracle.
   [dialogue actions](scenes/DIALOGUE_ACTIONS.md), [the dialogue routines' callers](scenes/DIALOGUE_CALLERS.md).
 - [Scene presentation](scenes/SCENE_PRESENTATION.md), [the field reload](scenes/FIELD_RELOAD.md),
   [live layout writes](scenes/LIVE_LAYOUT_WRITES.md), [revision-conditional ops](scenes/REVISION_AUDIT.md),
-  [the title and boot](scenes/TITLE_BOOT.md).
+  [the title and boot](scenes/TITLE_BOOT.md),
+  [data-driven scenes spike](scenes/DATA_DRIVEN_SCENES_SPIKE.md).
 
 **Sound**
 

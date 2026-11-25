@@ -6,6 +6,8 @@
 //! structural: every event the cartridge can fire is either registered here or
 //! listed, with an issue, in the census allowlist.
 
+use std::borrow::Cow;
+
 use crate::geom::Direction;
 use crate::scene::{
     ActorAnimation, ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SavedByte, SceneOp,
@@ -194,7 +196,7 @@ pub static TYLER_GRAVE_OPENING: Scene = Scene {
         // 6: `GetMapLayoutOffset(d1 = $A, d2 = $C, d3 = 1)` (BG), `move.b #$47,
         // (a1)`, `RefreshPlaneBG` ($06FCE4..$06FCFE): the stair chunk.
         SceneOp::WriteMapChunks {
-            chunks: &[(10, 12, 0x47)],
+            chunks: Cow::Borrowed(&[(10, 12, 0x47)]),
         },
         // 7-8: the slabs' animation words and duration.
         // `$06FD0E..$06FD18`, `$06FD50..$06FD5A`: sequence words and duration.
@@ -204,7 +206,7 @@ pub static TYLER_GRAVE_OPENING: Scene = Scene {
                 word: 0x10,
                 index: 0,
                 duration: 4,
-                durations: &[4, 4, 4, 0x34],
+                durations: Cow::Borrowed(&[4, 4, 4, 0x34]),
             },
         },
         SceneOp::SetActorAnimation {
@@ -213,12 +215,12 @@ pub static TYLER_GRAVE_OPENING: Scene = Scene {
                 word: 0x14,
                 index: 0,
                 duration: 4,
-                durations: &[4, 4, 4, 0x34],
+                durations: Cow::Borrowed(&[4, 4, 4, 0x34]),
             },
         },
         // 9: twelve step constants, then `DoMainUpdatesLoop($3F)` (64 frames).
         SceneOp::DriftNpcs {
-            drifts: GRAVE_DRIFT,
+            drifts: Cow::Borrowed(GRAVE_DRIFT),
             frames: 64,
         },
         // 10-11: after zeroing the steps, `$6(a4)` = 8 on `$C380`, `$C` on `$C3C0`

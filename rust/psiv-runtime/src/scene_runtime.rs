@@ -129,7 +129,7 @@ impl Runtime {
     /// positions.
     pub(crate) fn resume_party_from_scene(&mut self, events: &mut Vec<RuntimeEvent>) {
         let actors: Vec<_> = (0..self.party.len())
-            .filter_map(|slot| self.scene_party_actor(slot).copied())
+            .filter_map(|slot| self.scene_party_actor(slot).cloned())
             .collect();
         if let Err(error) = self.party.resume_scripted(&self.map, &actors) {
             events.push(RuntimeEvent::MapRefreshFailed {
@@ -171,7 +171,7 @@ impl Runtime {
     /// (`PlaceActor`, a map load) reseats rather than chasing the jump as a
     /// one-frame velocity.
     fn scene_leader_driver(&self) -> Option<Driver> {
-        let actor = self.scene_party_actor(0).copied()?;
+        let actor = self.scene_party_actor(0)?;
         let (ox, oy) = actor.render_offset_16ths(self.party.leader().step_frames());
         let at = PixelPos::from_cell(actor.cell);
         Some(Driver {
@@ -420,7 +420,7 @@ impl Runtime {
             }
             SceneEffect::InventoryChanged => events.push(RuntimeEvent::InventoryChanged),
             SceneEffect::MapChunksRestored { chunks } => {
-                match self.restore_scene_map_chunks(chunks) {
+                match self.restore_scene_map_chunks(&chunks) {
                     Ok(()) => events.push(RuntimeEvent::MapRefreshed),
                     Err(error) => events.push(RuntimeEvent::MapRefreshFailed {
                         error: error.to_string(),
@@ -489,7 +489,7 @@ impl Runtime {
                 pan_camera,
             } => {
                 let actors: Vec<_> = (0..self.party.len())
-                    .filter_map(|slot| self.scene_party_actor(slot).copied())
+                    .filter_map(|slot| self.scene_party_actor(slot).cloned())
                     .collect();
                 if let Err(error) = self.party.resume_scripted(&self.map, &actors) {
                     events.push(RuntimeEvent::MapRefreshFailed {
@@ -644,7 +644,7 @@ impl Runtime {
                 {
                     runner.release_palette(frames);
                 }
-                match op {
+                match &op {
                     SceneOp::InitVramAndCram => {
                         self.credits = None;
                     }
@@ -666,7 +666,13 @@ impl Runtime {
                         let done = match (self.credits.as_mut(), self.data.ending_credits()) {
                             (Some(credits), Some(assets)) => {
                                 let (cram, cycle_index) = self.effects.cram_and_cycle_index();
-                                credits.begin_stage(stage, self.frames, assets, cram, cycle_index)
+                                credits.begin_stage(
+                                    stage.clone(),
+                                    self.frames,
+                                    assets,
+                                    cram,
+                                    cycle_index,
+                                )
                             }
                             _ => true,
                         };
@@ -674,7 +680,7 @@ impl Runtime {
                             runner.release_credits();
                         }
                     }
-                    SceneOp::CreateEclipseTorch(spawn) => {
+                    &SceneOp::CreateEclipseTorch(spawn) => {
                         self.eclipse_torch
                             .insert(spawn.slot, psiv_core::EclipseTorchObject::new(spawn));
                     }
@@ -688,7 +694,7 @@ impl Runtime {
                     SceneOp::Presentation {
                         op: psiv_core::PresentationOp::WindowDestroy { .. },
                     } => self.dialogue.release_held_page(),
-                    SceneOp::Presentation {
+                    &SceneOp::Presentation {
                         op: psiv_core::PresentationOp::BarrierBeamUpdates { reveal, .. },
                     } => {
                         self.tick_barrier_beams(reveal);
@@ -718,7 +724,7 @@ impl Runtime {
                         });
                         self.step_camera_glide();
                     }
-                    SceneOp::PlayMusicIfSavedDifferent { id } => {
+                    &SceneOp::PlayMusicIfSavedDifferent { id } => {
                         // All three boarding events compare the persistent
                         // word, then write Sound_Index and Saved_Sound_Index
                         // in that order only when the saved byte differs.
@@ -735,21 +741,21 @@ impl Runtime {
                         events.push(RuntimeEvent::SceneMusicRetained);
                         return;
                     }
-                    SceneOp::SetSavedMusic { id } => self.saved_sound_index = id,
+                    &SceneOp::SetSavedMusic { id } => self.saved_sound_index = id,
                     SceneOp::GetOff(psiv_core::GetOffOp::PlayMapMusic) => {
                         self.dismount_music(events);
                     }
-                    SceneOp::SetCameraPos { x, y } => {
+                    &SceneOp::SetCameraPos { x, y } => {
                         self.set_camera(x, y);
                         self.reseat_scene_camera_driver();
                     }
-                    SceneOp::Presentation {
+                    &SceneOp::Presentation {
                         op: psiv_core::PresentationOp::Quake { frames, opening },
                     } => self.quake = Some(crate::quake::Quake::new(frames, opening)),
-                    SceneOp::Presentation {
+                    &SceneOp::Presentation {
                         op: psiv_core::PresentationOp::GaruberkEyeArtCycle { frames },
                     } => self.garuberk_eye_frames = frames,
-                    SceneOp::PanCamera { subject, speed } => {
+                    &SceneOp::PanCamera { subject, speed } => {
                         let at = match subject {
                             psiv_core::CameraSubject::At { x, y } => Some(PixelPos { x, y }),
                             psiv_core::CameraSubject::Actor(actor) => self
@@ -789,7 +795,7 @@ impl Runtime {
                     // Bit 2 hands the camera to the scene (the opening's
                     // walk off the screen edge); the scripted-leader follow
                     // in `tick_scene_camera` honours it.
-                    SceneOp::SetFollowMode { bits } => {
+                    &SceneOp::SetFollowMode { bits } => {
                         self.scene_camera_locked = bits & 0b100 != 0;
                     }
                     // `DialogueTreesToRAM` changes which tree the scene's
@@ -797,10 +803,10 @@ impl Runtime {
                     // renderer needs it for the panel text; the runtime needs
                     // it to resolve a scene dialogue's own entry, and entry
                     // ids are only meaningful against the current tree.
-                    SceneOp::SetDialogueTree { rom_addr } => {
+                    &SceneOp::SetDialogueTree { rom_addr } => {
                         self.scene_tree_address = Some(rom_addr);
                     }
-                    SceneOp::SetRenderSpritesInCutscene { enabled } => {
+                    &SceneOp::SetRenderSpritesInCutscene { enabled } => {
                         self.scene_panel_sprites = enabled;
                     }
                     // The scene's own `bset`/`bclr` writes on `Map_Load_Flags`
@@ -808,7 +814,7 @@ impl Runtime {
                     // the objects and the vehicle through a `RefreshMap`, and
                     // bits 0/2 through a `GameMode_LoadFieldMap`
                     // (`rust/psiv-runtime/src/map_change.rs`).
-                    SceneOp::SetMapLoadFlags { set, clear } => {
+                    &SceneOp::SetMapLoadFlags { set, clear } => {
                         self.map_load_flags = (self.map_load_flags | set) & !clear;
                     }
                     // One frame of `SceneOp::DriftNpcs`: the object's
@@ -816,7 +822,7 @@ impl Runtime {
                     // (`$04501C`) added its step constants. Written to the
                     // field map so occupancy, collision and the renderer
                     // follow the drift at the cartridge's rate.
-                    SceneOp::Presentation {
+                    &SceneOp::Presentation {
                         op: psiv_core::PresentationOp::NpcPixelPosition { npc, x, y },
                     } => {
                         let _ = self.map.set_npc_pixel_position(npc, x, y);

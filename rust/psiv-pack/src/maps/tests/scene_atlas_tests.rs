@@ -39,7 +39,7 @@ fn registry() -> BTreeMap<&'static str, Vec<(u32, u32, u16)>> {
                 .ops
                 .iter()
                 .flat_map(|op| match op {
-                    SceneOp::WriteMapChunks { chunks } => *chunks,
+                    SceneOp::WriteMapChunks { chunks } => chunks.as_ref(),
                     _ => &[],
                 })
                 .copied()
@@ -259,7 +259,7 @@ fn crash_landing_uses_the_temple_bg_stride_and_all_five_animation_frames() {
         .iter()
         .filter_map(|op| {
             if let SceneOp::WriteMapChunks { chunks } = op {
-                Some(*chunks)
+                Some(chunks.as_ref())
             } else {
                 None
             }
