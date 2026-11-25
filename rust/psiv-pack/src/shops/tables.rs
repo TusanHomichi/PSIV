@@ -14,9 +14,12 @@ pub const INVENTORIES_START: usize = 0x681A4;
 pub const INVENTORIES_END: usize = 0x682A3;
 /// The shop index space three tables agree on.
 pub const SHOP_COUNT: usize = 49;
-/// The first two lists, unique in retail: it pins the address and the item-id
-/// convention before anything is decoded.
-const SIGNATURE: [u8; 8] = [0x7D, 0xFF, 0x01, 0x02, 0x08, 0x03, 0x09, 0xFF];
+/// The first two lists, pinned by length and SHA-256 (#461): pins the address
+/// and the item-id convention before anything is decoded.
+const SIGNATURE_PIN: crate::rom::Pin = (
+    8,
+    "9a8fc696243d7ee5418a869d4fe4b731783ab2701b3d36187d4e110cd8cbe8fc",
+);
 const PAD_BYTE: u8 = 0x00;
 const NEXT_LABEL_FIRST_LONG: u32 = 0x002A_C470;
 pub const INDEXING: &str = "GetOffsetByID_FF_Delim: shop N is the Nth $FF-terminated list, \
@@ -101,28 +104,21 @@ fn hex(bytes: &[u8]) -> String {
     crate::png::hex(bytes)
 }
 
-/// `extract_shop_inventories`: the signature, the 49 lists, the boundary.
+/// `extract_shop_inventories`: the pinned header, the 49 lists, the boundary.
 pub fn inventories(rom: &[u8]) -> Result<Vec<Inventory>, PackError> {
     let start = INVENTORIES_START;
-    let found = rom.get(start..start + SIGNATURE.len());
-    if found != Some(&SIGNATURE[..]) {
+    if !crate::rom::matches_pin(rom, start, SIGNATURE_PIN) {
+        let found = rom.get(start..start + SIGNATURE_PIN.0);
         return Err(error(format!(
-            "ShopInventories signature mismatch at 0x{start:06X}: expected {}, got {}",
-            hex(&SIGNATURE),
+            "ShopInventories signature mismatch at 0x{start:06X}: got {}",
             hex(found.unwrap_or_default())
         )));
     }
-    let count = rom
-        .windows(SIGNATURE.len())
-        .filter(|w| *w == SIGNATURE)
-        .count();
-    if count != 1 {
-        return Err(error(format!(
-            "ShopInventories signature {} occurs {count} times in this ROM; it must be unique \
-             for the offset to be self-verifying",
-            hex(&SIGNATURE)
-        )));
-    }
+    parse_inventories(rom)
+}
+
+fn parse_inventories(rom: &[u8]) -> Result<Vec<Inventory>, PackError> {
+    let start = INVENTORIES_START;
     let block = rom
         .get(start..INVENTORIES_END)
         .ok_or_else(|| error("ShopInventories runs past the end of the ROM".into()))?;
@@ -262,8 +258,10 @@ mod tests {
     fn image() -> Vec<u8> {
         let mut rom = vec![0u8; 0x70000];
         let mut at = INVENTORIES_START;
-        rom[at..at + SIGNATURE.len()].copy_from_slice(&SIGNATURE);
-        at += SIGNATURE.len();
+        // Two synthetic lists followed by 46 single-item lists and a final list.
+        let synthetic_prefix = [0x10u8, TERMINATOR, 0x01, 0x02, 0x03, 0x04, 0x05, TERMINATOR];
+        rom[at..at + synthetic_prefix.len()].copy_from_slice(&synthetic_prefix);
+        at += synthetic_prefix.len();
         for _ in 2..SHOP_COUNT - 1 {
             rom[at] = 0x7D;
             rom[at + 1] = TERMINATOR;
@@ -283,10 +281,10 @@ mod tests {
     #[test]
     fn the_lists_are_counted_by_their_terminators() {
         let rom = image();
-        let lists = inventories(&rom).unwrap();
+        let lists = parse_inventories(&rom).unwrap();
         assert_eq!(lists.len(), SHOP_COUNT);
-        assert_eq!(lists[0].items, [0x7D]);
-        assert_eq!(lists[1].items, [1, 2, 8, 3, 9]);
+        assert_eq!(lists[0].items, [0x10]);
+        assert_eq!(lists[1].items, [1, 2, 3, 4, 5]);
         assert_eq!(lists[1].rom_offset, INVENTORIES_START + 2);
         assert_eq!(item_symbol(1), Some("Dagger"));
         assert_eq!(item_symbol(0), None);
@@ -306,28 +304,29 @@ mod tests {
     fn a_changed_boundary_or_an_extra_list_is_refused() {
         let mut rom = image();
         rom[INVENTORIES_END] = 0x01;
-        assert!(inventories(&rom).is_err(), "pad byte");
+        assert!(parse_inventories(&rom).is_err(), "pad byte");
         let mut rom = image();
         rom[INVENTORIES_END - 3] = TERMINATOR;
-        assert!(inventories(&rom).is_err(), "a fiftieth list");
+        assert!(parse_inventories(&rom).is_err(), "a fiftieth list");
         let mut rom = image();
         rom[INVENTORIES_START + 3] = 0xA1;
-        assert!(inventories(&rom).is_err(), "an item id past the table");
+        assert!(
+            parse_inventories(&rom).is_err(),
+            "an item id past the table"
+        );
     }
 
     #[test]
     fn malformed_lists_are_refused_beyond_the_signature() {
-        // Keep the first two lists intact: these exercise parsing rather
-        // than merely tripping the opening signature check.
         for (at, value, message) in [
             (INVENTORIES_END - 1, 1, "unterminated"),
             (
-                INVENTORIES_START + SIGNATURE.len(),
+                INVENTORIES_START + SIGNATURE_PIN.0,
                 TERMINATOR,
                 "Empty shop",
             ),
-            (INVENTORIES_START + SIGNATURE.len(), 0, "outside the 1.."),
-            (INVENTORIES_START + SIGNATURE.len(), 161, "outside the 1.."),
+            (INVENTORIES_START + SIGNATURE_PIN.0, 0, "outside the 1.."),
+            (INVENTORIES_START + SIGNATURE_PIN.0, 161, "outside the 1.."),
             (INVENTORIES_END + 1, 1, "loc_682A4"),
         ] {
             let mut rom = image();
@@ -337,17 +336,18 @@ mod tests {
                 // the following list instead of failing the census first.
                 rom[at + 1] = 1;
             }
-            let error = inventories(&rom).err().expect("malformed table accepted");
+            let error = parse_inventories(&rom)
+                .err()
+                .expect("malformed table accepted");
             assert!(error.0.contains(message), "{message}: {error}");
         }
-        let mut rom = image();
-        rom[0..SIGNATURE.len()].copy_from_slice(&SIGNATURE);
+        // Synthetic bytes fail the retail digest pin before parsing.
         assert!(
-            inventories(&rom)
+            inventories(&image())
                 .err()
                 .unwrap()
                 .0
-                .contains("must be unique")
+                .contains("signature mismatch")
         );
         assert!(inventories(&image()[..INVENTORIES_START]).is_err());
     }

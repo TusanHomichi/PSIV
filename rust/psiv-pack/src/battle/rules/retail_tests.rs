@@ -14,22 +14,25 @@ fn retail(what: &str) -> Option<Vec<u8>> {
 }
 
 #[test]
-fn every_signature_occurs_exactly_as_often_as_declared() {
-    let Some(rom) = retail("rules signatures") else {
+fn every_pinned_site_matches_retail_and_mutated_bytes_fail_closed() {
+    let Some(rom) = retail("rules pins") else {
         return;
     };
-    for (label, signature, expected) in SIGNATURES {
-        assert_eq!(
-            crate::m68k::find_all(&rom, signature).len(),
-            expected,
-            "{label}"
-        );
-        assert_eq!(sites(&rom, label).unwrap().len(), expected, "{label}");
+    for (label, offsets, len, _) in PINS {
+        assert_eq!(sites(&rom, label).unwrap(), offsets, "{label}");
+        for &at in offsets {
+            for delta in [0, len - 1] {
+                let mut mutated = rom.clone();
+                mutated[at + delta] ^= 0xFF;
+                let error = sites(&mutated, label).unwrap_err();
+                assert!(error.0.contains(label), "{label}: {}", error.0);
+            }
+        }
     }
 }
 
 #[test]
-fn a_rom_that_lost_or_doubled_a_signature_is_refused() {
+fn a_rom_with_a_mutated_pinned_routine_is_refused() {
     let Some(rom) = retail("rules refusals") else {
         return;
     };
@@ -39,15 +42,7 @@ fn a_rom_that_lost_or_doubled_a_signature_is_refused() {
     let error = read_mod_stats(&lost).err().unwrap();
     assert!(error.0.contains("UpdateCharModStats"), "{}", error.0);
     assert!(read_rules(&lost).is_err());
-
-    // A second copy anywhere makes the site ambiguous.
-    let mut doubled = rom.clone();
-    let signature: Vec<u8> = (0..SIGNATURES[1].1.len() / 2)
-        .map(|i| u8::from_str_radix(&SIGNATURES[1].1[i * 2..i * 2 + 2], 16).unwrap())
-        .collect();
-    doubled[0x200..0x200 + signature.len()].copy_from_slice(&signature);
-    assert!(read_mod_stats(&doubled).is_err());
-    assert!(read_char_init(&doubled).is_err(), "it calls the same site");
+    assert!(read_char_init(&lost).is_err(), "it calls the same site");
 }
 
 // InitializeCharStats

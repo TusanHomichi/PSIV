@@ -259,12 +259,29 @@ fn parse_block(rom: &[u8], decodes: &Decodes, block: &Block) -> Result<Vec<Recor
         .collect()
 }
 
+/// Count non-overlapping occurrences of `lea (offset).l, a0` (`$41F9 <addr>`).
+fn count_lea_a0(rom: &[u8], offset: usize) -> usize {
+    let addr = (offset as u32).to_be_bytes();
+    let pattern = [0x41, 0xF9, addr[0], addr[1], addr[2], addr[3]];
+    let mut hits = 0;
+    let mut at = 0;
+    while at + pattern.len() <= rom.len() {
+        if rom[at..at + pattern.len()] == pattern {
+            hits += 1;
+            at += pattern.len();
+        } else {
+            at += 1;
+        }
+    }
+    hits
+}
+
 /// `extract_inline_formations`: each accepted only when one `lea` loads it.
 fn inline(rom: &[u8]) -> Result<Vec<(InlineFormation, Json)>, PackError> {
     INLINE
         .iter()
         .map(|&(label, offset, loaded_by)| {
-            let loads = crate::m68k::find_all(rom, &format!("41f9{offset:08x}")).len();
+            let loads = count_lea_a0(rom, offset);
             if loads != 1 {
                 return Err(PackError(format!(
                     "{label} at {}: expected one `lea` that loads it, found {loads}",

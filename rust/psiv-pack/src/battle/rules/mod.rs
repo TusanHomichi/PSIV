@@ -1,7 +1,7 @@
 //! The port of [retired battle_rules](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_rules.py): what five retail routines say an
 //! equipment record means, decoded from their instructions rather than
 //! transcribed. That module's docs own the table of routines and the reasons;
-//! each signature here must occur exactly as often as retail carries it, and
+//! each site is pinned at its retail offset by length and SHA-256 (#461), and
 //! every count and address the routines state is read back out of them and
 //! held against the record tables.
 
@@ -20,7 +20,8 @@ pub use mod_stats::ModStats;
 use super::names::PROPERTIES;
 use crate::PackError;
 use crate::json::Json;
-use crate::m68k::{expect, find_exactly, l, w};
+use crate::m68k::{expect, l, w};
+use crate::rom;
 
 /// `EQUIPMENT_SLOTS`, in record order.
 pub const SLOTS: [&str; 4] = ["right_hand", "left_hand", "head", "body"];
@@ -44,21 +45,86 @@ pub const CHARACTER_BYTES: usize = 66;
 pub const ITEM_TABLE: usize = 0x2A8E28;
 pub const ITEM_BYTES: usize = 22;
 
-/// `SIGNATURES`: each label's bytes and how often retail carries them.
-const SIGNATURES: [(&str, &str, usize); 13] = [
-    ("InitializeCharStats", "41f8f50043f9", 1),
-    ("UpdateCharModStats", "7e0670002f0061", 1),
-    ("AddItemBonusToCharStats", "2f0b760345f9", 1),
-    ("AddItemBonusToCharStats2", "2f0b780345f9", 1),
-    ("UpdateEquipment", "1028000a5340d040d040", 1),
-    ("EquipListFilter", "1431100a0c020007", 2),
-    ("Battle_AttackCommand", "1029004c67164eb9", 1),
-    ("Battle_GetItemType", "4a00670661061028000a4e75", 1),
-    ("UpdateCharElems", "7000323c000d343c0030", 1),
-    ("CharElemsShieldTest", "0c2a0005000a", 2),
-    ("CharElemsRightWeapon", "116a00120050", 1),
-    ("CharElemsLeftWeapon", "116a00120051", 1),
-    ("CharElemsResistance", "11bc00010030", 1),
+/// `PINS`: each label's retail offset(s), length and SHA-256 (#461).
+const PINS: [(&str, &[usize], usize, &str); 13] = [
+    (
+        "InitializeCharStats",
+        &[0x044652],
+        6,
+        "4404728e1d6f04fe07566ea30388b41e501c6de5cf6a5fd1249e301caeca71d5",
+    ),
+    (
+        "UpdateCharModStats",
+        &[0x05F754],
+        7,
+        "1b47e65d66e8a5a5b087ff741f1e177effb27445c0c1fa860a670d7991858f84",
+    ),
+    (
+        "AddItemBonusToCharStats",
+        &[0x05F76E],
+        6,
+        "19eb9722be08704ac9827c9691e5ea04b022504ec763918395e2d6484dbe91ce",
+    ),
+    (
+        "AddItemBonusToCharStats2",
+        &[0x05F79E],
+        6,
+        "0b1d7ac04c302b418c5aedee4e690c53338ca5708beb6d8aa6459a1b292f5f14",
+    ),
+    (
+        "UpdateEquipment",
+        &[0x05F674],
+        10,
+        "d3eeece488d62b4154f04f686bb4501c0cc45f6967cf3bcc16d4978c22ab68ed",
+    ),
+    (
+        "EquipListFilter",
+        &[0x05EDA6, 0x05EF78],
+        8,
+        "fe12ad275a18ce3b270880a202465b3059916640e33c59f2fd587ac5e6f454eb",
+    ),
+    (
+        "Battle_AttackCommand",
+        &[0x0015FC],
+        8,
+        "d837f913c46f10d9a76f8a86e931e97bff6f146929041c5221956de34c6aac55",
+    ),
+    (
+        "Battle_GetItemType",
+        &[0x27DD84],
+        12,
+        "9dfb72bff1d8ae60fb7a351ba0963bff60c8268c8404714b6958adc0e36ee818",
+    ),
+    (
+        "UpdateCharElems",
+        &[0x05FD2A],
+        10,
+        "060b47b6a29fae60602e4c1e8914fbdb521d03a890319b0785d7bc76c1f33dc2",
+    ),
+    (
+        "CharElemsShieldTest",
+        &[0x05FD4C, 0x05FD62],
+        6,
+        "803581cd0a433a9e75eea5f0903275f4c6896cf40359202a4be3cf5785a74eee",
+    ),
+    (
+        "CharElemsRightWeapon",
+        &[0x05FDB0],
+        6,
+        "73fbb7380580b5a56ffd985c8e77452584e568163b72f40df2df3f479cb25ca1",
+    ),
+    (
+        "CharElemsLeftWeapon",
+        &[0x05FDB8],
+        6,
+        "fc9fdfc79aab443c4e8b7f44dcee5c61be03f79b03498e2cb24967cb5ef224a3",
+    ),
+    (
+        "CharElemsResistance",
+        &[0x05FDCC],
+        6,
+        "5c08ae88f9eaa6010834de04379a9a1249529066a14409051e756916e05a2024",
+    ),
 ];
 
 const JUMP_TABLE_LIMIT: usize = 64;
@@ -137,13 +203,16 @@ fn named_ram(offset: u16) -> Result<String, PackError> {
         .ok_or_else(|| PackError(format!("no name for Character_Stats offset 0x{offset:02X}")))
 }
 
-/// `_sites`: every offset of `label`'s signature, at its retail count.
+/// `_sites`: verify every pinned offset for `label` by length and SHA-256.
 fn sites(rom: &[u8], label: &str) -> Result<Vec<usize>, PackError> {
-    let (_, signature, expected) = SIGNATURES
+    let (_, offsets, len, digest) = PINS
         .iter()
-        .find(|(name, _, _)| *name == label)
-        .expect("a known signature label");
-    Ok(find_exactly(rom, signature, *expected, label)?)
+        .find(|(name, _, _, _)| *name == label)
+        .expect("a known pin label");
+    for &at in *offsets {
+        rom::pinned(rom, at, (*len, digest), label)?;
+    }
+    Ok(offsets.to_vec())
 }
 
 fn site(rom: &[u8], label: &str) -> Result<usize, PackError> {

@@ -177,7 +177,7 @@ fn a_rom_without_the_opcodes_is_refused_by_name() {
     assert!(
         error
             .0
-            .starts_with("FG page table selector at 0x053A44: expected 45f9"),
+            .starts_with("FG page table selector at 0x053A44: retail digest mismatch"),
         "{}",
         error.0
     );

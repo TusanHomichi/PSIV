@@ -6,24 +6,21 @@
 //! `SCENE_CHUNK_WRITES` holds only the rows that add
 //! atlas chunks (`via` `"scene"`): Python's others are for its own guard.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::draw::{
     CHUNK_PIXELS, CHUNK_TILES, OVERLAY_TRANSPARENT_INDICES, prepare_chunk, priority,
 };
-use super::effects::anchors::routine_address;
 use super::effects::{field, field_mut, int, items, text};
 use super::layouts::{ChunkTable, MapLayout, Plane, TilePatterns, chunk_collision_cells};
 use super::overworld::Overworld;
 use super::records::MapRecord;
 use crate::PackError;
-use crate::gfx;
 use crate::json::Json;
 use crate::png;
-use crate::sprites::compose::SpriteCensus;
-use crate::sprites::emit::{NpcMetadata, SheetRegistry};
-use crate::sprites::field::{MAP_PALETTE_LINE_ORDER, StagedArt, object_sprite};
-use crate::sprites::objects::FieldObjectRoutine;
+
+mod palette;
+pub use palette::resolve_palette_effects;
 
 /// The atlas is one row of 32x32 tiles.
 pub const ATLAS_TILE_PIXELS: usize = CHUNK_PIXELS;
@@ -31,7 +28,18 @@ const GARUBERK_DOOR_OPENING_1: u8 = 0x03;
 const GARUBERK_DOOR_OPENING_2: u8 = 0x04;
 const GARUBERK_DOOR_TABLES: [(usize, usize); 4] =
     [(0x6F4D4, 28), (0x6F588, 28), (0x6F714, 16), (0x6F894, 16)];
-const GARUBERK_DOOR_CHECKS: [(usize, &str); 2] = [(0x6F478, "0C110038"), (0x6F52E, "0C110038")];
+const GARUBERK_DOOR_CHECKS: [(usize, usize, &str); 2] = [
+    (
+        0x6F478,
+        4,
+        "3b56c2ed5644af7d34a8f1c88fbe72d1df7f628813d46fc67d55ce9af56c94ed",
+    ),
+    (
+        0x6F52E,
+        4,
+        "3b56c2ed5644af7d34a8f1c88fbe72d1df7f628813d46fc67d55ce9af56c94ed",
+    ),
+];
 
 /// One transcribed scene's live layout writes on one map that add atlas chunks.
 struct SceneChunkWrite {
@@ -39,7 +47,7 @@ struct SceneChunkWrite {
     map_id: usize,
     chunks: &'static [u8],
     table: Option<(usize, usize)>,
-    checks: &'static [(usize, &'static str)],
+    checks: &'static [(usize, usize, &'static str)],
 }
 
 const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
@@ -59,10 +67,15 @@ const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
         ],
         table: None,
         checks: &[
-            (0x6FC34, "12811342000114831544"),
+            (
+                0x6FC34,
+                10,
+                "c02389baba9f4a918f6700ad2da075ad1a06b0176f1d461d65948bf3e0ac6c50",
+            ),
             (
                 0x6FC5C,
-                "0654555E5F06565760610658596263065A5B6465065C5D6667FF",
+                26,
+                "2200d9c41dcea2862e7a284c3856d2ea7333d89f4bf30b7bed646036438f0374",
             ),
         ],
     },
@@ -71,7 +84,11 @@ const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
         map_id: 0x120,
         chunks: &[0x47],
         table: None,
-        checks: &[(0x6FCF4, "12BC0047")],
+        checks: &[(
+            0x6FCF4,
+            4,
+            "07b83c75041fc6b0815809c23614ce75544e3062ea5be6586dfdd9750a03c866",
+        )],
     },
     SceneChunkWrite {
         scene: "Event_VahFortMovingPlatform1",
@@ -79,8 +96,16 @@ const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
         chunks: &[0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD],
         table: None,
         checks: &[
-            (0x6C5EC, "02C00220C2C302C002C0C0C1"),
-            (0x6C5F8, "020002C002C0CCCDFE0002C00220CCCD"),
+            (
+                0x6C5EC,
+                12,
+                "077849545064674b12dd1d25e92d8f580395e200e772daf652f4cbe4bfa5fa72",
+            ),
+            (
+                0x6C5F8,
+                16,
+                "5ef366440f5421746594d1341faab462b134896307b28d43b28d924cdf473a94",
+            ),
         ],
     },
     SceneChunkWrite {
@@ -89,8 +114,16 @@ const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
         chunks: &[0xC0, 0xC1, 0xCC, 0xCD],
         table: None,
         checks: &[
-            (0x6C77C, "02C003A0C0C102C00300C0C1"),
-            (0x6C788, "FE0002C00300CCCD020002C003A0CCCD"),
+            (
+                0x6C77C,
+                12,
+                "02e31a9910873d523506c48f8039bd97af9846bb1c12ec844930c8534e287686",
+            ),
+            (
+                0x6C788,
+                16,
+                "cbb85ea56d0d8a9408575a56ed4cbb4357fc28ffa90ee2f21c3973b5d60a25a3",
+            ),
         ],
     },
     SceneChunkWrite {
@@ -99,8 +132,16 @@ const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
         chunks: &[0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD],
         table: None,
         checks: &[
-            (0x6C90C, "01C002A0C2C301C00380C0C1"),
-            (0x6C918, "020001C00380CCCDFE0001C002A0CCCD"),
+            (
+                0x6C90C,
+                12,
+                "1acb329a78921da4e67b9ab0f79d31735234b1656bc90dda95627c7fb0adc426",
+            ),
+            (
+                0x6C918,
+                16,
+                "eac1eff696e570dac66534700f87d30adad42b02d5c56b0bfbd3b8d792fba695",
+            ),
         ],
     },
     SceneChunkWrite {
@@ -109,8 +150,16 @@ const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
         chunks: &[0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD],
         table: None,
         checks: &[
-            (0x6CA9C, "02200160C2C302200240C0C1"),
-            (0x6CAA8, "020002200240CCCDFE0002200160CCCD"),
+            (
+                0x6CA9C,
+                12,
+                "3d2d77621f415041e9af82215bb1b7122c63c0f8e81077d37a5711ac248daa81",
+            ),
+            (
+                0x6CAA8,
+                16,
+                "6192aa9c5f5a382cc3f4f24c5dcbc1f36975dd8b951ad6b66c9220ce77f50bd7",
+            ),
         ],
     },
     SceneChunkWrite {
@@ -119,8 +168,16 @@ const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
         chunks: &[0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD],
         table: None,
         checks: &[
-            (0x6CC2C, "03800160C2C303800240C0C1"),
-            (0x6CC38, "020003800240CCCDFE0003800160CCCD"),
+            (
+                0x6CC2C,
+                12,
+                "db8d4c3333ad11ecb207e7325a1b7ac6b3c2adc399c8fc97b8c54d5c96cd9bdf",
+            ),
+            (
+                0x6CC38,
+                16,
+                "84aed78cff4dc9369ef0b8cc5d3ba6b81ad494ac731e79254951c68b4744c947",
+            ),
         ],
     },
     SceneChunkWrite {
@@ -129,8 +186,16 @@ const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
         chunks: &[0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD],
         table: None,
         checks: &[
-            (0x6CDB8, "03E002A0C2C303E00380C0C1"),
-            (0x6CDC4, "020003E00380CCCDFE0003E002A0CCCD"),
+            (
+                0x6CDB8,
+                12,
+                "d4c45cc022a62db7f8302a45f88157176b2381b3154be12535c7ee60d07187e8",
+            ),
+            (
+                0x6CDC4,
+                16,
+                "0d6e6a730d9f9e6a03b37f828f0b404e1cdff5341c0ada5885ae505e644db4f6",
+            ),
         ],
     },
     SceneChunkWrite {
@@ -139,10 +204,26 @@ const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
         chunks: &[0xA6],
         table: None,
         checks: &[
-            (0x6DD1A, "12BC00A6"),
-            (0x6DD1E, "13BC00A67000"),
-            (0x6DD24, "137C00A60020"),
-            (0x6DD2A, "13BC00A67020"),
+            (
+                0x6DD1A,
+                4,
+                "13fd8d48a8db48da0e682206bed7834ae44bb442a7791b4faa6255a2e8b8e868",
+            ),
+            (
+                0x6DD1E,
+                6,
+                "1ac7ce0485d428351b85187add31504f05fec031ee8f17f483b0c02e106a7426",
+            ),
+            (
+                0x6DD24,
+                6,
+                "8b6d9b6c98d951864a6de5d6d6817dcec0c3e265a87f5eb5c5d2cb03601a9128",
+            ),
+            (
+                0x6DD2A,
+                6,
+                "c524c8b43acc80554fc2ed02a078ff3a177fb2a28f207293a38aaaee9a42ac76",
+            ),
         ],
     },
     SceneChunkWrite {
@@ -153,7 +234,18 @@ const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
         // (`lea (loc_75FA8).l, a0`): 10 `$FF`-terminated triples of FG chunks
         // (`$AD..=$C0`) at `(14..=16, 12)` on Nurvus B4 Part 2 (`$0D3`).
         table: Some((0x75F34, 31)),
-        checks: &[(0x75EF0, "41F900075F34"), (0x75F64, "41F900075FA8")],
+        checks: &[
+            (
+                0x75EF0,
+                6,
+                "ca7902c73bee0c994008ae1bf8db2c1d9387c91d739fb46c7fdea8d7711613ea",
+            ),
+            (
+                0x75F64,
+                6,
+                "326f157c252f6e830f91e26a334c54c221d10263ef87f4d5479050f69e1d91f9",
+            ),
+        ],
     },
 ];
 
@@ -161,17 +253,15 @@ fn refuse<T>(message: String) -> Result<T, PackError> {
     Err(PackError(message))
 }
 
-/// The bytes at `offset` are the hex `expected`.
-fn pinned(rom: &[u8], offset: usize, expected: &str) -> bool {
-    let length = expected.len() / 2;
-    rom.get(offset..offset + length)
-        .is_some_and(|bytes| png::hex(bytes).eq_ignore_ascii_case(expected))
+/// The bytes at `offset` match the pinned `(length, sha256)` (#461).
+fn pinned(rom: &[u8], offset: usize, length: usize, digest: &str) -> bool {
+    crate::rom::matches_pin(rom, offset, (length, digest))
 }
 
 /// `chunk_ids`: what a row writes, with every pinned byte checked.
 fn row_chunks(rom: &[u8], row: &SceneChunkWrite) -> Result<BTreeSet<u8>, PackError> {
-    for &(offset, expected) in row.checks {
-        if !pinned(rom, offset, expected) {
+    for &(offset, length, digest) in row.checks {
+        if !pinned(rom, offset, length, digest) {
             return refuse(format!("{}: the write at ${offset:06X} moved", row.scene));
         }
     }
@@ -197,8 +287,8 @@ fn row_chunks(rom: &[u8], row: &SceneChunkWrite) -> Result<BTreeSet<u8>, PackErr
 
 /// `garuberk_door_chunks`: every chunk the four door tables write.
 fn garuberk_door_chunks(rom: &[u8]) -> Result<BTreeSet<u8>, PackError> {
-    for (offset, expected) in GARUBERK_DOOR_CHECKS {
-        if !pinned(rom, offset, expected) {
+    for (offset, length, digest) in GARUBERK_DOOR_CHECKS {
+        if !pinned(rom, offset, length, digest) {
             return refuse(format!("Garuberk door guard at ${offset:06X} moved"));
         }
     }
@@ -735,192 +825,6 @@ pub fn atlas_json(
              overlay tile of the same index goes above sprites.",
         )
         .with("tiles", entries))
-}
-
-const PALETTE_TABLE_BUFFER: usize = 0xFB00;
-const CRAM_LINE_BYTES: usize = 32;
-const PALETTE_COPY_SEARCH: usize = 0x80;
-
-/// A decoded `lea src,a0 / lea dst,a1 / move.w #n,d7 / move.l (a0)+,(a1)+ / dbf`.
-struct PaletteCopy {
-    at: usize,
-    source: usize,
-    offset: usize,
-    words: usize,
-}
-
-/// `decode_palette_copy`: the bulk copy in the first bytes of `routine`, if any.
-/// A copy that isn't one whole CRAM line on a line boundary is refused, because
-/// everything claimed about what it affects rests on that.
-fn decode_palette_copy(rom: &[u8], routine: usize) -> Result<Option<PaletteCopy>, PackError> {
-    const LENGTH: usize = 20;
-    let end = (routine + PALETTE_COPY_SEARCH).min(rom.len());
-    let found = rom.get(routine..end).and_then(|span| {
-        span.windows(LENGTH).position(|w| {
-            w[..2] == [0x41, 0xF9]
-                && w[6..8] == [0x43, 0xF8]
-                && w[10..12] == [0x3E, 0x3C]
-                && w[14..20] == [0x22, 0xD8, 0x51, 0xCF, 0xFF, 0xFC]
-        })
-    });
-    let Some(position) = found else {
-        return Ok(None);
-    };
-    let at = routine + position;
-    let word =
-        |offset: usize| usize::from(u16::from_be_bytes([rom[at + offset], rom[at + offset + 1]]));
-    let source = word(2) << 16 | word(4);
-    let destination = word(8);
-    let words = (word(12) + 1) * 2;
-    if destination < PALETTE_TABLE_BUFFER
-        || !(destination - PALETTE_TABLE_BUFFER).is_multiple_of(CRAM_LINE_BYTES)
-        || words != 16
-    {
-        return refuse(format!(
-            "the bulk copy at 0x{routine:06X} writes {words} words to 0xFFFF{destination:04X},              which is not one whole CRAM line of 0xfb00"
-        ));
-    }
-    Ok(Some(PaletteCopy {
-        at,
-        source,
-        offset: destination - PALETTE_TABLE_BUFFER,
-        words,
-    }))
-}
-
-/// `resolve_palette_effects`: attach each palette copy to the sprite sheets it
-/// repaints. The effect hangs on the path, because two of the three copies sit
-/// on paths whose only writes are `object_despawn`. An affected NPC is resolved
-/// again under the post-copy palette and registered like any sheet. Returns the
-/// counts: copies, alternate sheets, repainted NPCs.
-#[allow(clippy::too_many_arguments)]
-pub fn resolve_palette_effects(
-    rom: &[u8],
-    record: &MapRecord,
-    art: &StagedArt,
-    effects: &mut [Json],
-    npcs: &[NpcMetadata],
-    routines: &[FieldObjectRoutine],
-    extents: &HashMap<u32, usize>,
-    registry: &mut SheetRegistry,
-    census: &mut SpriteCensus,
-    map_palette: &[[u8; 3]],
-    dispatch: usize,
-) -> Result<[usize; 3], PackError> {
-    let mut counts = [0; 3];
-    for effect in effects {
-        let entry = int(effect, "entry");
-        let Some(Json::Array(paths)) = field_mut(effect, "paths") else {
-            continue;
-        };
-        for path in paths {
-            let copies = items(path, "deferred")
-                .iter()
-                .any(|note| note == &Json::from("postincrement bulk copy"));
-            if !copies {
-                continue;
-            }
-            let index = entry.unwrap_or(0) as usize;
-            let routine = routine_address(rom, dispatch, index)?;
-            let Some(copy) = decode_palette_copy(rom, routine)? else {
-                continue;
-            };
-            counts[0] += 1;
-            let raw = rom
-                .get(copy.source..copy.source + CRAM_LINE_BYTES)
-                .unwrap_or(&[]);
-            let colors = gfx::decode_palette(raw)?;
-            let rgb = gfx::palette_rgb(&colors);
-            let line = copy.offset / CRAM_LINE_BYTES;
-            let Some(position) = MAP_PALETTE_LINE_ORDER
-                .iter()
-                .position(|&l| usize::from(l) == line)
-            else {
-                return refuse(format!("{line} is not in a map palette blob"));
-            };
-            let mut after = map_palette.to_vec();
-            after.splice(position * 16..(position + 1) * 16, rgb.iter().copied());
-            let mut repainted = Vec::new();
-            let mut alternates = BTreeSet::new();
-            for (npc_index, (object, meta)) in record.objects.entries.iter().zip(npcs).enumerate() {
-                let object = &object.record;
-                let found = routines
-                    .iter()
-                    .find(|r| r.object_id() == usize::from(object.object_id));
-                let Some(routine) = found else { continue };
-                let Some(from) = &meta.sheet else { continue };
-                if routine.palette_line().map(usize::from) != Some(line) {
-                    continue;
-                }
-                let alternate = object_sprite(
-                    rom,
-                    routine,
-                    extents,
-                    art,
-                    &after,
-                    object.facing_dir,
-                    object.art_tile,
-                    Some(census),
-                )?;
-                let Some(sheet) = alternate.sheet else {
-                    continue;
-                };
-                let symbol = object.symbol();
-                let to = registry.register(sheet, symbol.unwrap_or("FieldObj"), false)?;
-                if to == *from {
-                    continue;
-                }
-                alternates.insert(to.clone());
-                repainted.push(
-                    Json::object()
-                        .with("npc_index", npc_index)
-                        .with("symbol", symbol)
-                        .with("from", from.as_str())
-                        .with("to", to),
-                );
-            }
-            counts[2] += repainted.len();
-            counts[1] += alternates.len();
-            path.insert(
-                "deferred_effects",
-                vec![
-                    Json::object()
-                        .with("instruction", "postincrement bulk copy")
-                        .with("resolved_as", "palette_write")
-                        .with("at", format!("0x{:06X}", copy.at))
-                        .with("source", format!("0x{:06X}", copy.source))
-                        .with(
-                            "destination",
-                            format!("Palette_Table_Buffer+0x{:02X}", copy.offset),
-                        )
-                        .with("cram_line", line)
-                        .with("words", copy.words)
-                        .with("installs_chunk_definitions", false)
-                        .with("colors", rgb.iter().map(|c| c.to_vec()).collect::<Vec<_>>())
-                        .with(
-                            "words_hex",
-                            colors
-                                .iter()
-                                .map(|c| format!("0x{:04X}", c.raw))
-                                .collect::<Vec<_>>(),
-                        )
-                        .with(
-                            "affects",
-                            Json::object()
-                                .with("map_pixels", 0)
-                                .with("map_render_identical", true)
-                                .with(
-                                    "reason",
-                                    "chunk tiles reach CRAM lines 0 and 1 only; bit 14 is the \
-                                     collision flag and never reaches the VDP",
-                                )
-                                .with("npc_sheets", repainted),
-                        ),
-                ],
-            );
-        }
-    }
-    Ok(counts)
 }
 
 #[cfg(test)]

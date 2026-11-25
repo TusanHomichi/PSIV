@@ -46,19 +46,28 @@ ENEMY_SPRITE_MAPPING_TABLE: dict[str, Any] = {
     "data_start": 0x011100,
 }
 
+# Each pinned region is held by its length and SHA-256, not its bytes (#461):
+# the source carries no cartridge content, and the provenance below reports the
+# verified bytes as the ROM holds them.
+ENEMY_SPRITE_TABLE_PIN: tuple[int, str] = (
+    4,
+    "d9f6c61dee63a66347c722a426f939a835a39ca8ccc55eac6a01c90783d8091d",
+)
+
 # `EnemySprites_Animate` starts here in the retail disassembly.  The first
 # bytes cover the ordinary timer/frame path; the compact high-bit sequence
 # branch is checked by the parser as well.
 ENEMY_SPRITE_ANIMATE_OFFSET = 0x040F66
-ENEMY_SPRITE_ANIMATE_SIGNATURE = bytes.fromhex(
-    "08ec00050002302c0004226c"
+ENEMY_SPRITE_ANIMATE_PIN: tuple[int, str] = (
+    12,
+    "b0755648ab3345540abc2326f36cccd1b4e58a97ae328199e6641a8d65364416",
 )
 
 ZORAN_MAPPING_OFFSET = 0x01190C
-ZORAN_MAPPING_SIGNATURE = bytes.fromhex(
-    "00021102000119200d040001192a040900011934"
+ZORAN_MAPPING_PIN: tuple[int, str] = (
+    20,
+    "79ec0f5fdadedb652be1147e7a7b93a356722481f307174e81cc19d1d6f619a9",
 )
-
 
 
 def _slice(data: bytes, offset: int, size: int, what: str) -> bytes:
@@ -81,8 +90,8 @@ def verify_enemy_overlay_sources(data: bytes) -> dict[str, Any]:
     """Pin the retail table/routine bytes before decoding any descriptors."""
     table = ENEMY_SPRITE_MAPPING_TABLE
     base = table["rom_offset"]
-    first = _slice(data, base, 4, table["label"])
-    if first != bytes.fromhex("09960996"):
+    first = _slice(data, base, ENEMY_SPRITE_TABLE_PIN[0], table["label"])
+    if hashlib.sha256(first).hexdigest() != ENEMY_SPRITE_TABLE_PIN[1]:
         raise BattleArtError(
             f"{table['label']} at 0x{base:06X}: retail signature changed "
             f"({first.hex()}); refusing to decode the reference clone"
@@ -94,8 +103,8 @@ def verify_enemy_overlay_sources(data: bytes) -> dict[str, Any]:
             f"{table['label']} ZoranBult entry points to 0x{zoran_target:06X}, "
             f"expected 0x{ZORAN_MAPPING_OFFSET:06X}"
         )
-    zoran = _slice(data, ZORAN_MAPPING_OFFSET, len(ZORAN_MAPPING_SIGNATURE), "Mappings_ZoranBult")
-    if zoran != ZORAN_MAPPING_SIGNATURE:
+    zoran = _slice(data, ZORAN_MAPPING_OFFSET, ZORAN_MAPPING_PIN[0], "Mappings_ZoranBult")
+    if hashlib.sha256(zoran).hexdigest() != ZORAN_MAPPING_PIN[1]:
         raise BattleArtError(
             "Mappings_ZoranBult: retail descriptor signature changed "
             f"({zoran.hex()})"
@@ -103,10 +112,10 @@ def verify_enemy_overlay_sources(data: bytes) -> dict[str, Any]:
     animate = _slice(
         data,
         ENEMY_SPRITE_ANIMATE_OFFSET,
-        len(ENEMY_SPRITE_ANIMATE_SIGNATURE),
+        ENEMY_SPRITE_ANIMATE_PIN[0],
         "EnemySprites_Animate",
     )
-    if animate != ENEMY_SPRITE_ANIMATE_SIGNATURE:
+    if hashlib.sha256(animate).hexdigest() != ENEMY_SPRITE_ANIMATE_PIN[1]:
         raise BattleArtError(
             "EnemySprites_Animate: retail opcode signature changed "
             f"({animate.hex()})"
@@ -115,11 +124,11 @@ def verify_enemy_overlay_sources(data: bytes) -> dict[str, Any]:
         "rom_sha256": hashlib.sha256(data).hexdigest(),
         "table_signature": first.hex(),
         "table_signature_sha256": hashlib.sha256(data[base:base + 8]).hexdigest(),
-        "zoran_mapping_signature": ZORAN_MAPPING_SIGNATURE.hex(),
+        "zoran_mapping_signature": zoran.hex(),
         "animation_routine": {
             "label": "EnemySprites_Animate",
             "rom_offset": f"0x{ENEMY_SPRITE_ANIMATE_OFFSET:06X}",
-            "signature": ENEMY_SPRITE_ANIMATE_SIGNATURE.hex(),
+            "signature": animate.hex(),
             "signature_sha256": hashlib.sha256(animate).hexdigest(),
         },
     }

@@ -8,6 +8,7 @@ only borrows that module's primitives and its map-space constants.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from ..kosinski import decompress
@@ -19,9 +20,9 @@ from .records import MAP_COUNT, MapError, _hex, _map_reference
 # and the table is 416 bytes, one short of the 417-entry map space.
 ENEMY_FORMATION_INDEXES = 0x008050
 ENEMY_FORMATION_INDEXES_SIZE = 416
-ENEMY_FORMATION_INDEXES_SIGNATURE = bytes.fromhex(
-    "00013cffffffffffffffffffffffffffffffffffff0e0f0fffffffffffffffff"
-    "ffffffffffffffffffffff1011ffffffffffffffffffffffffffffffffffffff"
+ENEMY_FORMATION_INDEXES_PIN: tuple[int, str] = (
+    64,
+    "5a33835b719b071a3a3bb2cc1611944a09169b2866f9676c4fb26099e2db0f6c",
 )
 # Values 0 and 1 fall through to the world-map path instead of naming a group.
 WORLD_MAP_SENTINEL_MAX = 1
@@ -59,16 +60,12 @@ VEHICLE_GROUPS: list[dict[str, Any]] = [
 
 def _check_enemy_formation_indexes(data: bytes) -> bytes:
     start = ENEMY_FORMATION_INDEXES
-    actual = data[start:start + len(ENEMY_FORMATION_INDEXES_SIGNATURE)]
-    if actual != ENEMY_FORMATION_INDEXES_SIGNATURE:
+    length, digest = ENEMY_FORMATION_INDEXES_PIN
+    actual = data[start:start + length]
+    if len(actual) != length or hashlib.sha256(actual).hexdigest() != digest:
         raise MapError(
             f"Battle_EnemyFormationIndexes signature mismatch at {_hex(start)}: "
-            f"expected {ENEMY_FORMATION_INDEXES_SIGNATURE.hex()}, got {actual.hex()}"
-        )
-    if data.count(ENEMY_FORMATION_INDEXES_SIGNATURE) != 1:
-        raise MapError(
-            "Battle_EnemyFormationIndexes signature is not unique in this ROM; "
-            "the offset would not be self-verifying"
+            f"got {actual.hex()}"
         )
     return data[start:start + ENEMY_FORMATION_INDEXES_SIZE]
 
@@ -212,7 +209,7 @@ def extract_encounter_binding(data: bytes, group_count: int | None = None) -> di
             "entry_size": 1,
             "count": len(table),
             "map_count": MAP_COUNT,
-            "signature_hex": ENEMY_FORMATION_INDEXES_SIGNATURE.hex(),
+            "signature_hex": table[:ENEMY_FORMATION_INDEXES_PIN[0]].hex(),
             "indexing": "Field_Map_Index, one byte, no bounds check",
             "no_encounter_value": f"0x{NO_ENCOUNTERS:02X}",
             "world_map_sentinel_max": WORLD_MAP_SENTINEL_MAX,

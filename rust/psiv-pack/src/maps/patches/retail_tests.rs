@@ -1,6 +1,8 @@
 //! Retail patch extraction checks; original data stays local (#554).
+use super::palette::decode_palette_copy;
 use super::*;
 use crate::decode::Decodes;
+use crate::gfx;
 use crate::maps::{extract_maps, layouts, overworld::decode_map_section};
 
 #[test]
@@ -11,7 +13,7 @@ fn every_scene_row_checks_its_pins_and_complete_table() {
     let data = rom.bytes();
     for row in SCENE_CHUNK_WRITES {
         assert!(!row_chunks(data, row).unwrap().is_empty(), "{}", row.scene);
-        for &(at, _) in row.checks {
+        for &(at, _, _) in row.checks {
             let mut moved = data.to_vec();
             moved[at] ^= 1;
             let error = row_chunks(&moved, row).unwrap_err().0;

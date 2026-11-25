@@ -5,8 +5,9 @@
 
 The ROM-derived tables live in the local runtime pack and never in the tree
 (README, "License and third-party code"). Names and single numbers in documents
-and tests are allowed; a table is not, and neither is art. Three checks read every text file of the
-change (`tools/repo_files.py`), whatever its suffix:
+and tests are allowed; a table is not, and neither is art or a committed ROM
+byte signature. Four checks read every text file of the change
+(`tools/repo_files.py`), whatever its suffix:
 
 - **Removed copies.** A file whose content is a version of a table copy this
   repository once tracked fails, by its Git blob id (`REMOVED_BLOBS`). This
@@ -29,6 +30,12 @@ change (`tools/repo_files.py`), whatever its suffix:
   read in review once, and any other tile beside it still fails. No comment or
   other text in a file can exempt a tile.
   This needs no local input.
+
+- **Committed ROM byte signatures (#461).** Under `rust/psiv-pack/src/` and
+  `psiv_tools/` (excluding `png.rs`/`png.py` for the PNG magic header), raw
+  byte/hex `SIGNATURE` constants, `find_exactly(` opcode searches, and
+  non-digest hex byte-sequence literals of five or more bytes fail; pin retail
+  regions by `(offset, length, SHA-256)` instead. This needs no local input.
 
 Only paths and counts are printed; the pack's names and values never leave the
 process. `check_docs.py` runs this after its other checks, prints its summary
@@ -101,6 +108,23 @@ SYNTHETIC_TILES = frozenset({
 
 WORD = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 NUMBER = re.compile(r"\d+")
+
+#: Extractor trees guarded against committed ROM byte signatures (#461).
+SIGNATURE_GUARD_PREFIXES = ("rust/psiv-pack/src/", "psiv_tools/")
+#: Format-magic files exempt from the ROM-signature guard (PNG header).
+SIGNATURE_GUARD_EXEMPT = frozenset({"rust/psiv-pack/src/png.rs", "psiv_tools/png.py"})
+#: Raw-byte SIGNATURE constants in Rust or Python.
+RAW_SIGNATURE_CONST = re.compile(
+    r"(?:^\s*(?:pub(?:\([^)]*\))?\s+)?const\s+[A-Z0-9_]*SIGNATURE\b[^=\n]*=\s*"
+    r"(?:\[|&\[|b\"|\"[0-9A-Fa-f ]+\")"
+    r"|^\s*[A-Z0-9_]*SIGNATURE\b\s*(?::[^=\n]+)?=\s*"
+    r"(?:bytes\.fromhex|bytes\s*\(|bytearray\s*\(|\[|\(|b[\"']|\"[0-9A-Fa-f ]+\"))",
+    re.MULTILINE,
+)
+#: Opcode-search calls replaced by fixed-offset digest pins (#461).
+FIND_EXACTLY_CALL = re.compile(r"\bfind_exactly\s*\(")
+#: Quoted hex byte runs of five or more bytes (optional spaces between bytes).
+HEX_BYTE_LITERAL = re.compile(r"""["']([0-9A-Fa-f]{2}(?: ?[0-9A-Fa-f]{2}){4,})["']""")
 
 
 def normal(name: str) -> str:
@@ -204,6 +228,32 @@ def tiles_in(text: str, allowed: frozenset[str] = SYNTHETIC_TILES) -> list[int]:
     return found
 
 
+def rom_signatures_in(name: str, text: str) -> list[tuple[int, str]]:
+    """`(line, reason)` for committed ROM byte signatures in extractor source (#461)."""
+    if not name.startswith(SIGNATURE_GUARD_PREFIXES) or name in SIGNATURE_GUARD_EXEMPT:
+        return []
+    found: list[tuple[int, str]] = []
+    for match in RAW_SIGNATURE_CONST.finditer(text):
+        line = text.count("\n", 0, match.start()) + 1
+        found.append((line, "raw byte/hex SIGNATURE constant (pin by offset, length and SHA-256, #461)"))
+    for match in FIND_EXACTLY_CALL.finditer(text):
+        line = text.count("\n", 0, match.start()) + 1
+        found.append((line, "find_exactly opcode search (use a fixed-offset SHA-256 pin, #461)"))
+    for match in HEX_BYTE_LITERAL.finditer(text):
+        raw = match.group(1)
+        digits = raw.replace(" ", "")
+        if " " not in raw and len(digits) in (40, 64):
+            continue  # Git SHA-1 or SHA-256 digest, not ROM bytes
+        if set(digits) <= {"0", "1"}:
+            continue  # synthetic bit string (e.g. bitstream unit tests)
+        line = text.count("\n", 0, match.start()) + 1
+        found.append((
+            line,
+            f"committed {len(digits) // 2}-byte hex literal (pin by offset, length and SHA-256, #461)",
+        ))
+    return sorted(set(found))
+
+
 def blob_id(data: bytes) -> str:
     """Git's id for a file with this content."""
     return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
@@ -236,6 +286,8 @@ def run(root: Path = Path("."), pack: Path | None = None,
             problems.append(f"{name}:{line}: an 8x8 tile written as pixel strings (load art "
                             f"from the pack, or compare a digest; a synthetic picture goes in "
                             f"SYNTHETIC_TILES; #149)")
+        for line, reason in rom_signatures_in(name, text):
+            problems.append(f"{name}:{line}: {reason}")
         if records is None:
             continue
         scanned += 1

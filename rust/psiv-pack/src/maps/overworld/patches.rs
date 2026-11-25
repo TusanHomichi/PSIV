@@ -326,7 +326,7 @@ pub(super) fn read_patch_table(
     require_overworld(map_id)?;
     let site = patch_table_site(plane);
     let what = format!("{} patch table selector", upper(plane));
-    check_bytes(rom, site.rom_offset, &site.signature(), &what)?;
+    check_pin(rom, site.rom_offset, site.pin, &what)?;
     let base = site.table_for(map_id);
     Ok((0..PAGE_COUNT)
         .map(|page| {
@@ -341,10 +341,10 @@ pub(super) fn read_patch_table(
 /// perform, at absolute chunk coordinates.
 pub fn decode_patches(rom: &[u8], map_id: usize) -> Result<Vec<LayoutPatch>, PackError> {
     require_overworld(map_id)?;
-    check_bytes(
+    check_pin(
         rom,
         GET_MAP_LAYOUT_CHUNK_FG,
-        &get_map_layout_chunk_signature(),
+        GET_MAP_LAYOUT_CHUNK_PIN,
         "GetMapLayoutChunkFG",
     )?;
     let mut patches = Vec::new();

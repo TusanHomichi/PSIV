@@ -1,3 +1,4 @@
+import hashlib
 import re
 import unittest
 from pathlib import Path
@@ -5,7 +6,7 @@ from pathlib import Path
 from psiv_tools.shops import (
     SHOP_COUNT,
     SHOP_INVENTORIES,
-    SHOP_SIGNATURE,
+    SHOP_SIGNATURE_PIN,
     ShopError,
     extract_shops,
     parse_shop_record,
@@ -125,10 +126,12 @@ class TestShopsFromRom(unittest.TestCase):
         cls.shops = cls.result["shops"]
         cls.locations = cls.result["locations"]
 
-    def test_signature_is_unique(self):
-        self.assertEqual(self.data.count(SHOP_SIGNATURE), 1)
+    def test_signature_is_pinned(self):
         start = SHOP_INVENTORIES["start"]
-        self.assertEqual(self.data[start:start + len(SHOP_SIGNATURE)], SHOP_SIGNATURE)
+        length, digest = SHOP_SIGNATURE_PIN
+        actual = self.data[start:start + length]
+        self.assertEqual(hashlib.sha256(actual).hexdigest(), digest)
+        self.assertEqual(self.data.count(actual), 1)
 
     def test_altered_table_fails_closed(self):
         for offset in (SHOP_INVENTORIES["start"], SHOP_INVENTORIES["end"]):

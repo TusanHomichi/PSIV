@@ -45,7 +45,7 @@ from psiv_tools.battle_art import (
 )
 from psiv_tools.battle_enemy_overlays import (
     ENEMY_SPRITE_ANIMATE_OFFSET,
-    ENEMY_SPRITE_ANIMATE_SIGNATURE,
+    ENEMY_SPRITE_ANIMATE_PIN,
     ENEMY_SPRITE_MAPPING_TABLE,
     ZORAN_MAPPING_OFFSET,
     extract_enemy_overlays,
@@ -285,9 +285,12 @@ class TestBattleArtFromRom(unittest.TestCase):
         self.assertEqual(overlay["table"]["entry_count"], ENEMY_COUNT)
         self.assertEqual(overlay["provenance"]["animation_routine"]["rom_offset"],
                          f"0x{ENEMY_SPRITE_ANIMATE_OFFSET:06X}")
+        animate_len, animate_sha = ENEMY_SPRITE_ANIMATE_PIN
+        animate_bytes = bytes.fromhex(overlay["provenance"]["animation_routine"]["signature"])
+        self.assertEqual(len(animate_bytes), animate_len)
         self.assertEqual(
-            bytes.fromhex(overlay["provenance"]["animation_routine"]["signature"]),
-            ENEMY_SPRITE_ANIMATE_SIGNATURE,
+            overlay["provenance"]["animation_routine"]["signature_sha256"],
+            animate_sha,
         )
 
     def test_zoran_bult_piece_sets_carry_offsets_sources_flips_and_cadence(self):
