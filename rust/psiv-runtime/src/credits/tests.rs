@@ -177,7 +177,7 @@ fn run_stage(
 ) -> usize {
     *frame = frame.wrapping_add(1);
     let mut ticks = 1;
-    if credits.begin_stage(op, *frame, assets, cram, cycle) {
+    if credits.begin_stage(op.clone(), *frame, assets, cram, cycle) {
         return 0;
     }
     loop {

@@ -65,11 +65,11 @@ fn the_le_roof_loops_are_the_retail_palette_helpers() {
         };
         let at = retail_at(row.retail) as usize;
         let end = loop_end(rom, at).expect("the loop's dbf");
-        let SceneOp::Presentation { op } = scene(row.scene).ops[index] else {
+        let SceneOp::Presentation { op } = &scene(row.scene).ops[index] else {
             panic!("{row:?}: not a palette op");
         };
         match op {
-            crate::PresentationOp::CounterPaletteCycle { cycle, .. } => {
+            &crate::PresentationOp::CounterPaletteCycle { cycle, .. } => {
                 assert_eq!(word(at), 0x2F00, "{row:?}: move.l d0,-(sp)");
                 assert_eq!(call_target(rom, at + 2), Some(LE_ROOF_CYCLE), "{row:?}");
                 let after = at + if word(at + 2) == 0x6100 { 6 } else { 8 };
@@ -79,7 +79,7 @@ fn the_le_roof_loops_are_the_retail_palette_helpers() {
                 assert_eq!(word(end), 0x51C8, "{row:?}: dbf d0");
                 cycle_bytes(cycle);
             }
-            crate::PresentationOp::PaletteGrowIn {
+            &crate::PresentationOp::PaletteGrowIn {
                 source_rom_addr,
                 offset,
                 words,

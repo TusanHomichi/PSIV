@@ -69,13 +69,13 @@ impl Field {
             .iter()
             .filter_map(|actor| actor.beam_draw().map(|draw| (actor.npc_index(), draw)))
             .collect();
-        let torch_objects: Vec<_> = runtime.eclipse_torch_objects().copied().collect();
+        let torch_objects: Vec<_> = runtime.eclipse_torch_objects().cloned().collect();
         let camera_position = runtime.camera().position();
         let step_frames = runtime.step_frames();
         // A scene that drives the leader displaces the party draw: position,
         // facing, and walk state all come from the scripted actor, so the
         // walk to the door is a walk and not a freeze-then-teleport.
-        let leader_scripted = runtime.scene_party_actor(0).copied();
+        let leader_scripted = runtime.scene_party_actor(0).cloned();
         let (kind, party_facing, party_cell, party_offset) = match &leader_scripted {
             Some(actor) => (
                 if actor.is_walking() { "walk" } else { "idle" },
@@ -178,7 +178,7 @@ impl Field {
                 let sheet_id = runtime.data().party_sheet(char_id).map(|s| s.id.clone());
                 // A scene that drives this member displaces the caterpillar
                 // draw, same as the leader above.
-                let scripted = runtime.scene_party_actor(slot).copied();
+                let scripted = runtime.scene_party_actor(slot).cloned();
                 fdraws.push(sheet_id.map(|sheet_id| match scripted {
                     Some(actor) => FollowerDraw {
                         sheet_id,
@@ -324,7 +324,7 @@ impl Field {
                 {
                     let kind = if actor.is_walking() { "walk" } else { "idle" };
                     entry.idle = sequence_name(kind, actor.facing);
-                    let frame = match actor.animation {
+                    let frame = match &actor.animation {
                         Some(animation) => view
                             .sequences
                             .get(&format!("walk_facing_0x{:02X}", animation.word))

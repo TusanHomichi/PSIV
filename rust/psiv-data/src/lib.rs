@@ -42,6 +42,7 @@ mod battle;
 mod camera;
 mod collision;
 pub mod color;
+mod data_scene;
 mod dialogue;
 mod error;
 mod field_objects;
@@ -81,6 +82,12 @@ pub use battle::{
     TechniqueSlots, WeaponElements,
 };
 pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCollisionType};
+pub use data_scene::{
+    DATA_SCENE_FORMAT_VERSION, DataActorAnimation, DataActorChunkWrite, DataActorRef, DataAxis,
+    DataCameraSubject, DataCell, DataChunkWrite, DataCoordCmp, DataDialogueSource,
+    DataDialogueWindow, DataDirection, DataFlag, DataFlagBank, DataMoneyTest, DataNpcDrift,
+    DataSceneError, DataSceneOp, DataSceneProgram,
+};
 pub use dialogue::*;
 pub use error::DataError;
 pub use field_objects::{FIELD_OBJECT_SYMBOLS, field_object_symbol};

@@ -14,7 +14,7 @@ fn has(frame: &Frame, wanted: SceneOp) -> bool {
 fn at(frames: &[Frame], from: usize, wanted: SceneOp) -> usize {
     from + frames[from..]
         .iter()
-        .position(|frame| has(frame, wanted))
+        .position(|frame| has(frame, wanted.clone()))
         .expect("op emitted")
 }
 

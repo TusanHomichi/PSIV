@@ -471,19 +471,23 @@ fn every_palette_tone_loop_is_followed_by_its_frames() {
 /// is reported at its index.
 #[test]
 fn a_tone_loop_without_its_frames_is_reported() {
-    let tone = SceneOp::Presentation {
+    let tone = || SceneOp::Presentation {
         op: PresentationOp::PaletteIncreaseTone {
             frames: 60,
             hold: None,
         },
     };
-    assert_eq!(tone_loops_without_their_frames(&[tone]), vec![0]);
+    assert_eq!(tone_loops_without_their_frames(&[tone()]), vec![0]);
     assert_eq!(
-        tone_loops_without_their_frames(&[SceneOp::End, tone, SceneOp::WaitFrames { frames: 59 }]),
+        tone_loops_without_their_frames(&[
+            SceneOp::End,
+            tone(),
+            SceneOp::WaitFrames { frames: 59 }
+        ]),
         vec![1]
     );
     assert!(
-        tone_loops_without_their_frames(&[tone, SceneOp::WaitFrames { frames: 60 }]).is_empty()
+        tone_loops_without_their_frames(&[tone(), SceneOp::WaitFrames { frames: 60 }]).is_empty()
     );
 }
 
@@ -545,38 +549,40 @@ fn every_spawned_object_is_drawn_before_the_scene_goes_on() {
 /// rebuild follows a clear and a dialogue word is not.
 #[test]
 fn a_spawn_without_its_rebuild_is_reported() {
-    let spawn = SceneOp::Object(crate::scene::ObjectOp::SpawnAt {
-        slot: 9,
-        routine: 0x148,
-        at: crate::scene::ActorRef::Npc(4),
-        solid: true,
-    });
-    let rebuild = SceneOp::Presentation {
+    let spawn = || {
+        SceneOp::Object(crate::scene::ObjectOp::SpawnAt {
+            slot: 9,
+            routine: 0x148,
+            at: crate::scene::ActorRef::Npc(4),
+            solid: true,
+        })
+    };
+    let rebuild = || SceneOp::Presentation {
         op: PresentationOp::RebuildSprites,
     };
-    let wait = SceneOp::WaitFrames { frames: 30 };
-    let clear = SceneOp::DespawnNpc {
+    let wait = || SceneOp::WaitFrames { frames: 30 };
+    let clear = || SceneOp::DespawnNpc {
         npc_index: 4,
         count: 1,
     };
-    assert_eq!(spawns_not_drawn(&[spawn, wait, rebuild]), vec![0]);
-    assert_eq!(spawns_not_drawn(&[spawn, clear, wait]), vec![0]);
+    assert_eq!(spawns_not_drawn(&[spawn(), wait(), rebuild()]), vec![0]);
+    assert_eq!(spawns_not_drawn(&[spawn(), clear(), wait()]), vec![0]);
     assert_eq!(
-        spawns_not_drawn(&[spawn, aiedo_events::standard(0x1F), rebuild]),
+        spawns_not_drawn(&[spawn(), aiedo_events::standard(0x1F), rebuild()]),
         vec![0]
     );
-    assert_eq!(spawns_not_drawn(&[rebuild, wait, spawn]), vec![2]);
-    assert_eq!(spawns_not_drawn(&[spawn]), vec![0]);
+    assert_eq!(spawns_not_drawn(&[rebuild(), wait(), spawn()]), vec![2]);
+    assert_eq!(spawns_not_drawn(&[spawn()]), vec![0]);
     assert!(
         spawns_not_drawn(&[
-            spawn,
-            clear,
+            spawn(),
+            clear(),
             SceneOp::SetNpcDialogue {
                 npc_index: 9,
                 dialogue_id: 0x38,
             },
-            rebuild,
-            wait,
+            rebuild(),
+            wait(),
         ])
         .is_empty()
     );

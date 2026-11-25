@@ -40,7 +40,8 @@ fn grave_camera_blocks_and_slab_sequences_follow_every_object_update() {
                         .unwrap()
                         .actor(ActorRef::Npc(2))
                         .unwrap()
-                        .animation;
+                        .animation
+                        .clone();
                     let right = rt
                         .scene
                         .as_ref()
@@ -48,8 +49,9 @@ fn grave_camera_blocks_and_slab_sequences_follow_every_object_update() {
                         .actor(ActorRef::Npc(3))
                         .unwrap()
                         .animation
+                        .as_ref()
                         .unwrap();
-                    let left = animation.unwrap();
+                    let left = animation.as_ref().unwrap();
                     assert_eq!(
                         (right.word, right.index, right.duration),
                         (0x14, left.index, left.duration)
@@ -68,8 +70,8 @@ fn grave_camera_blocks_and_slab_sequences_follow_every_object_update() {
         assert!(frames < 200);
     }
     assert_eq!(drift.len(), 64);
-    for (i, &(_, animation)) in drift.iter().enumerate() {
-        let animation = animation.unwrap();
+    for (i, (_, animation)) in drift.iter().enumerate() {
+        let animation = animation.as_ref().unwrap();
         let (word, index, duration) = (animation.word, animation.index, animation.duration);
         let update = i + 1;
         let (expected_index, expected_duration) = match update {

@@ -103,60 +103,75 @@ pub static WRECKAGE_ENGINE: Scene = Scene {
         },
         // 23-38: `loc_6DD08`'s eight passes: chunk `$A6` at `(a1)`, `(a1,d7)`, `$20(a1)`, `$20(a1,d7)`, with `a1` chunk column `15 + k` on row 12 (`$1E0` and `$180`, both `>> 5`; the map is 32 chunks wide, so `$20` is row 13) and `d7` from -1 down by two; then `RefreshPlaneFG`, `DMAPlane_A_VInt` and three `VInt_Prepare`s.
         SceneOp::WriteMapChunks {
-            chunks: &[
+            chunks: std::borrow::Cow::Borrowed(&[
                 (15, 12, 0xA6),
                 (14, 12, 0xA6),
                 (15, 13, 0xA6),
                 (14, 13, 0xA6),
-            ],
+            ]),
         },
         SceneOp::WaitFrames { frames: 4 },
         SceneOp::WriteMapChunks {
-            chunks: &[
+            chunks: std::borrow::Cow::Borrowed(&[
                 (16, 12, 0xA6),
                 (13, 12, 0xA6),
                 (16, 13, 0xA6),
                 (13, 13, 0xA6),
-            ],
+            ]),
         },
         SceneOp::WaitFrames { frames: 4 },
         SceneOp::WriteMapChunks {
-            chunks: &[
+            chunks: std::borrow::Cow::Borrowed(&[
                 (17, 12, 0xA6),
                 (12, 12, 0xA6),
                 (17, 13, 0xA6),
                 (12, 13, 0xA6),
-            ],
+            ]),
         },
         SceneOp::WaitFrames { frames: 4 },
         SceneOp::WriteMapChunks {
-            chunks: &[
+            chunks: std::borrow::Cow::Borrowed(&[
                 (18, 12, 0xA6),
                 (11, 12, 0xA6),
                 (18, 13, 0xA6),
                 (11, 13, 0xA6),
-            ],
+            ]),
         },
         SceneOp::WaitFrames { frames: 4 },
         SceneOp::WriteMapChunks {
-            chunks: &[
+            chunks: std::borrow::Cow::Borrowed(&[
                 (19, 12, 0xA6),
                 (10, 12, 0xA6),
                 (19, 13, 0xA6),
                 (10, 13, 0xA6),
-            ],
+            ]),
         },
         SceneOp::WaitFrames { frames: 4 },
         SceneOp::WriteMapChunks {
-            chunks: &[(20, 12, 0xA6), (9, 12, 0xA6), (20, 13, 0xA6), (9, 13, 0xA6)],
+            chunks: std::borrow::Cow::Borrowed(&[
+                (20, 12, 0xA6),
+                (9, 12, 0xA6),
+                (20, 13, 0xA6),
+                (9, 13, 0xA6),
+            ]),
         },
         SceneOp::WaitFrames { frames: 4 },
         SceneOp::WriteMapChunks {
-            chunks: &[(21, 12, 0xA6), (8, 12, 0xA6), (21, 13, 0xA6), (8, 13, 0xA6)],
+            chunks: std::borrow::Cow::Borrowed(&[
+                (21, 12, 0xA6),
+                (8, 12, 0xA6),
+                (21, 13, 0xA6),
+                (8, 13, 0xA6),
+            ]),
         },
         SceneOp::WaitFrames { frames: 4 },
         SceneOp::WriteMapChunks {
-            chunks: &[(22, 12, 0xA6), (7, 12, 0xA6), (22, 13, 0xA6), (7, 13, 0xA6)],
+            chunks: std::borrow::Cow::Borrowed(&[
+                (22, 12, 0xA6),
+                (7, 12, 0xA6),
+                (22, 13, 0xA6),
+                (7, 13, 0xA6),
+            ]),
         },
         SceneOp::WaitFrames { frames: 4 },
         // 39-46: `addi.w #$220, Palette_Table_Buffer+$1A` (word `$D`), eight `VInt_Prepare`s, four times.

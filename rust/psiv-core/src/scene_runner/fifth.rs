@@ -221,16 +221,15 @@ impl SceneRunner {
         effects: &mut Vec<SceneEffect>,
     ) -> Option<SceneFault> {
         let object = ActorRef::Npc(FIRST_OBJECT + self.fifth_row);
-        let Some(friend) = self.actor(object).copied() else {
+        let Some(facing) = self.actor(object).map(|friend| friend.facing) else {
             return Some(SceneFault::UnknownActor { actor: object });
         };
         let cell = home_cell(&row);
         let actor = ActorRef::PartyMember(slot);
         if let Some(seat) = self.actor_mut(actor) {
-            seat.park(cell, friend.facing);
+            seat.park(cell, facing);
         } else {
-            self.actors
-                .push(ScriptedActor::new(actor, cell, friend.facing));
+            self.actors.push(ScriptedActor::new(actor, cell, facing));
         }
         effects.push(SceneEffect::NpcDespawned {
             npc_index: FIRST_OBJECT + self.fifth_row,

@@ -100,7 +100,7 @@ fn the_dominators_barrier_writes_line_zero_words_twelve_and_thirteen() {
                     | PresentationOp::PaletteCycleFromTable { .. }
             ) =>
             {
-                Some(*op)
+                Some(op.clone())
             }
             _ => None,
         })

@@ -279,9 +279,10 @@ mod tests {
                 .iter()
                 .position(|op| matches!(op, SceneOp::SkipUnlessMap { .. }))
                 .unwrap();
-            let SceneOp::SkipUnlessMap { maps, skip: count } = ops[skip] else {
+            let SceneOp::SkipUnlessMap { maps, skip: count } = &ops[skip] else {
                 unreachable!()
             };
+            let count = *count;
             assert!(maps.contains(&MOTA_SPACEPORT) && !maps.contains(&ZELAN));
             assert_eq!(
                 ops[skip + 1 + usize::from(count)],
@@ -309,7 +310,7 @@ mod tests {
             for double in [false, true] {
                 let mut copy = ops.to_vec();
                 if double {
-                    insert(&mut copy, index, *op);
+                    insert(&mut copy, index, op.clone());
                 } else {
                     copy.remove(index);
                     retarget(&mut copy, index, false);

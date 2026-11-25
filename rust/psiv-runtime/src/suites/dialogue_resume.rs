@@ -76,7 +76,7 @@ fn after_igglanova_waits_for_both_resumed_chunks_before_releasing_the_field() {
         }
         assert!(saw_resume, "resume {resume} was never presented");
         let slot = if resume == 0 { 1 } else { 2 };
-        let staged = *rt.scene_party_actor(slot).unwrap();
+        let staged = rt.scene_party_actor(slot).unwrap().clone();
         for _ in 0..100 {
             let events = rt.tick(Input::Neutral);
             assert!(!events.iter().any(|e| matches!(

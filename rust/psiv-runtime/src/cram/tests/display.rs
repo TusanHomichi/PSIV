@@ -81,7 +81,7 @@ fn each_display_enable_lights_the_frame_after_its_wait() {
         op(PresentationOp::EnableDisplay),
     ] {
         let mut off = dark(cram(filled(0), filled(0x0222)));
-        let (_, on) = displays(&mut off, enable, 3);
+        let (_, on) = displays(&mut off, enable.clone(), 3);
         assert_eq!(on, [false, true, true], "{enable:?}");
     }
 }
@@ -104,7 +104,7 @@ fn other_records_leave_the_display_off() {
         }),
     ] {
         let mut off = dark(cram(filled(0), filled(0x0222)));
-        let (_, on) = displays(&mut off, other, 3);
+        let (_, on) = displays(&mut off, other.clone(), 3);
         assert_eq!(on, [false, false, false], "{other:?}");
     }
 }

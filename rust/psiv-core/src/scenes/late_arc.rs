@@ -10,7 +10,7 @@ use crate::geom::Direction;
 use crate::scene::{ActorRef, MoneyTest, SavedByte, SceneOp};
 use crate::scene_runner::Scene;
 use crate::scenes::WREN;
-use crate::scenes::recovery::RECOVERY_OPS as R;
+use crate::scenes::recovery::recovery_ops_array;
 use crate::scenes::vahal_common::{
     SFX_ANDROID_SKILL_IMPLANT, SFX_CHEST_OPENED, set_event, sound, standard, wait,
 };
@@ -182,25 +182,7 @@ pub static RAJA_SICK: Scene = Scene {
 pub static RUNE_HEALING_CHAZ: Scene = Scene {
     name: "Event_RuneHealingChaz",
     event: EventIndex(0x0067),
-    ops: &[
-        standard(0x2B),
-        R[0],
-        R[1],
-        R[2],
-        R[3],
-        R[4],
-        R[5],
-        R[6],
-        R[7],
-        R[8],
-        R[9],
-        R[10],
-        R[11],
-        R[12],
-        R[13],
-        R[14],
-        R[15],
-    ],
+    ops: &recovery_ops_array!(standard(0x2B)),
 };
 
 /// `$006D`, `Event_Hijammer`, retail `$072428..$0724A3`: Wren installs Hijammer

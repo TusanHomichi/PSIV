@@ -4,6 +4,8 @@
 //! presentation record does not turn the core's public contract into a
 //! thousand-line monolith.
 
+use std::borrow::Cow;
+
 use crate::geom::{Cell, Direction};
 use crate::scene::SceneOp;
 use crate::scenes::FlightLeg;
@@ -471,7 +473,7 @@ pub enum SceneEffect {
     /// A scene explicitly restores these chunks and refreshes the map plane.
     MapChunksRestored {
         /// (Chunk x, chunk y, expected base chunk id).
-        chunks: &'static [(u32, u32, u16)],
+        chunks: Cow<'static, [(u32, u32, u16)]>,
     },
     /// A scene writes the named chunks into the live map layout.
     MapChunksWritten {

@@ -294,8 +294,8 @@ fn stepping_a_field_object_blocks_the_following_scene_for_all_64_frames() {
     assert_eq!(
         runner.tick(&map, &mut state, SceneInput::None),
         vec![
-            SceneEffect::Presentation { op: OPS[0] },
-            SceneEffect::Presentation { op: OPS[1] },
+            SceneEffect::Presentation { op: OPS[0].clone() },
+            SceneEffect::Presentation { op: OPS[1].clone() },
         ]
     );
     for tick in 1..64 {

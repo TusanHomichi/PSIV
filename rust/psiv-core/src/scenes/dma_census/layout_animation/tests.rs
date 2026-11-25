@@ -177,7 +177,14 @@ fn census_rejects_missing_doubled_and_wrong_policy_consumers() {
     }
     // The original Juza collapse (one restore, no delays) is rejected.
     let juza = scene("Event_JuzaDefeated");
-    assert!(!problems(rom, "Event_JuzaDefeated", &[juza[0], juza[15], juza[17]]).is_empty());
+    assert!(
+        !problems(
+            rom,
+            "Event_JuzaDefeated",
+            &[juza[0].clone(), juza[15].clone(), juza[17].clone()],
+        )
+        .is_empty()
+    );
     // A wrong DBF repeat count or a lost bare VInt invalidates Wreckage's
     // four-frame assignment, even if the native waits remain unchanged.
     for at in [0x06_DD07, 0x06_DD49] {

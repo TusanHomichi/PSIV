@@ -14,6 +14,8 @@
 //! the opening's `cmpi.b #$38, (a1)` guard is the runtime's interaction probe
 //! (`CLOSED_DOOR_GUARDS`, `rust/psiv-runtime/src/field_triggers.rs`).
 
+use std::borrow::Cow;
+
 use crate::scene::{ActorRef, SceneOp};
 use crate::scene_presentation::PresentationOp;
 use crate::scene_runner::Scene;
@@ -42,7 +44,7 @@ const ROW_FRAMES: SceneOp = SceneOp::Wait { ticks: 4 };
 const fn row(chunks: &'static [(i32, i32, u16)]) -> SceneOp {
     SceneOp::WriteActorMapChunks {
         actor: LEADER,
-        chunks,
+        chunks: Cow::Borrowed(chunks),
     }
 }
 

@@ -620,7 +620,7 @@ impl Cram {
         if !fades_in {
             self.upload_unshown();
         }
-        match *op {
+        match op {
             // `InitVRAMAndCRAMAfterFadeOut`, after the runner's `FadeOut`:
             // `DMAPlanes_VInt` spends this frame, then 32 longwords of
             // `Pal_Init` (`$05A68A`) go into the buffer, shown from the next.
@@ -643,9 +643,9 @@ impl Cram {
                     fade_in: matches!(op, SceneOp::FadeIn),
                     mode: 0,
                 };
-                return self.presentation(fade, main_frame_count, palettes, cycle_index);
+                return self.presentation(&fade, main_frame_count, palettes, cycle_index);
             }
-            SceneOp::LoadPalette {
+            &SceneOp::LoadPalette {
                 rom_addr,
                 words,
                 start,
@@ -658,7 +658,7 @@ impl Cram {
             // The prologue's `move.w #$666, $FB5E.w` and the flight's
             // caption word: one buffer word, which the fades step like any
             // other.
-            SceneOp::SetTextColour { colour } => self.write(TEXT_COLOUR_SLOT, colour),
+            &SceneOp::SetTextColour { colour } => self.write(TEXT_COLOUR_SLOT, colour),
             // `loc_53F14`: the map's 64-word shadow into the live buffer.
             SceneOp::ReloadMapPalette => {
                 if let Some(words) = map.and_then(|record| record.map_update_palette.as_deref()) {
@@ -667,7 +667,7 @@ impl Cram {
             }
             // `Panel_Draw` (`ps4.asm:144392-144401`): each drawn layer's
             // sixteen palette words at its art tile's line.
-            SceneOp::PanelCreate { id } => {
+            &SceneOp::PanelCreate { id } => {
                 let layers = palettes.panel(id).map(<[_]>::to_vec).unwrap_or_default();
                 for layer in layers {
                     if let Some(found) = self.rom(palettes, layer.rom_addr, 16) {
@@ -707,25 +707,25 @@ impl Cram {
 
     fn presentation(
         &mut self,
-        op: PresentationOp,
+        op: &PresentationOp,
         frame: u16,
         palettes: &ScenePalettes,
         cycle_index: &mut u8,
     ) -> Option<u16> {
         match op {
-            PresentationOp::SetPaletteWords {
+            &PresentationOp::SetPaletteWords {
                 offset,
                 first,
                 second,
             } => self.write_run(usize::from(offset), &[first, second]),
             // `addi.w #add, (Palette_Table_Buffer + 2*offset)`.
-            PresentationOp::AddPaletteWord { offset, add } => {
+            &PresentationOp::AddPaletteWord { offset, add } => {
                 let slot = usize::from(offset);
                 if let Some(&word) = self.view.words.get(slot) {
                     self.write(slot, word.wrapping_add(add));
                 }
             }
-            PresentationOp::PaletteCopy {
+            &PresentationOp::PaletteCopy {
                 source,
                 destination,
                 start,
@@ -737,7 +737,7 @@ impl Cram {
                 usize::from(words),
                 palettes,
             ),
-            PresentationOp::PaletteIncreaseTone { frames, hold } => {
+            &PresentationOp::PaletteIncreaseTone { frames, hold } => {
                 let hold = hold.and_then(
                     |PaletteHold {
                          source_rom_addr,
@@ -751,10 +751,10 @@ impl Cram {
                 );
                 self.start(Program::Tone { left: frames, hold }, frame, cycle_index);
             }
-            PresentationOp::PaletteRestoreTone { frames } => {
+            &PresentationOp::PaletteRestoreTone { frames } => {
                 self.start(Program::Restore { left: frames }, frame, cycle_index);
             }
-            PresentationOp::PaletteToneFlash {
+            &PresentationOp::PaletteToneFlash {
                 brighten,
                 words,
                 frames,
@@ -774,9 +774,9 @@ impl Cram {
                 words_per_frame,
                 delays,
             } => {
-                let per = usize::from(words_per_frame);
+                let per = usize::from(*words_per_frame);
                 let start = destination_ram.checked_sub(PALETTE_TABLE_BUFFER)?;
-                let table = self.rom(palettes, source_rom_addr, per * delays.len())?;
+                let table = self.rom(palettes, *source_rom_addr, per * delays.len())?;
                 let mut writes = Vec::with_capacity(delays.len());
                 let mut at = 0u16;
                 for (index, &delay) in delays.iter().enumerate() {
@@ -787,7 +787,7 @@ impl Cram {
             }
             // `loc_6ED4E`: three words of line `destination_ram`'s words 1-3,
             // then `frame_delay` frames, `steps` times.
-            PresentationOp::PaletteRampFromTable {
+            &PresentationOp::PaletteRampFromTable {
                 source_rom_addr,
                 destination_ram,
                 steps,
@@ -804,7 +804,7 @@ impl Cram {
                 self.start(Program::Writes { elapsed: 0, writes }, frame, cycle_index);
             }
             // `loc_6E842`: two words a pass, then `frame_delay` frames.
-            PresentationOp::PaletteCycleFromTable {
+            &PresentationOp::PaletteCycleFromTable {
                 source_rom_addr,
                 offset,
                 second_skip,
@@ -836,7 +836,7 @@ impl Cram {
                 self.start(Program::Writes { elapsed: 0, writes }, frame, cycle_index);
             }
             // The Le Roof colour loops: `loc_70638`, then `VInt_Prepare`.
-            PresentationOp::CounterPaletteCycle { cycle, frames } => {
+            &PresentationOp::CounterPaletteCycle { cycle, frames } => {
                 let cycle = self.cycle(cycle, palettes)?;
                 self.start(
                     Program::Cycle {
@@ -848,7 +848,7 @@ impl Cram {
                 );
             }
             // `loc_705D6`.
-            PresentationOp::PaletteGrowIn {
+            &PresentationOp::PaletteGrowIn {
                 source_rom_addr,
                 offset,
                 words,
@@ -873,7 +873,7 @@ impl Cram {
             }
             PresentationOp::EnableDisplay => self.enable_display_after_frame(),
             // `Pal_VariableFadeOut`/`In` (`$05B168`, `$05B1B8`).
-            PresentationOp::VariablePaletteFade { fade_in, mode } => {
+            &PresentationOp::VariablePaletteFade { fade_in, mode } => {
                 // A held map load's words are the buffer the fade-in copies.
                 self.saved = self.unshown.take().unwrap_or(self.view.words);
                 let every = palette::dbf_frames(mode);
@@ -912,7 +912,7 @@ impl Cram {
             }
             // `Pal_VariableFadeOut_Lines_1_2` / `Pal_VariableFadeToPal2`
             // (`$05B222`, `$05B26E`): the same passes over words 0-31.
-            PresentationOp::TwoLinePaletteFade { fade_in, mode } => {
+            &PresentationOp::TwoLinePaletteFade { fade_in, mode } => {
                 const WORDS: usize = 32;
                 let every = palette::dbf_frames(mode);
                 let (kind, count) = if fade_in {
@@ -944,7 +944,7 @@ impl Cram {
             }
             // `Pal_VariableFadeToRed` copies the buffer first; both run eight
             // stages of `delay + 1` frames.
-            PresentationOp::FadeToRed { lines } | PresentationOp::FadeFromRed { lines } => {
+            &PresentationOp::FadeToRed { lines } | &PresentationOp::FadeFromRed { lines } => {
                 let to_red = matches!(op, PresentationOp::FadeToRed { .. });
                 if to_red {
                     self.saved = self.view.words;
@@ -964,7 +964,7 @@ impl Cram {
             }
             // `loc_79C8E` / `loc_79CCA`: one word, stepped on every eighth
             // frame until the step that ends the loop unstored.
-            PresentationOp::EndingStaffRollFadeOut {
+            &PresentationOp::EndingStaffRollFadeOut {
                 palette_offset,
                 step,
             } => {
@@ -973,7 +973,7 @@ impl Cram {
                 let fade = palette::staff_roll_fade_out(word, frame, step);
                 return Some(self.word_loop(slot, fade, frame, cycle_index));
             }
-            PresentationOp::EndingStaffRollFadeIn {
+            &PresentationOp::EndingStaffRollFadeIn {
                 palette_offset,
                 step,
                 target_bit,
@@ -984,7 +984,7 @@ impl Cram {
                 return Some(self.word_loop(slot, fade, frame, cycle_index));
             }
             PresentationOp::EndingCreditsPaletteRamp { .. } => {
-                return Some(self.credits_ramp(op, frame, palettes, cycle_index));
+                return Some(self.credits_ramp(op.clone(), frame, palettes, cycle_index));
             }
             _ => {}
         }

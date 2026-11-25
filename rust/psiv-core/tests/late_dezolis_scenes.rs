@@ -582,7 +582,7 @@ fn play_enter_anger_tower(state: &mut GameState) -> (Vec<SceneEffect>, usize) {
 fn presented(log: &[SceneEffect]) -> Vec<psiv_core::SceneOp> {
     log.iter()
         .filter_map(|e| match e {
-            SceneEffect::Presentation { op } | SceneEffect::MapRequested { op } => Some(*op),
+            SceneEffect::Presentation { op } | SceneEffect::MapRequested { op } => Some(op.clone()),
             _ => None,
         })
         .collect()

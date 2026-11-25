@@ -1,5 +1,7 @@
 //! `BranchIfActorCoord` and `DriftNpcs`.
 
+use std::borrow::Cow;
+
 use super::drift::{CoordCmp, NpcDrift};
 use super::*;
 use crate::map::{Npc, NpcId};
@@ -136,7 +138,7 @@ const RIGHT: i32 = 0x8000;
 
 static SLIDE: &[SceneOp] = &[
     SceneOp::DriftNpcs {
-        drifts: &[
+        drifts: Cow::Borrowed(&[
             NpcDrift {
                 npc: 0,
                 step_x: LEFT,
@@ -147,7 +149,7 @@ static SLIDE: &[SceneOp] = &[
                 step_x: RIGHT,
                 step_y: 0,
             },
-        ],
+        ]),
         frames: 64,
     },
     SceneOp::SetFlag {
@@ -157,12 +159,12 @@ static SLIDE: &[SceneOp] = &[
 ];
 
 static WRONG_SLIDE: &[SceneOp] = &[SceneOp::DriftNpcs {
-    drifts: &[NpcDrift {
+    drifts: Cow::Borrowed(&[NpcDrift {
         npc: 0,
         // 17 px over 64 frames instead of 16.
         step_x: -0x4400,
         step_y: 0,
-    }],
+    }]),
     frames: 64,
 }];
 
@@ -321,11 +323,11 @@ fn a_drift_updates_the_branch_coordinate_even_without_a_runtime() {
     // The map here is never written: the overlay keeps the scene's own view.
     static THEN_BRANCH: &[SceneOp] = &[
         SceneOp::DriftNpcs {
-            drifts: &[NpcDrift {
+            drifts: Cow::Borrowed(&[NpcDrift {
                 npc: 0,
                 step_x: LEFT,
                 step_y: 0,
-            }],
+            }]),
             frames: 64,
         },
         SceneOp::BranchIfActorCoord {
@@ -435,7 +437,7 @@ fn a_placement_drops_the_slide_a_step_left() {
         assert!(!runner.is_finished());
     }
     runner.tick(&map, &mut state, SceneInput::None);
-    let stepped = *runner.actor(leader).unwrap();
+    let stepped = runner.actor(leader).unwrap().clone();
     assert_eq!(
         stepped.render_offset_16ths(frames),
         (0, 8),
@@ -445,7 +447,7 @@ fn a_placement_drops_the_slide_a_step_left() {
         runner.tick(&map, &mut state, SceneInput::None);
     }
     assert!(runner.is_finished());
-    let placed = *runner.actor(leader).unwrap();
+    let placed = runner.actor(leader).unwrap().clone();
     assert_eq!(placed.cell, Cell::new(0x1F, 0x20));
     assert_eq!(placed.render_offset_16ths(frames), (0, 0));
 }
@@ -479,7 +481,7 @@ fn a_subcell_placement_preserves_its_pixel_remainder_across_vertical_steps() {
     );
     let frames = StepFrames::new(8).unwrap();
     runner.tick(&map, &mut state, SceneInput::None);
-    let placed = *runner.actor(leader).unwrap();
+    let placed = runner.actor(leader).unwrap().clone();
     assert_eq!(placed.pixel_pos(), crate::PixelPos { x: 0x1E8, y: 0x1C0 });
     assert_eq!(placed.render_offset_16ths(frames), (8, 0));
     for _ in 0..32 {
@@ -489,7 +491,7 @@ fn a_subcell_placement_preserves_its_pixel_remainder_across_vertical_steps() {
         runner.tick(&map, &mut state, SceneInput::None);
     }
     assert!(runner.is_finished());
-    let stepped = *runner.actor(leader).unwrap();
+    let stepped = runner.actor(leader).unwrap().clone();
     assert_eq!(stepped.pixel_pos(), crate::PixelPos { x: 0x1E8, y: 0x1B0 });
     assert_eq!(stepped.render_offset_16ths(frames), (8, 0));
 }

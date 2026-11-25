@@ -125,12 +125,14 @@ pub(super) const fn platform(
         platform_object(slot, clear.object.0, clear.object.1),
         SceneOp::OverlapCharacters,
         SceneOp::WriteMapChunks {
-            chunks: clear.start,
+            chunks: std::borrow::Cow::Borrowed(clear.start),
         },
         SceneOp::Jump { to: 8 },
         platform_object(slot, set.object.0, set.object.1),
         SceneOp::OverlapCharacters,
-        SceneOp::WriteMapChunks { chunks: set.start },
+        SceneOp::WriteMapChunks {
+            chunks: std::borrow::Cow::Borrowed(set.start),
+        },
         // `RefreshPlaneFG`, `RunMapUpdates`, `DMAPlane_A_VInt` (`$06C4E0`):
         // the start pair's frame.
         SceneOp::DmaPlanes,
@@ -142,11 +144,15 @@ pub(super) const fn platform(
         test_temp(flag, 16, 12),
         ride(slot, clear.ride.0, clear.ride.1),
         toggle_temp(flag),
-        SceneOp::WriteMapChunks { chunks: clear.end },
+        SceneOp::WriteMapChunks {
+            chunks: std::borrow::Cow::Borrowed(clear.end),
+        },
         SceneOp::Jump { to: 19 },
         ride(slot, set.ride.0, set.ride.1),
         toggle_temp(flag),
-        SceneOp::WriteMapChunks { chunks: set.end },
+        SceneOp::WriteMapChunks {
+            chunks: std::borrow::Cow::Borrowed(set.end),
+        },
         // `RefreshPlaneFG`, `RunMapUpdates`, `DMAPlane_A_VInt` (`$06C5D8`):
         // the end pair's frame.
         SceneOp::DmaPlanes,

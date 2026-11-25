@@ -416,7 +416,7 @@ fn omitted_doubled_and_misplaced_fades_change_the_observable_trace() {
             dropped.remove(at);
             retarget(&mut dropped, at, false);
             let mut doubled = original.to_vec();
-            insert(&mut doubled, at, *op);
+            insert(&mut doubled, at, op.clone());
             for ops in [dropped, doubled] {
                 let ops = Box::leak(ops.into_boxed_slice());
                 let observed: Vec<_> = ways

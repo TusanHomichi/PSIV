@@ -215,7 +215,7 @@ fn the_bailed_out_sisters_are_taken_home_to_uzo() {
     let load = log
         .iter()
         .find_map(|e| match e {
-            SceneEffect::MapRequested { op } => Some(*op),
+            SceneEffect::MapRequested { op } => Some(op.clone()),
             _ => None,
         })
         .expect("a map load");

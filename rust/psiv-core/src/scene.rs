@@ -11,8 +11,10 @@
 //! motion reuses the ordinary movement model with the actor (`scene_runner/actor.rs`).
 
 mod ops;
+mod validate;
 
 pub use ops::SceneOp;
+pub use validate::{SceneValidationError, validate_scene_ops};
 
 pub use crate::scene_types::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, FifthOp, GuildOp, ItemOp,

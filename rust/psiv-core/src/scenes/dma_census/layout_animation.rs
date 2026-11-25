@@ -91,7 +91,7 @@ pub(super) fn problems(rom: &[u8], name: &str, ops: &[SceneOp]) -> Vec<String> {
             }
         } else {
             SceneOp::WriteMapChunks {
-                chunks: &[(10, 12, 0x47)],
+                chunks: std::borrow::Cow::Borrowed(&[(10, 12, 0x47)]),
             }
         };
         check(
@@ -159,7 +159,7 @@ pub(super) fn problems(rom: &[u8], name: &str, ops: &[SceneOp]) -> Vec<String> {
             check(
                 jsr_target(rom, 0x06_B5D8) == Some(0x05_40FA)
                     && matches!(ops.get(6), Some(SceneOp::WriteMapChunks { chunks })
-                    if *chunks == [(57, 90, 0xD3)]),
+                    if chunks.as_ref() == [(57, 90, 0xD3)]),
                 "Machine Center refresh beat changed (#546)",
             );
         }
@@ -240,8 +240,12 @@ pub(super) fn problems(rom: &[u8], name: &str, ops: &[SceneOp]) -> Vec<String> {
                     .map(|(j, (x, y))| (x, y, u16::from(rom[table + 1 + j])))
                     .collect();
                 let correct = match ops.get(1 + i * 2) {
-                    Some(SceneOp::WriteMapChunks { chunks: got }) if i % 2 == 0 => *got == chunks,
-                    Some(SceneOp::RestoreMapChunks { chunks: got }) if i % 2 == 1 => *got == chunks,
+                    Some(SceneOp::WriteMapChunks { chunks: got }) if i % 2 == 0 => {
+                        got.as_ref() == chunks.as_slice()
+                    }
+                    Some(SceneOp::RestoreMapChunks { chunks: got }) if i % 2 == 1 => {
+                        got.as_ref() == chunks.as_slice()
+                    }
                     _ => false,
                 };
                 check(

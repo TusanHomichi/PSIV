@@ -420,11 +420,11 @@ fn a_wrong_fixed_fade_op_is_reported() {
             }
             variants.push(dropped);
             let mut doubled = scene.ops.to_vec();
-            insert(&mut doubled, index, *op);
+            insert(&mut doubled, index, op.clone());
             variants.push(doubled);
             for other in kinds.iter().filter(|kind| recorded(kind) != recorded(op)) {
                 let mut swapped = scene.ops.to_vec();
-                swapped[index] = *other;
+                swapped[index] = other.clone();
                 variants.push(swapped);
             }
             for ops in variants {
@@ -477,7 +477,7 @@ fn the_production_route_matches_and_a_changed_route_or_caller_does_not() {
         dropped.remove(index);
         retarget(&mut dropped, index, false);
         let mut doubled = as_called.clone();
-        insert(&mut doubled, index, *op);
+        insert(&mut doubled, index, op.clone());
         for ops in [dropped, doubled] {
             assert_eq!(
                 mismatches(rom, &ranges, &[with_ops(SHIP, ops)]).len(),
