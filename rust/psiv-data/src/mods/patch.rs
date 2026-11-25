@@ -1,8 +1,10 @@
-//! Sparse ID-keyed JSON patching and reverse diffing for runtime pack tables.
+//! Sparse ID-keyed JSON patching, cell-level grid patching, and reverse diffing
+//! for runtime pack tables.
 //!
-//! Pack tables store records in arrays keyed by stable cartridge IDs (`id`,
-//! `character_id`, `tree`, `index`, `event_battle_index`, `level`, `map_id`).
-//! Patching by ID instead of array index keeps mods resilient and readable.
+//! Pack tables store records in arrays keyed by stable cartridge IDs (see
+//! [`super::tables::KEYED_ARRAYS`]) and 2D map/encounter grids (see
+//! [`super::grid::CELL_GRIDS`]). Patching by ID or sparse cell coordinates
+//! keeps mods resilient, readable, and free of copied retail tables.
 //!
 //! For `dialogue/trees.json` entries, two ergonomic helpers are also supported:
 //!
@@ -12,198 +14,14 @@
 //!   — rebuilds `segments`, `pages`, and `text` cleanly (preserving any leading
 //!   portrait control code unless `"keep_portrait": false`).
 
-use super::schema_check;
-use serde_json::{Map, Value, json};
-
-/// Pattern matching one or more pack-relative JSON paths.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FilePattern {
-    /// Exact pack-relative path (for example `"battle/enemies.json"`).
-    Exact(&'static str),
-    /// Directory prefix and filename suffix (for example `"maps/"` + `".json"`).
-    Prefix {
-        /// Leading directory prefix including trailing `/`.
-        prefix: &'static str,
-        /// Required filename suffix.
-        suffix: &'static str,
-    },
-}
-
-impl FilePattern {
-    pub(crate) fn matches(self, rel_file: &str) -> bool {
-        match self {
-            Self::Exact(exact) => rel_file == exact,
-            Self::Prefix { prefix, suffix } => {
-                rel_file.starts_with(prefix) && rel_file.ends_with(suffix)
-            }
-        }
-    }
-}
-
-/// Declarative specification of one ID-keyed pack table array.
-///
-/// Shared between [`array_key_field`] and the schema/pack guard tests so a
-/// field rename cannot silently drift away from the actual pack schema.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct KeyedArraySpec {
-    pub file: FilePattern,
-    pub path: &'static [&'static str],
-    pub key_field: &'static str,
-}
-
-pub(crate) const MAPS_JSON: FilePattern = FilePattern::Prefix {
-    prefix: "maps/",
-    suffix: ".json",
+use super::dialogue_patch::{
+    apply_dialogue_shorthand, is_dialogue_entry, synthesize_dialogue_shorthand,
 };
-
-/// Every pack table array that supports sparse ID-keyed patching and diffing.
-pub(crate) const KEYED_ARRAYS: &[KeyedArraySpec] = &[
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/enemies.json"),
-        path: &["enemies"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/equipment.json"),
-        path: &["items"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/characters.json"),
-        path: &["characters"],
-        key_field: "character_id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/abilities.json"),
-        path: &["techniques"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/abilities.json"),
-        path: &["skills"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/abilities.json"),
-        path: &["enemy_skills"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/abilities.json"),
-        path: &["item_effects"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/abilities.json"),
-        path: &["combos"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/formations.json"),
-        path: &["formations"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/formations.json"),
-        path: &["boss_formations"],
-        key_field: "event_battle_index",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/formations.json"),
-        path: &["map_bindings"],
-        key_field: "map_id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/levels.json"),
-        path: &["characters"],
-        key_field: "character_id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("battle/levels.json"),
-        path: &["characters", "*", "levels"],
-        key_field: "level",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("shops.json"),
-        path: &["inventories"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("shops.json"),
-        path: &["inns"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("shops.json"),
-        path: &["counters"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("dialogue/trees.json"),
-        path: &["trees"],
-        key_field: "tree",
-    },
-    KeyedArraySpec {
-        file: FilePattern::Exact("dialogue/trees.json"),
-        path: &["trees", "*", "entries"],
-        key_field: "id",
-    },
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["npcs"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["warps"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["treasure_chests"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["interaction_areas"],
-        key_field: "index",
-    },
-    KeyedArraySpec {
-        file: MAPS_JSON,
-        path: &["map_updates"],
-        key_field: "index",
-    },
-];
-
-/// Returns the stable ID field name when `path` inside `rel_file` addresses a
-/// known ID-keyed record array.
-pub(crate) fn array_key_field(rel_file: &str, path: &[&str]) -> Option<&'static str> {
-    KEYED_ARRAYS
-        .iter()
-        .find(|spec| spec.file.matches(rel_file) && spec.path == path)
-        .map(|spec| spec.key_field)
-}
-
-/// Returns `true` when `(rel_file, schema_path)` addresses a JSON object that
-/// maps arbitrary user/asset keys rather than fixed struct fields.
-fn is_dynamic_map(rel_file: &str, schema_path: &[&str]) -> bool {
-    match (rel_file, schema_path) {
-        (file, ["map_update_images" | "art_cycle_images"]) if MAPS_JSON.matches(file) => true,
-        ("dialogue/font.json", ["by_char"]) => true,
-        ("dialogue/window.json", ["roles"]) => true,
-        ("title/palette_cycle.json", ["frames"]) => true,
-        ("battle/art/enemy_attacks.json", ["enemies", "*", "palette_overrides"]) => true,
-        (
-            "battle/art/enemies.json",
-            ["palette_layout", "fixed_colors" | "index_15_by_cram_line"],
-        ) => true,
-        _ => false,
-    }
-}
-
-fn is_dialogue_entry(rel_file: &str, path: &[&str]) -> bool {
-    rel_file == "dialogue/trees.json" && path == ["trees", "*", "entries", "*"]
-}
+use super::diff::DiffOptions;
+use super::grid::{apply_cell_grid_patch, cell_grid_spec, diff_cell_grid};
+use super::schema_check;
+use super::tables::{array_key_field, is_dynamic_map};
+use serde_json::{Map, Value};
 
 fn format_path(display_path: &[&str], key: &str) -> String {
     if display_path.is_empty() {
@@ -214,7 +32,8 @@ fn format_path(display_path: &[&str], key: &str) -> String {
 }
 
 /// Applies `patch` onto `base` in place, using ID-keyed merging for known
-/// table arrays and strict schema-validated merging for objects.
+/// table arrays, sparse cell patching for known 2D grids, and strict
+/// schema-validated merging for objects.
 ///
 /// When `rel_file` has a `psiv-data` Rust schema and `base` is a complete file
 /// of that schema, unknown/ignored fields are rejected against the crate's own
@@ -281,6 +100,12 @@ fn apply_at_slice(
             key_field,
             strict_base_keys,
         );
+    }
+
+    if let (Value::Array(base_rows), Some(grid_spec)) =
+        (base as &mut Value, cell_grid_spec(rel_file, schema_path))
+    {
+        return apply_cell_grid_patch(base_rows, patch, display_path, grid_spec.kind);
     }
 
     match (base, patch) {
@@ -550,175 +375,125 @@ fn apply_keyed_array(
     }
 }
 
-/// Applies `"replace"` and/or `"lines"` dialogue shorthands onto a dialogue entry
-/// object, keeping `segments`, `pages`, and `text` consistent.
-fn apply_dialogue_shorthand(
-    entry: &mut Map<String, Value>,
-    patch: &Map<String, Value>,
-) -> Result<(), String> {
-    if let Some(replaces) = patch.get("replace") {
-        let pairs = replaces.as_array().ok_or_else(|| {
-            "dialogue `replace` must be an array of [old, new] string pairs".to_owned()
-        })?;
-        for (i, pair) in pairs.iter().enumerate() {
-            let arr = pair.as_array().ok_or_else(|| {
-                format!("dialogue `replace[{i}]` must be a 2-element [old, new] array")
-            })?;
-            if arr.len() != 2 {
-                return Err(format!(
-                    "dialogue `replace[{i}]` must have exactly 2 elements"
-                ));
-            }
-            let old = arr[0]
-                .as_str()
-                .ok_or_else(|| format!("dialogue `replace[{i}][0]` must be a string"))?;
-            let new = arr[1]
-                .as_str()
-                .ok_or_else(|| format!("dialogue `replace[{i}][1]` must be a string"))?;
-            let mut matched = false;
-            if let Some(segments) = entry.get_mut("segments").and_then(Value::as_array_mut) {
-                for seg in segments {
-                    if let Some(text) = seg.get("text").and_then(Value::as_str)
-                        && text.contains(old)
-                    {
-                        let replaced = text.replace(old, new);
-                        seg["text"] = Value::String(replaced);
-                        matched = true;
-                    }
-                }
-            }
-            if let Some(pages) = entry.get_mut("pages").and_then(Value::as_array_mut) {
-                for page in pages {
-                    if let Some(lines) = page.get_mut("lines").and_then(Value::as_array_mut) {
-                        for line in lines {
-                            if let Some(s) = line.as_str()
-                                && s.contains(old)
-                            {
-                                *line = Value::String(s.replace(old, new));
-                            }
-                        }
-                    }
-                }
-            }
-            if let Some(text) = entry.get("text").and_then(Value::as_str) {
-                entry.insert("text".to_owned(), Value::String(text.replace(old, new)));
-            }
-            if !matched {
-                return Err(format!(
-                    "dialogue `replace[{i}]` did not match any text segment: {old:?}"
-                ));
-            }
-        }
-    }
-
-    if let Some(lines_val) = patch.get("lines") {
-        let keep_portrait = match patch.get("keep_portrait") {
-            None => true,
-            Some(Value::Bool(flag)) => *flag,
-            Some(_) => return Err("dialogue `keep_portrait` must be a boolean".to_owned()),
-        };
-        let pages_lines = parse_dialogue_lines(lines_val)?;
-        let leading_portrait = if keep_portrait {
-            entry
-                .get("segments")
-                .and_then(Value::as_array)
-                .and_then(|segs| segs.first())
-                .filter(|seg| seg.get("ctrl").and_then(Value::as_str) == Some("portrait"))
-                .cloned()
-        } else {
-            None
-        };
-
-        let mut new_segments = Vec::new();
-        if let Some(p) = leading_portrait {
-            new_segments.push(p);
-        }
-        let mut new_pages = Vec::new();
-        let mut flat_lines = Vec::new();
-        let page_count = pages_lines.len();
-        for (page_idx, page) in pages_lines.iter().enumerate() {
-            if page_idx > 0 {
-                new_segments.push(json!({"code": "0xFD", "ctrl": "wait", "operands": []}));
-            }
-            for (line_idx, line) in page.iter().enumerate() {
-                if line_idx > 0 {
-                    new_segments.push(json!({"code": "0xFC", "ctrl": "newline", "operands": []}));
-                }
-                new_segments.push(json!({"text": line}));
-                flat_lines.push(line.as_str());
-            }
-            let end = if page_idx + 1 < page_count {
-                "wait"
-            } else {
-                "end"
-            };
-            let mut page_obj = Map::new();
-            page_obj.insert("lines".to_owned(), json!(page));
-            page_obj.insert("end".to_owned(), json!(end));
-            new_pages.push(Value::Object(page_obj));
-        }
-
-        entry.insert("segments".to_owned(), Value::Array(new_segments));
-        entry.insert("pages".to_owned(), Value::Array(new_pages));
-        entry.insert("text".to_owned(), Value::String(flat_lines.join("\n")));
-    }
-
-    Ok(())
-}
-
-fn parse_dialogue_lines(value: &Value) -> Result<Vec<Vec<String>>, String> {
-    let arr = value
-        .as_array()
-        .ok_or_else(|| "dialogue `lines` must be an array of strings or pages".to_owned())?;
-    if arr.is_empty() {
-        return Err("dialogue `lines` must not be empty".to_owned());
-    }
-    if arr.iter().all(Value::is_string) {
-        let lines: Vec<String> = arr
-            .iter()
-            .map(|v| v.as_str().unwrap_or_default().to_owned())
-            .collect();
-        return Ok(vec![lines]);
-    }
-    let mut pages = Vec::with_capacity(arr.len());
-    for (i, page) in arr.iter().enumerate() {
-        let sub = page
-            .as_array()
-            .ok_or_else(|| format!("dialogue `lines[{i}]` must be an array of strings"))?;
-        let mut lines = Vec::with_capacity(sub.len());
-        for (j, line) in sub.iter().enumerate() {
-            let s = line
-                .as_str()
-                .ok_or_else(|| format!("dialogue `lines[{i}][{j}]` must be a string"))?;
-            lines.push(s.to_owned());
-        }
-        pages.push(lines);
-    }
-    Ok(pages)
-}
-
 /// Computes a minimal sparse JSON patch such that applying it to `base`
 /// reproduces `edited`. Returns `Ok(None)` when `base == edited`.
 ///
-/// Returns `Err` if a known ID-keyed table adds, removes, duplicates, or omits
-/// record IDs, because sparse ID-keyed patches only update existing records.
+/// Fails closed (strict shareability, [`DiffOptions::default`]) if exporting
+/// the diff would copy a whole non-empty unkeyed base JSON array. Returns `Err`
+/// if a known ID-keyed table adds, removes, duplicates, reorders, or omits
+/// record IDs.
 pub fn diff_json(base: &Value, edited: &Value, rel_file: &str) -> Result<Option<Value>, String> {
-    diff_at_slice(base, edited, rel_file, &[])
+    diff_json_with_options(base, edited, rel_file, DiffOptions::default())
+}
+
+/// Like [`diff_json`], with explicit [`DiffOptions`] controlling whether
+/// non-delta whole base array copies are permitted.
+pub fn diff_json_with_options(
+    base: &Value,
+    edited: &Value,
+    rel_file: &str,
+    options: DiffOptions,
+) -> Result<Option<Value>, String> {
+    let mut copied = Vec::new();
+    diff_json_tracked(base, edited, rel_file, options, &mut copied)
+}
+
+pub(crate) fn diff_json_tracked(
+    base: &Value,
+    edited: &Value,
+    rel_file: &str,
+    options: DiffOptions,
+    copied_base_arrays: &mut Vec<String>,
+) -> Result<Option<Value>, String> {
+    diff_at_slice(
+        base,
+        edited,
+        rel_file,
+        &[],
+        &[],
+        options.allow_derived,
+        copied_base_arrays,
+    )
 }
 
 fn diff_at_slice(
     base: &Value,
     edited: &Value,
     rel_file: &str,
-    path: &[&str],
+    schema_path: &[&str],
+    display_path: &[&str],
+    allow_derived: bool,
+    copied_base_arrays: &mut Vec<String>,
 ) -> Result<Option<Value>, String> {
     if base == edited {
         return Ok(None);
     }
-    if let (Value::Array(base_arr), Value::Array(edited_arr), Some(key_field)) =
-        (base, edited, array_key_field(rel_file, path))
+    if is_dialogue_entry(rel_file, schema_path)
+        && let (Value::Object(base_obj), Value::Object(edited_obj)) = (base, edited)
+        && let Some(shorthand) = synthesize_dialogue_shorthand(base_obj, edited_obj)
     {
-        return diff_keyed_array(base_arr, edited_arr, rel_file, path, key_field);
+        let mut out = shorthand;
+        for (k, ev) in edited_obj {
+            if matches!(k.as_str(), "segments" | "pages" | "text") {
+                continue;
+            }
+            match base_obj.get(k) {
+                Some(bv) => {
+                    let mut next_schema: Vec<&str> = schema_path.to_vec();
+                    next_schema.push(k.as_str());
+                    let mut next_display: Vec<&str> = display_path.to_vec();
+                    next_display.push(k.as_str());
+                    if let Some(d) = diff_at_slice(
+                        bv,
+                        ev,
+                        rel_file,
+                        &next_schema,
+                        &next_display,
+                        allow_derived,
+                        copied_base_arrays,
+                    )? {
+                        out.insert(k.clone(), d);
+                    }
+                }
+                None => {
+                    out.insert(k.clone(), ev.clone());
+                }
+            }
+        }
+        for k in base_obj.keys() {
+            if !matches!(k.as_str(), "segments" | "pages" | "text") && !edited_obj.contains_key(k) {
+                out.insert(k.clone(), Value::Null);
+            }
+        }
+        return Ok(Some(Value::Object(out)));
+    }
+
+    if let (Value::Array(base_arr), Value::Array(edited_arr), Some(key_field)) =
+        (base, edited, array_key_field(rel_file, schema_path))
+    {
+        return diff_keyed_array(
+            base_arr,
+            edited_arr,
+            rel_file,
+            schema_path,
+            display_path,
+            key_field,
+            allow_derived,
+            copied_base_arrays,
+        );
+    }
+
+    if let (Value::Array(base_rows), Value::Array(edited_rows), Some(grid_spec)) =
+        (base, edited, cell_grid_spec(rel_file, schema_path))
+    {
+        return diff_cell_grid(
+            base_rows,
+            edited_rows,
+            display_path,
+            grid_spec.kind,
+            allow_derived,
+            copied_base_arrays,
+        );
     }
 
     match (base, edited) {
@@ -727,9 +502,19 @@ fn diff_at_slice(
             for (k, ev) in edited_map {
                 match base_map.get(k) {
                     Some(bv) => {
-                        let mut next_path: Vec<&str> = path.to_vec();
-                        next_path.push(k.as_str());
-                        if let Some(d) = diff_at_slice(bv, ev, rel_file, &next_path)? {
+                        let mut next_schema: Vec<&str> = schema_path.to_vec();
+                        next_schema.push(k.as_str());
+                        let mut next_display: Vec<&str> = display_path.to_vec();
+                        next_display.push(k.as_str());
+                        if let Some(d) = diff_at_slice(
+                            bv,
+                            ev,
+                            rel_file,
+                            &next_schema,
+                            &next_display,
+                            allow_derived,
+                            copied_base_arrays,
+                        )? {
                             out.insert(k.clone(), d);
                         }
                     }
@@ -749,21 +534,39 @@ fn diff_at_slice(
                 Ok(Some(Value::Object(out)))
             }
         }
+        (Value::Array(base_arr), Value::Array(_)) if !base_arr.is_empty() => {
+            let label = if display_path.is_empty() {
+                rel_file.to_owned()
+            } else {
+                display_path.join(".")
+            };
+            if !allow_derived {
+                return Err(format!(
+                    "refusing to export whole unkeyed base array `{label}`: copying a base pack array embeds cartridge-derived data into a shareable mod (re-run with `--allow-derived` for private local edits)"
+                ));
+            }
+            copied_base_arrays.push(label);
+            Ok(Some(edited.clone()))
+        }
         _ => Ok(Some(edited.clone())),
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn diff_keyed_array(
     base_arr: &[Value],
     edited_arr: &[Value],
     rel_file: &str,
-    path: &[&str],
+    schema_path: &[&str],
+    display_path: &[&str],
     key_field: &str,
+    allow_derived: bool,
+    copied_base_arrays: &mut Vec<String>,
 ) -> Result<Option<Value>, String> {
-    let label = if path.is_empty() {
+    let label = if display_path.is_empty() {
         rel_file.to_owned()
     } else {
-        path.join(".")
+        display_path.join(".")
     };
     let mut base_by_id = Map::new();
     let mut base_order = Vec::with_capacity(base_arr.len());
@@ -776,8 +579,8 @@ fn diff_keyed_array(
         base_order.push(key.clone());
         base_by_id.insert(key, item.clone());
     }
-    let mut child_path: Vec<&str> = path.to_vec();
-    child_path.push("*");
+    let mut child_schema: Vec<&str> = schema_path.to_vec();
+    child_schema.push("*");
     let mut seen = std::collections::BTreeSet::new();
     let mut edited_order = Vec::with_capacity(edited_arr.len());
     let mut out = Map::new();
@@ -798,7 +601,17 @@ fn diff_keyed_array(
                 "{label}: adding new record {key_field}={key} is not supported in sparse ID-keyed patches"
             ));
         };
-        if let Some(d) = diff_at_slice(base_item, edited_item, rel_file, &child_path)? {
+        let mut child_display: Vec<&str> = display_path.to_vec();
+        child_display.push(key.as_str());
+        if let Some(d) = diff_at_slice(
+            base_item,
+            edited_item,
+            rel_file,
+            &child_schema,
+            &child_display,
+            allow_derived,
+            copied_base_arrays,
+        )? {
             out.insert(key, d);
         }
     }
@@ -818,5 +631,108 @@ fn diff_keyed_array(
         Ok(None)
     } else {
         Ok(Some(Value::Object(out)))
+    }
+}
+
+/// Collects display paths where `patch` replaces a whole non-empty base JSON
+/// array (unkeyed array or raw full 2D grid array) rather than using a sparse
+/// ID-keyed or cell-level patch. Used by [`super::audit_mod_shareability`].
+pub(crate) fn collect_whole_base_array_patches(
+    base: &Value,
+    patch: &Value,
+    rel_file: &str,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    walk_whole_base_arrays(base, patch, rel_file, &[], &[], &mut out);
+    out
+}
+
+fn walk_whole_base_arrays(
+    base: &Value,
+    patch: &Value,
+    rel_file: &str,
+    schema_path: &[&str],
+    display_path: &[&str],
+    out: &mut Vec<String>,
+) {
+    if let (Value::Array(base_arr), Some(key_field)) =
+        (base, array_key_field(rel_file, schema_path))
+    {
+        let mut child_schema: Vec<&str> = schema_path.to_vec();
+        child_schema.push("*");
+        match patch {
+            Value::Object(by_id) => {
+                for (id_key, entry_patch) in by_id {
+                    if let Some(record) = base_arr.iter().find(|item| {
+                        value_key_string(item, key_field).as_deref() == Some(id_key.as_str())
+                    }) {
+                        let mut child_display: Vec<&str> = display_path.to_vec();
+                        child_display.push(id_key.as_str());
+                        walk_whole_base_arrays(
+                            record,
+                            entry_patch,
+                            rel_file,
+                            &child_schema,
+                            &child_display,
+                            out,
+                        );
+                    }
+                }
+            }
+            Value::Array(items) => {
+                for entry_patch in items {
+                    if let Some(id_key) = value_key_string(entry_patch, key_field)
+                        && let Some(record) = base_arr.iter().find(|item| {
+                            value_key_string(item, key_field).as_deref() == Some(id_key.as_str())
+                        })
+                    {
+                        let mut child_display: Vec<&str> = display_path.to_vec();
+                        child_display.push(id_key.as_str());
+                        walk_whole_base_arrays(
+                            record,
+                            entry_patch,
+                            rel_file,
+                            &child_schema,
+                            &child_display,
+                            out,
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
+        return;
+    }
+
+    if let (Value::Array(base_rows), Value::Array(_), Some(_)) =
+        (base, patch, cell_grid_spec(rel_file, schema_path))
+    {
+        if !base_rows.is_empty() {
+            out.push(display_path.join("."));
+        }
+        return;
+    }
+
+    match (base, patch) {
+        (Value::Object(base_map), Value::Object(patch_map)) => {
+            for (k, pv) in patch_map {
+                if let Some(bv) = base_map.get(k) {
+                    let mut next_schema: Vec<&str> = schema_path.to_vec();
+                    next_schema.push(k.as_str());
+                    let mut next_display: Vec<&str> = display_path.to_vec();
+                    next_display.push(k.as_str());
+                    walk_whole_base_arrays(bv, pv, rel_file, &next_schema, &next_display, out);
+                }
+            }
+        }
+        (Value::Array(base_arr), Value::Array(_)) if !base_arr.is_empty() => {
+            let label = if display_path.is_empty() {
+                rel_file.to_owned()
+            } else {
+                display_path.join(".")
+            };
+            out.push(label);
+        }
+        _ => {}
     }
 }

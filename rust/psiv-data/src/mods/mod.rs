@@ -15,7 +15,9 @@
 //! and [`crate::BattleFiles::load`]. Any failure returns a [`ModError`] naming
 //! the offending mod, file, and place.
 
+mod dialogue_patch;
 mod diff;
+mod grid;
 #[cfg(test)]
 mod guide_tests;
 mod inventory;
@@ -23,14 +25,20 @@ mod map_art;
 mod patch;
 mod profile;
 mod schema_check;
+mod tables;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_shareability;
+#[cfg(test)]
 mod tests_strict;
 
-pub use diff::{DiffSummary, diff_packs};
+pub use diff::{
+    DiffOptions, DiffSummary, ShareabilityNotice, audit_mod_shareability, diff_packs,
+    diff_packs_with_options,
+};
 pub use inventory::{ModInventoryEntry, find_mod_dir_by_id, inspect_mods_dir, set_mod_enabled};
-pub use patch::{apply_json_patch, diff_json};
+pub use patch::{apply_json_patch, diff_json, diff_json_with_options};
 pub use profile::{
     MOD_PROFILE_FILE, MOD_PROFILE_FORMAT_VERSION, ModProfile, ModProfileDiff, ModProfileEntry,
     mod_save_profile_slug,

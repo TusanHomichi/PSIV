@@ -9,8 +9,8 @@ images and sound data that `psiv-pack` builds from your US retail ROM.
 
 You can mod PSIV without touching the base pack by dropping **shareable mod
 folders** into your `mods/` directory — or by editing a copy of `runtime-pack/`
-and running `psiv-pack mod diff` to turn your edits into a clean, legal-to-share
-mod folder.
+and running `psiv-pack mod diff` to turn your edits into a compact delta mod
+folder.
 
 ## Quick start: shareable mod folders
 
@@ -113,30 +113,39 @@ source checkout, replace `psiv-pack` with
 | Command | What it does |
 | --- | --- |
 | `psiv-pack mod init <out-dir> --id <id> [--name <name>] [--version <ver>]` | Scaffolds a mod folder (`mod.json`, `patches/`, `assets/`). |
-| `psiv-pack mod check <base-pack> <mod-dir>...` | Layers one or more mods over `<base-pack>` and runs full schema validation. |
-| `psiv-pack mod diff <base-pack> <edited-pack> <out-dir> [--id <id>] [--name <name>]` | Diffs an edited pack copy against `<base-pack>` and writes only the changed JSON patches and assets into a shareable mod folder. |
+| `psiv-pack mod check <base-pack> <mod-dir>...` | Layers one or more mods over `<base-pack>`, runs full schema validation, and reports shareability notes/warnings (without failing original hand-drawn assets or private local mods). |
+| `psiv-pack mod diff <base-pack> <edited-pack> <out-dir> [--id <id>] [--name <name>] [--version <ver>] [--allow-derived]` | Diffs an edited pack copy against `<base-pack>` into sparse JSON patches and brand-new assets; refuses whole unkeyed base arrays and modified base-path binary assets unless `--allow-derived` is passed. |
 
 ## What each file holds and its patch key
 
 The game reads pack data through `psiv-data` (`rust/psiv-data/src/`), and the
 Rust types there are the schema: a field's name, type and range are what the
-loader accepts. Under `patches/<file>`, known record arrays accept either an
-ID-keyed object (`{"10": {"hp": 99}}`) or an array of partial objects carrying
-that key (`[{"id": 10, "hp": 99}]`).
+loader accepts. Under `patches/<file>`:
 
-| To change | Pack file | Keyed arrays (`array` → key field) | Schema |
+- **ID-keyed record arrays** accept either an ID-keyed object
+  (`{"10": {"hp": 99}}`) or an array of partial objects carrying that key
+  (`[{"id": 10, "hp": 99}]`).
+- **2D tile/cell grids** (`collision.rows`, `vehicle_battle.rows`,
+  `layout_variants.*.collision.rows`, `layout_variants.*.vehicle_battle.rows`,
+  and `battle/formations.json` `position_grids.*.cells`) accept a sparse cell
+  patch `{"cells": [[row, col, value], ...]}` (or explicit objects
+  `{"row": r, "col": c, "value": v}`), validating bounds, types, value ranges,
+  duplicate targets, and unknown fields fail-closed.
+
+| To change | Pack file | Keyed arrays / sparse grids | Schema |
 | --- | --- | --- | --- |
-| Dialogue and text windows | `dialogue/trees.json` | `trees` → `tree`, `entries` → `id` | `rust/psiv-data/src/dialogue/trees.rs` |
-| Enemies: HP, stats, resistances, AI, rewards | `battle/enemies.json` | `enemies` → `id` | `rust/psiv-data/src/battle/enemies.rs` |
-| Battle formations and map encounters | `battle/formations.json` | `formations` → `id`, `boss_formations` → `event_battle_index`, `map_bindings` → `map_id` | `rust/psiv-data/src/battle/formations.rs` |
-| Items and equipment | `battle/equipment.json` | `items` → `id` | `rust/psiv-data/src/battle/party.rs` |
+| Dialogue and text windows | `dialogue/trees.json`, `dialogue/portraits.json`, `dialogue/window.json` | `trees` → `tree`, `entries` → `id`, `talk_options.entries` → `entry`, `system_messages.messages` → `id`, `portraits` → `id`, `windows` / `menu_windows` → `index` | `rust/psiv-data/src/dialogue/trees.rs`, `dialogue/chrome.rs` |
+| Enemies: HP, stats, resistances, AI, rewards | `battle/enemies.json`, `battle/enemy_animations.json` | `enemies` → `id`, `animations` → `enemy_id` | `rust/psiv-data/src/battle/enemies.rs`, `battle/animations.rs` |
+| Battle formations and map encounters | `battle/formations.json` | `formations` → `id`, `boss_formations` → `event_battle_index`, `inline_formations` → `label`, `*.enemies` → `slot`, `encounter_groups.groups` → `group`, `map_bindings` → `map_id`, `position_grids` → `name` (`cells` sparse grid) | `rust/psiv-data/src/battle/formations.rs` |
+| Items and equipment | `battle/equipment.json` | `items` → `id`, `types` → `name` | `rust/psiv-data/src/battle/party.rs` |
 | Party members | `battle/characters.json` | `characters` → `character_id` | `rust/psiv-data/src/battle/party.rs` |
 | Techniques, skills, enemy skills, combos | `battle/abilities.json` | `techniques`, `skills`, `enemy_skills`, `item_effects`, `combos` → `id` | `rust/psiv-data/src/battle/abilities.rs` |
 | Level-up tables | `battle/levels.json` | `characters` → `character_id`, `levels` → `level` | `rust/psiv-data/src/battle/levels.rs` |
-| Shops and inns | `shops.json` | `inventories` → `index`, `inns` → `index`, `counters` → `id` | `rust/psiv-data/src/shops.rs` |
-| Maps: collision, warps, NPCs, treasures | `maps/<id>_<symbol>.json` (art: `.png`, `_over.png`) | `npcs`, `warps`, `treasure_chests`, `interaction_areas`, `map_updates` → `index` | `rust/psiv-data/src/map.rs` |
+| Shops and inns | `shops.json` | `inventories` → `index`, `inns` → `index`, `counters` → `id`, `portraits` → `png` | `rust/psiv-data/src/shops.rs` |
+| Maps: collision, warps, NPCs, treasures, updates | `maps/<id>_<symbol>.json` (art: `.png`, `_over.png`) | `npcs`, `warps`, `treasure_chests`, `interaction_areas`, `map_updates`, `patch_tiles.tiles` → `index`; `layout_variants` → `png`; `overworld_patches` → `event_flag`; `collision.rows` & `vehicle_battle.rows` sparse cell grids | `rust/psiv-data/src/map.rs` |
+| Travel, title, ship menu, panels | `travel.json`, `title/sound_test.json`, `ship_menu/ship_menu.json`, `presentation/panels.json` | `towns` → `town_flag`, `dungeons` → `index`, `world_maps` → `name`, `tracks` → `index`, `windows` / `place_windows` → `id`, `panels` → `id` | `rust/psiv-data/src/travel.rs`, `sound_test.rs`, `ship_menu.rs`, `presentation.rs` |
 | New-game starting state | `game_start.json` | recursive JSON merge | `rust/psiv-data/src/new_game.rs` |
-| Sprites & sound | `sprites/`, `sound/` | recursive JSON merge + replacement files in `assets/` | `rust/psiv-data/src/sprites.rs`, `sound/schema.rs` |
+| Sprites, battle art & sound | `sprites/`, `battle/art/`, `sound/` | `sheets` → `id`, `backgrounds` / `frames` → `index`, `tiles` → `vram_tile`, music/sfx `records` → `id` (`tracks` → `track_id`, `voices` → `index`), plus original assets in `assets/` | `rust/psiv-data/src/sprites.rs`, `sound/schema.rs` |
 
 ## Example 1: change an enemy's stats
 
@@ -203,6 +212,31 @@ that update `segments`, `pages`, and `text` in lockstep automatically:
 Dialogue is checked for lines that fit the window (at most 32 characters, two
 lines a window) and characters present in `dialogue/font.json`.
 
+## Example 3: edit a map's collision grid
+
+To change individual 16×16 collision cells in `maps/010_Piata.json` without
+embedding the retail 64×64 grid, write a sparse cell patch in
+`patches/maps/010_Piata.json`:
+
+```json
+{
+  "collision": {
+    "rows": {
+      "cells": [
+        [1, 1, 8]
+      ]
+    }
+  }
+}
+```
+
+Each entry is `[row, col, value]` (or `{"row": 1, "col": 1, "value": 8}`),
+where `row` is `y` (`0..height_cells`), `col` is `x` (`0..width_cells`), and
+`value` is a 4-bit retail collision code (`0` normal walkable, `1` map change,
+`2` recovery, `8` solid wall, `9` water, `10` sand, `11` ice, `12` shop).
+Out-of-bounds coordinates, invalid codes (`> 15`), duplicate `(row, col)`
+targets, and unknown fields are rejected fail-closed.
+
 ## Replacing map and sprite art
 
 Place replacement PNGs under `assets/` at the same pack-relative path (for
@@ -238,11 +272,10 @@ mod `tough-zoran` (battle/enemies.json): could not parse .../battle/enemies.json
 invalid value: integer `70000`, expected u16 at line 1 column ...
 ```
 
-## Edit-a-copy workflow (`psiv-pack mod diff`)
+## Edit-a-copy workflow (`psiv-pack mod diff`) and shareability
 
-If you prefer editing a full copy of `runtime-pack/` directly (for instance
-with an image editor or custom script), keep your base pack clean and export
-your changes into a shareable mod folder with one command:
+If you prefer editing a full copy of `runtime-pack/` directly, keep your base
+pack clean and export your changes with `psiv-pack mod diff`:
 
 ```bash
 cp -rL runtime-pack my-edited-pack
@@ -251,11 +284,47 @@ psiv-pack mod diff runtime-pack my-edited-pack mods/my-mod --id my-mod --name "M
 psiv-pack mod check runtime-pack mods/my-mod
 ```
 
-`psiv-pack mod diff` skips every untouched file, extracts minimal ID-keyed
-patches for edited JSON tables, and copies only modified or new assets — so the
-resulting `mods/my-mod/` folder contains zero ROM-derived base files and is
-safe to zip and share in
+### Shareable delta mods (default, strict)
+
+By default, `psiv-pack mod diff` fails closed so exported mods never leak
+cartridge-derived base data:
+
+- **Allowed by default:** sparse ID-keyed table edits, sparse cell-level grid
+  edits (`collision.rows`, `vehicle_battle.rows`, `layout_variants.*.collision.rows`,
+  `position_grids.*.cells`), dialogue text edits (exported as `replace` /
+  `lines` shorthands), scalar/object field edits, and **brand-new** asset files
+  whose path does not exist in `runtime-pack/`.
+- **Refused by default:**
+  1. **Whole unkeyed base JSON arrays** (such as editing `events` or
+     `map_effects`, or resizing a 2D grid) — copying the array embeds retail
+     table rows into `patches/`.
+  2. **Modified binary assets at existing base-pack paths** (such as editing
+     `maps/010_Piata.png` or a base sound file inside `my-edited-pack`) —
+     `mod diff` cannot tell whether a modified base file is original hand-drawn
+     art or recolored cartridge pixels.
+
+When an edit is refused, `psiv-pack mod diff` exits with an error naming the
+offending file and field without touching the output folder.
+
+### Private local edits and original replacement art (`--allow-derived`)
+
+Pass `--allow-derived` to `psiv-pack mod diff` only when:
+
+- you are exporting a **private-only local mod** (for example, edits to unkeyed
+  base arrays or touched-up base sprites) that you will **not** redistribute; or
+- you are explicitly attesting that every replaced binary asset at a base path
+  is **your own original work** containing no cartridge pixels or audio.
+
+If you draw original replacement PNGs or audio directly (as in
+[Replacing map and sprite art](#replacing-map-and-sprite-art)), place them
+straight into `mods/<your-mod>/assets/`. `psiv-pack mod check` accepts those
+mods and prints an advisory note reminding you to share only original work (and
+warns if any file in `assets/` is byte-for-byte identical to the base pack).
+
+Only share mods containing **sparse deltas and original assets** in
 [Discussions, "Show and tell"](https://github.com/TusanHomichi/PSIV/discussions/categories/show-and-tell).
+Never distribute base pack files or edits derived from cartridge art, audio, or
+whole retail tables.
 
 ## Testing in a source checkout
 
