@@ -858,4 +858,37 @@ fn data_scene_validation_tracks_branch_dependent_map_contexts() {
     }"#;
     rt.register_data_scene_json(guarded_good_npc)
         .expect("SkipUnlessMap-guarded NPC ref must pass branch-aware validation");
+
+    // Multi-map SkipUnlessMap with no target_map must validate fallthrough against every listed
+    // map, rejecting NPC 0 because map 0x011 has no NPCs even though map 0x010 has 2.
+    let multi_map_bad_npc = r#"{
+        "format_version": 1,
+        "name": "MultiMapBadNpc",
+        "event_id": 32523,
+        "ops": [
+            {
+                "op": "skip_unless_map",
+                "maps": [16, 17],
+                "skip": 1
+            },
+            {
+                "op": "face",
+                "actor": { "kind": "npc", "index": 0 },
+                "facing": "down"
+            }
+        ]
+    }"#;
+    let err = rt
+        .register_data_scene_json(multi_map_bad_npc)
+        .expect_err("multi-map SkipUnlessMap must reject NPC ref invalid on map 0x011");
+    assert!(
+        matches!(
+            err,
+            DataSceneLoadError::PackCrossRef {
+                op_index: Some(1),
+                ref reason
+            } if reason.contains("0x011")
+        ),
+        "expected map 0x011 NPC rejection at op 1, got {err}"
+    );
 }

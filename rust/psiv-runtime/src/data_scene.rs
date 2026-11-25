@@ -315,19 +315,18 @@ fn validate_pack_cross_refs(
                 }
             }
             SceneOp::SkipUnlessMap { maps, skip } => {
-                let fallthrough_ok = current_map.is_none_or(|m| maps.as_ref().contains(&m));
-                let skip_ok = current_map.is_none_or(|m| !maps.as_ref().contains(&m));
-                if fallthrough_ok {
-                    let narrowed = match (current_map, maps.as_ref()) {
-                        (None, [only]) => data
-                            .map(MapId(*only))
-                            .map(|r| (Some(*only), Some(r.dialogue_tree))),
-                        _ => None,
-                    };
-                    let (ft_map, ft_tree) = narrowed.unwrap_or((next_map, next_tree));
-                    push(index + 1, ft_map, ft_tree);
-                }
-                if skip_ok {
+                if let Some(m) = current_map {
+                    if maps.as_ref().contains(&m) {
+                        push(index + 1, next_map, next_tree);
+                    } else {
+                        push(index + 1 + usize::from(*skip), next_map, next_tree);
+                    }
+                } else {
+                    for &map_id in maps.as_ref() {
+                        let tree =
+                            next_tree.or_else(|| data.map(MapId(map_id)).map(|r| r.dialogue_tree));
+                        push(index + 1, Some(map_id), tree);
+                    }
                     push(index + 1 + usize::from(*skip), next_map, next_tree);
                 }
             }
