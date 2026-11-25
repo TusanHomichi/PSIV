@@ -30,11 +30,22 @@ fn retail_credits_calls_establish_base_words_uploads_and_record_addresses() {
     }
     // EniDecomp begins MOVEM / MOVEA.W d0,a3: caller's base is retained;
     // its two header words each use ADDA.W a3, not an output-count loop.
-    assert_eq!(&r[0x41A90..0x41A96], &[0x48, 0xE7, 0xFF, 0x7C, 0x36, 0x40]);
-    assert_eq!(
-        &r[0x41AA8..0x41AB0],
-        &[0x34, 0x58, 0xD4, 0xCB, 0x38, 0x58, 0xD8, 0xCB]
-    );
+    assert!(crate::rom::matches_pin(
+        r,
+        0x41A90,
+        (
+            6,
+            "3d8d76aa8b7f6a187eee69be516927672a26286df8941b65138e97b13b840b89"
+        ),
+    ));
+    assert!(crate::rom::matches_pin(
+        r,
+        0x41AA8,
+        (
+            8,
+            "b0a990e4192e89e1ebab92f61c02dc33ca3fd82c6028401549f1f600ea777511"
+        ),
+    ));
     for (at, pointer) in [(0x7A346, 0x1FEE26u32), (0x7A452, 0x1FEB42)] {
         assert_eq!(&r[at..at + 2], &[0x41, 0xF9]);
         assert_eq!(&r[at + 2..at + 6], pointer.to_be_bytes());

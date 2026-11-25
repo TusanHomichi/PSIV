@@ -16,6 +16,42 @@ use crate::png::hex;
 pub const EXPECTED_SHA256: &str =
     "511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a";
 
+/// A pinned region of the US retail ROM: `(length, sha256)`.
+/// Held by digest rather than raw bytes so source carries no cartridge content (#461).
+pub type Pin = (usize, &'static str);
+
+/// SHA-256 of `bytes`, as lowercase hex.
+pub fn sha256(bytes: &[u8]) -> String {
+    hex(&Sha256::digest(bytes))
+}
+
+/// Whether `rom[at..at + len]` exists and matches `digest`.
+pub fn matches_pin(rom: &[u8], at: usize, (len, digest): (usize, &str)) -> bool {
+    rom.get(at..at + len)
+        .is_some_and(|bytes| sha256(bytes) == digest)
+}
+
+/// Return `rom[at..at + len]` if it matches `digest`, otherwise refuse.
+pub fn pinned<'a>(
+    rom: &'a [u8],
+    at: usize,
+    (len, digest): (usize, &str),
+    what: &str,
+) -> Result<&'a [u8], PackError> {
+    let bytes = rom.get(at..at + len).ok_or_else(|| {
+        PackError(format!(
+            "{what} at 0x{at:06X} (+{len}) runs past the end of the ROM"
+        ))
+    })?;
+    if sha256(bytes) != digest {
+        return Err(PackError(format!(
+            "{what} at 0x{at:06X}: retail digest mismatch (got {})",
+            hex(bytes)
+        )));
+    }
+    Ok(bytes)
+}
+
 /// The verified ROM image.
 pub struct Rom {
     bytes: Vec<u8>,
@@ -97,5 +133,25 @@ mod tests {
             error.0
         );
         assert!(!error.0.contains("player"), "{}", error.0);
+    }
+
+    #[test]
+    fn pinned_regions_accept_matching_digests_and_refuse_mutations_or_truncation() {
+        let rom = [1u8, 2, 3, 4];
+        let pin: Pin = (
+            2,
+            "a12871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222",
+        );
+        assert!(matches_pin(&rom, 0, pin));
+        assert!(!matches_pin(&rom, 1, pin));
+        assert!(!matches_pin(&rom, 3, pin));
+        assert_eq!(pinned(&rom, 0, pin, "region").unwrap(), &[1, 2]);
+        let err = pinned(&rom, 1, pin, "region").unwrap_err();
+        assert!(
+            err.0.contains("retail digest mismatch (got 0203)"),
+            "{}",
+            err.0
+        );
+        assert!(pinned(&rom, 3, pin, "region").is_err());
     }
 }

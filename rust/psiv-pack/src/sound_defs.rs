@@ -440,19 +440,63 @@ pub(crate) const SFX_NAMES: [&str; 67] = [
 pub(crate) const SPECIAL_NAMES: [&str; 3] = ["SpaceshipRadar", "LandRover", "Hydrofoil"];
 
 /// Structural sentinels from docs/sound/SOUND_DRIVER.md "Retail image",
-/// checked before any pointer is trusted.
-pub(crate) const ANCHORS: &[(usize, &str)] = &[
-    (0xD0008, "4D F9 00 FF 50 00 42 2E 00 0E 4A 2E 00 07 66 00"),
-    (0xD0632, "4E 75 7E 00 1E 2E 00 09 67 00 05 DE 1D 7C 00 80"),
-    (0xD1A60, "00 0D 1D 10 00 0D E5 C2 00 0D 1C 40 00 0D E4 B6"),
-    (0xD1C40, "00 0D 1D 8E 00 0D 23 86 00 0D 24 94 00 0D 29 4E"),
-    (0xD1D8E, "05 AC 06 03 02 09 05 34 00 00 00 41 F4 16 01 A5"),
-    (0xD233A, "21 31 01 71 01 9B 1F 15 5F 07 0A 09 0C 08 08 05"),
-    (0xDE4B6, "00 0D E5 CE 00 0D E5 F8 00 0D E6 20 00 0D E6 4E"),
-    (0xDE5CE, "00 11 01 01 80 05 00 0A 00 04 EF 00 84 03 89 04"),
-    (0xD153E, "F3 F3 31 00 01 0E 00 06 00 10 FE 0D 20 F9 C3 00"),
-    (0xD1A3E, "00 00 00 01 00 02 00 03 00 04 00 05 01 00 00 07"),
-    (0xE0000, "50 80 50 0C 50 80 50 0C A0 8C A0 04 A0 8C A0 04"),
+/// pinned by `(offset, length, sha256)` (#461) before any pointer is trusted.
+pub(crate) const ANCHORS: &[(usize, usize, &str)] = &[
+    (
+        0xD0008,
+        16,
+        "48ae0ed7d3a79e8c88e5124cc8ffc69da4fe8b8709afd522ba35951ff4bf342d",
+    ),
+    (
+        0xD0632,
+        16,
+        "8f42ab1d80149d8dceb11469ab1721eb167553ef294cb3053321d21bf8de42fc",
+    ),
+    (
+        0xD1A60,
+        16,
+        "a7cefee5cc804a226215cc3ce0ac786dc520094336121f2afcbd92a113021055",
+    ),
+    (
+        0xD1C40,
+        16,
+        "1210d65f99486bd6b6f727402e1d60cc47e262fa92caa93d32ee38a84b81cc5a",
+    ),
+    (
+        0xD1D8E,
+        16,
+        "6fd585b3ccf03a378abe80399c7ace8208f441613740d94dbab25d6e9b5ad744",
+    ),
+    (
+        0xD233A,
+        16,
+        "b75f92ed9648ff84eeab57d7aa5146916991aa405d1be729b42f9958743a5b51",
+    ),
+    (
+        0xDE4B6,
+        16,
+        "e3e1932092ad0c420f954f1c1194ac9179035237be850c3378d04ce8b4065d8f",
+    ),
+    (
+        0xDE5CE,
+        16,
+        "b90a12058363ab898e8daae28fc2c1767e29a6e01e143fde4bc1d15f110f875d",
+    ),
+    (
+        0xD153E,
+        16,
+        "469926635c603a634560174ef83525aeab397550b16b7fa97d024dd3fecf62c0",
+    ),
+    (
+        0xD1A3E,
+        16,
+        "4c1e95f4e9c521289a646faa14c0c22a56bef497e79484c8bafc82bb76ef4f79",
+    ),
+    (
+        0xE0000,
+        16,
+        "534f7e2fc495008f41c38538adf44bd891f79a1481c665b98a6244448dbb6359",
+    ),
 ];
 
 /// Name, source label, start, end and SHA-256 of each fixed driver region.
@@ -597,18 +641,4 @@ pub(crate) const KNOWN_REGIONS: &[(&str, &str, usize, usize, &str)] = &[
         0xDE5CE,
         "e78ab175adbb99d813d210294b2b7357d6f1307d569c295a34654406818083d3",
     ),
-];
-
-/// The regions short enough to pin byte for byte as well.
-pub(crate) const EXPECTED_SHORT_BYTES: &[(&str, &str)] = &[
-    ("fm_init_bytes", "06 00 01 02 04 05 06"),
-    ("psg_init_bytes", "80 A0 C0"),
-    ("spc_fm3_registers", "AD A9 AC A8 AE AA A6 A2"),
-    ("fm_algorithm_operator_masks", "08 08 08 08 0A 0E 0E 0F"),
-    (
-        "fm_operator_registers",
-        "30 38 34 3C 50 58 54 5C 60 68 64 6C 70 78 74 7C 80 88 84 8C",
-    ),
-    ("fm_volume_registers", "40 48 44 4C"),
-    ("fm3_frequency_values", "00 00 01 80 01 F4 02 60"),
 ];

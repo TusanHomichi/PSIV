@@ -1,7 +1,7 @@
 //! Just enough 68000 to read tables and short routines out of retail:
-//! `psiv_tools/m68k.py`, which owns the reasons. Signature counts, big-endian
-//! fields, an opcode at an address, a `bra.w` target, a PC-relative jump
-//! table and a self-bounded `bra.w` table. Deliberately not a disassembler.
+//! `psiv_tools/m68k.py`, which owns the reasons. Big-endian fields, an opcode
+//! at an address, a `bra.w` target, a PC-relative jump table and a
+//! self-bounded `bra.w` table. Deliberately not a disassembler.
 
 /// A retail image that did not hold what a reader required.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -19,54 +19,6 @@ impl From<M68kError> for crate::PackError {
     fn from(error: M68kError) -> Self {
         crate::PackError(error.0)
     }
-}
-
-fn hex_bytes(signature: &str) -> Vec<u8> {
-    assert!(
-        signature.len().is_multiple_of(2),
-        "a signature is whole bytes: {signature}"
-    );
-    (0..signature.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&signature[i..i + 2], 16).expect("a hex signature"))
-        .collect()
-}
-
-/// Every offset at which `signature` (hex) occurs, as `re.finditer` finds
-/// them: left to right, and a match resumes the search after itself.
-pub fn find_all(rom: &[u8], signature: &str) -> Vec<usize> {
-    let pattern = hex_bytes(signature);
-    let mut hits = Vec::new();
-    if pattern.is_empty() {
-        return (0..=rom.len()).collect();
-    }
-    let mut at = 0;
-    while at + pattern.len() <= rom.len() {
-        if rom[at..at + pattern.len()] == pattern[..] {
-            hits.push(at);
-            at += pattern.len();
-        } else {
-            at += 1;
-        }
-    }
-    hits
-}
-
-/// [`find_all`], refusing any count but `expected`: the pin discipline.
-pub fn find_exactly(
-    rom: &[u8],
-    signature: &str,
-    expected: usize,
-    label: &str,
-) -> Result<Vec<usize>, M68kError> {
-    let hits = find_all(rom, signature);
-    if hits.len() != expected {
-        return Err(M68kError(format!(
-            "{label}: signature {signature} occurs {} times, not the {expected} retail has",
-            hits.len()
-        )));
-    }
-    Ok(hits)
 }
 
 fn field<const N: usize>(rom: &[u8], at: usize) -> Result<[u8; N], M68kError> {
@@ -166,20 +118,6 @@ pub fn self_bounded_bra_table(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn find_all_matches_finditer() {
-        // Non-overlapping, left to right: "aaaa" holds "aa" twice, not three times.
-        assert_eq!(find_all(&[0xAA; 4], "aaaa"), [0, 2]);
-        assert_eq!(find_all(&[1, 2, 3, 1, 2], "0102"), [0, 3]);
-        assert!(find_all(&[1, 2], "0103").is_empty());
-        assert!(find_exactly(&[1, 2, 1, 2], "0102", 2, "pin").is_ok());
-        let error = find_exactly(&[1, 2], "0102", 2, "pin").unwrap_err();
-        assert_eq!(
-            error.0,
-            "pin: signature 0102 occurs 1 times, not the 2 retail has"
-        );
-    }
 
     #[test]
     fn fields_are_big_endian_and_bounded() {

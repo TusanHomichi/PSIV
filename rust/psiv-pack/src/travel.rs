@@ -37,13 +37,37 @@ const TP_TILES: [(u8, char); 2] = [(0x7A, 'T'), (0x79, 'P')];
 const MESSAGE_LIMIT: usize = 64;
 const LINE_BREAK: u8 = 0xFC;
 const TERMINATOR: u8 = 0xFE;
-const GUARDS: [(usize, &str); 6] = [
-    (0x6115A, "00000010005c011e"),
-    (0x611C2, "1800014c004800be"),
-    (0x6120A, "2d0000f100800082"),
-    (0x61322, "08f80000ec9b6600"),
-    (ENTRY_TABLE, "001000000000001d00000101"),
-    (ENTRY_TABLE + ENTRY_COUNT * 6, "ffff"),
+const GUARDS: [(usize, usize, &str); 6] = [
+    (
+        0x6115A,
+        8,
+        "d114f889145607fa007cbbad120072993b3a0dcbc8b5026abe1f4efffd2b0ed8",
+    ),
+    (
+        0x611C2,
+        8,
+        "d345cd83b9f9116377a116dbf998c6648e44579a2c9c49a6ce1a203d083b3401",
+    ),
+    (
+        0x6120A,
+        8,
+        "635b6a3cf6b55009f55d2356aeb405f78f0a345da7094836a490098e2ab71222",
+    ),
+    (
+        0x61322,
+        8,
+        "202bc0f1709a8f18bccfecf71ec360fa038bb979e1881a85d745810d97411d7b",
+    ),
+    (
+        ENTRY_TABLE,
+        12,
+        "6fe647e31316f6f7d17a9fdd78f6c37351ab33b35add37fc896eaca198a444c9",
+    ),
+    (
+        ENTRY_TABLE + ENTRY_COUNT * 6,
+        2,
+        "ca2fd00fa001190744c15c317643ab092e7048ce086a243e2be9437c898de1bb",
+    ),
 ];
 
 fn word(raw: &[u8], at: usize) -> u16 {
@@ -83,9 +107,8 @@ fn row(rom: &[u8], offset: usize, size: usize) -> Result<&[u8], PackError> {
 
 /// `extract_travel`, and the research fields beside the typed record.
 pub fn extract_travel(rom: &[u8], stamp: &str) -> Result<(TravelData, Json), PackError> {
-    for (offset, expected) in GUARDS {
-        let found = rom.get(offset..offset + expected.len() / 2).map(hex);
-        if found.as_deref() != Some(expected) {
+    for (offset, length, digest) in GUARDS {
+        if !crate::rom::matches_pin(rom, offset, (length, digest)) {
             return Err(PackError(format!(
                 "travel table guard failed at {offset:#x}"
             )));

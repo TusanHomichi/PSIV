@@ -15,7 +15,8 @@ from pathlib import Path
 
 from tools import check_rom_tables
 from tools.check_rom_tables import (RECORD_WINDOW, REMOVED_BLOBS, STATS, SYNTHETIC_TILES,
-                                    TABLE_RECORDS, blob_id, run, tile_digest, tiles_in)
+                                    TABLE_RECORDS, blob_id, rom_signatures_in, run, tile_digest,
+                                    tiles_in)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -203,6 +204,41 @@ class Tiles(unittest.TestCase):
             problems, _ = run(root, root / "none", ["art.rs"])
         self.assertEqual(len(problems), 1, problems)
         self.assertTrue(problems[0].startswith("art.rs:3: an 8x8 tile"), problems)
+
+
+class RomSignatures(unittest.TestCase):
+    """Committed ROM byte signatures fail in extractor source (#461)."""
+
+    def test_raw_signature_constants_fail(self):
+        rust_const = "const SETUP_SIGNATURE: [u8; 4] = [0x01, 0x02, 0x03, 0x04];\n"
+        py_const = 'FOO_SIGNATURE = bytes.fromhex("deadbeef")\n'
+        self.assertEqual(len(rom_signatures_in("rust/psiv-pack/src/x.rs", rust_const)), 1)
+        self.assertEqual(len(rom_signatures_in("psiv_tools/x.py", py_const)), 1)
+
+    def test_find_exactly_and_hex_literals_fail(self):
+        rust_search = 'let hits = find_exactly(rom, "deadbeefcafe", 1, "x");\n'
+        issues = rom_signatures_in("rust/psiv-pack/src/x.rs", rust_search)
+        self.assertEqual(len(issues), 2, issues)
+        spaced = 'ANCHOR = "DE AD BE EF CA FE"\n'
+        self.assertEqual(len(rom_signatures_in("psiv_tools/x.py", spaced)), 1)
+
+    def test_digests_png_magic_and_short_opcodes_pass(self):
+        sha = "a" * 64
+        rust_pin = f'const SIGNATURE_PIN: (usize, &str) = (12, "{sha}");\n'
+        self.assertEqual(rom_signatures_in("rust/psiv-pack/src/x.rs", rust_pin), [])
+        png_rust = 'const SIGNATURE: &[u8; 8] = b"\\x89PNG\\r\\n\\x1a\\n";\n'
+        self.assertEqual(rom_signatures_in("rust/psiv-pack/src/png.rs", png_rust), [])
+        png_py = 'PNG_SIGNATURE = b"\\x89PNG\\r\\n\\x1a\\n"\n'
+        self.assertEqual(rom_signatures_in("psiv_tools/png.py", png_py), [])
+        short_opcode = 'if rom[at:at + 4] == bytes.fromhex("70004e75"):\n'
+        self.assertEqual(rom_signatures_in("psiv_tools/x.py", short_opcode), [])
+        bitstring = 'let bits = "1000001010110100";\n'
+        self.assertEqual(rom_signatures_in("rust/psiv-pack/src/decode/enigma.rs", bitstring), [])
+
+    def test_current_tree_has_no_committed_rom_signatures(self):
+        problems, _ = run(ROOT, ROOT / "nonexistent-pack-for-static-check")
+        sig_problems = [p for p in problems if "#461" in p]
+        self.assertEqual(sig_problems, [])
 
 
 class RealPack(unittest.TestCase):

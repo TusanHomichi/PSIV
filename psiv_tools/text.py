@@ -169,19 +169,20 @@ NAME_TABLES: list[dict[str, Any]] = [
      "end": 0x2AC0DE, "count": 160, "terminator": 0xFF, "charset": DIALOGUE, "id_base": 1},
 ]
 
-# First entry of each table, encoded. Checked before anything is decoded so a
-# wrong build cannot silently produce plausible-looking names.
-NAME_TABLE_SIGNATURES: dict[str, str] = {
-    "character_names": "03403952ff",          # "Chaz"
-    "profession_names": "08150e140512ff",     # "HUNTER"
-    "enemy_names": "08050c0518ff",            # "HELEX"
-    "enemy_skill_names": "0e0f1408090e07ff",  # "NOTHING"
-    "combo_names": "1001120104090e020c17ff",  # "PARADINBLW"
-    "item_names": "040107070512fe",           # "DAGGER"
-    "technique_names": "060f09fe",            # "FOI"
-    "skill_names": "03120f1313031514fe",      # "CROSSCUT"
-    "place_names": "1009011401fe",            # "PIATA"
-    "item_names_dialogue": "040107070512ff",  # "DAGGER"
+# First entry of each table, pinned by `(length, sha256)` (#461). Checked
+# before anything is decoded so a wrong build cannot silently produce
+# plausible-looking names.
+NAME_TABLE_PINS: dict[str, tuple[int, str]] = {
+    "character_names": (5, "d77b260aa798ee8d65b63c8e80c39bd6c2a858d98e7eeebfb74058d62aaa473d"),
+    "profession_names": (7, "1c8cc225117e31a09ced54369de4ba03e373665249e01b2631f6480728d86384"),
+    "enemy_names": (6, "06075dc82c5d9303c2f7313304549a48725be6fc871bb3e7f828ce4ffefa3d58"),
+    "enemy_skill_names": (8, "ff7378de0cbe2169ccc1a24cd1bfdd955446cb54a9e73e4be543637ccd53f26d"),
+    "combo_names": (11, "9d79450b3a9f5e413a1eb4c39edc3e621727369b33b5e147351ee8e2e3986063"),
+    "item_names": (7, "a0e4fa31e759d62efe9e5cd8d32681001680129a0a39b7dc34839474c78b027b"),
+    "technique_names": (4, "938a716bae2e23e4724220adc5a287b731f027b494cc05195f8a63e685544ae3"),
+    "skill_names": (9, "211f1d07f4c675a6671c6d5ba1788149a44e4b40f8337661c44ef0d48711d063"),
+    "place_names": (6, "be1cecdf1d782ca6bb8422dd363894c91196d08dc7ebbfc8dc657ab3f4919c89"),
+    "item_names_dialogue": (7, "afe78db5da14d95456c1d200a160d8fd6d75f8b054d2dedac2febaa36e6675ac"),
 }
 
 
@@ -393,14 +394,16 @@ def validate_name_tables(data: bytes) -> list[dict[str, Any]]:
     """Check the first encoded entry of every table before decoding anything."""
     results = []
     for spec in NAME_TABLES:
-        expected = bytes.fromhex(NAME_TABLE_SIGNATURES[spec["name"]])
-        actual = data[spec["start"]:spec["start"] + len(expected)]
+        length, expected_sha = NAME_TABLE_PINS[spec["name"]]
+        actual = data[spec["start"]:spec["start"] + length]
+        actual_sha = hashlib.sha256(actual).hexdigest()
         results.append({
             "label": spec["label"],
             "table": spec["name"],
             "offset": f"0x{spec['start']:06X}",
-            "ok": actual == expected,
-            "expected_hex": expected.hex(),
+            "ok": len(actual) == length and actual_sha == expected_sha,
+            "expected_sha256": expected_sha,
+            "actual_sha256": actual_sha,
             "actual_hex": actual.hex(),
         })
     return results

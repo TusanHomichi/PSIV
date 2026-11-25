@@ -93,11 +93,16 @@ def _check_retail_rom(rom: bytes) -> None:
 
     # These bytes bound the retail pointer table: the preceding call/return is
     # Enemy_Attack's tail, and the following longwords are the next AI table.
-    before = bytes.fromhex("4E BA E6 02 4E 75")
-    after = bytes.fromhex("00 28 3B 40 3A 52")
-    if rom[ENEMY_ATTACK_OFFS - len(before):ENEMY_ATTACK_OFFS] != before:
+    # Pinned by length and SHA-256 (#461).
+    before = rom[ENEMY_ATTACK_OFFS - 6:ENEMY_ATTACK_OFFS]
+    after = rom[ENEMY_ATTACK_END:ENEMY_ATTACK_END + 6]
+    if len(before) != 6 or hashlib.sha256(before).hexdigest() != (
+        "3f9b9076c810a73f83952cb85bbf0b2b98e23c9dc27f38b7c1c5040f662f76c5"
+    ):
         raise BattleAnimationError("EnemyAttackOffs retail pre-table guard changed")
-    if rom[ENEMY_ATTACK_END:ENEMY_ATTACK_END + len(after)] != after:
+    if len(after) != 6 or hashlib.sha256(after).hexdigest() != (
+        "23e2e3d700002abec01735ced5cbbd5c805bc7aa139346e245900a43ad307431"
+    ):
         raise BattleAnimationError("EnemyAttackOffs retail post-table guard changed")
 
 
@@ -902,8 +907,8 @@ def _decode_enemy_animations(rom: bytes) -> dict[str, Any]:
             "reference_grand_cross": 1,
             "reference_role": "labels and semantic guide only; not byte authority",
             "retail_guards": {
-                "before_table": "4EBAE6024E75",
-                "after_table": "00283B403A52",
+                "before_table": rom[ENEMY_ATTACK_OFFS - 6:ENEMY_ATTACK_OFFS].hex().upper(),
+                "after_table": rom[ENEMY_ATTACK_END:ENEMY_ATTACK_END + 6].hex().upper(),
             },
             "enemy_art_table": {
                 "label": "loc_27F3AE",

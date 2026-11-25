@@ -567,25 +567,37 @@ def extract_level_progression(data: bytes) -> dict[str, Any]:
 
 def validate_known_layout(data: bytes) -> list[dict[str, Any]]:
     checks = [
-        ("Chaz character record", 0x2A8ACA, bytes.fromhex("00000001000000000019000a08060705")),
-        ("Foi technique record", 0x2A9BE8, bytes.fromhex("0103111807030000")),
-        ("Crosscut skill record", 0x2A9D28, bytes.fromhex("0185115006100000")),
-        ("Paradinblw combo record", 0x28542C, bytes.fromhex("0100010007060000")),
-        ("LandRover vehicle prefix", 0x2855E2, bytes.fromhex("02e440003c46c85032")),
-        ("Helex enemy prefix", 0x2816BC, bytes.fromhex("005a01000a072d2200a0")),
-        ("Enemy skill table start", 0x28336C, bytes.fromhex("0d00030100000000")),
-        ("Dagger item record", 0x2A8E28, bytes.fromhex("00000000000000000405010000000002000001000028")),
-        ("Character level pointer table", 0x004074, bytes.fromhex("0001002856b0000700285f1c")),
-        ("Chaz level 2 record", 0x2856B0, bytes.fromhex("00000015001f000d0907080600000400000000000000")),
+        ("Chaz character record", 0x2A8ACA, 16,
+         "f1ddf860f1127b30b79797beee8a3ec7f4d8d87bd730ee0783b0dcd5d2ec9c2a"),
+        ("Foi technique record", 0x2A9BE8, 8,
+         "d056dd770363976c95d1aedc7e0011e2c1d7d6b5ea0272f7eda8b26450709249"),
+        ("Crosscut skill record", 0x2A9D28, 8,
+         "ba374b5fc45aa858935156fb73f246029d8861108d8275dce3ab87aca09eb66b"),
+        ("Paradinblw combo record", 0x28542C, 8,
+         "f86f09cf800dc8d73f1e543a31078706626152a376b8924e4bea8dc2d3e620cc"),
+        ("LandRover vehicle prefix", 0x2855E2, 9,
+         "45c78bb34160ee1fe08054f62ea07c5f9f1ac96358073807888d33fec9617d57"),
+        ("Helex enemy prefix", 0x2816BC, 10,
+         "609ef42e6fd35a9de9645e00efca99f0d56f453f0acbfb59e2d6e606b8102e5f"),
+        ("Enemy skill table start", 0x28336C, 8,
+         "44912a30795ce5d9c510eff0bccaf9cad1e32ea971c729d0e60f1607e507aeca"),
+        ("Dagger item record", 0x2A8E28, 22,
+         "8e7c4539f3bd0d70806b1fbe99eb5eb00027b9355015cd87c50b091b4af8d468"),
+        ("Character level pointer table", 0x004074, 12,
+         "78e9e731926f5bcc750c8cea50c419909f0058ce44a6947ae6c3e1f1df63142a"),
+        ("Chaz level 2 record", 0x2856B0, 22,
+         "599106b460541623867a2ae5ef70074a0e9bb058532ada40fbcfd75e83df7e4a"),
     ]
     results = []
-    for label, offset, expected in checks:
-        actual = data[offset:offset + len(expected)]
+    for label, offset, length, expected_sha in checks:
+        actual = data[offset:offset + length]
+        actual_sha = hashlib.sha256(actual).hexdigest()
         results.append({
             "label": label,
             "offset": f"0x{offset:06X}",
-            "ok": actual == expected,
-            "expected_hex": expected.hex(),
+            "ok": len(actual) == length and actual_sha == expected_sha,
+            "expected_sha256": expected_sha,
+            "actual_sha256": actual_sha,
             "actual_hex": actual.hex(),
         })
     return results

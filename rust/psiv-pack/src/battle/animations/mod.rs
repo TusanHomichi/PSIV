@@ -25,6 +25,14 @@ use crate::{PackError, rom::EXPECTED_SHA256};
 const ENEMY_ATTACK_OFFS: usize = 0x00D0A4;
 const ENEMY_ATTACK_COUNT: usize = 153;
 const ENEMY_ATTACK_END: usize = ENEMY_ATTACK_OFFS + ENEMY_ATTACK_COUNT * 2;
+const PRE_TABLE_PIN: crate::rom::Pin = (
+    6,
+    "3f9b9076c810a73f83952cb85bbf0b2b98e23c9dc27f38b7c1c5040f662f76c5",
+);
+const POST_TABLE_PIN: crate::rom::Pin = (
+    6,
+    "23e2e3d700002abec01735ced5cbbd5c805bc7aa139346e245900a43ad307431",
+);
 const ROM_SIZE: usize = 3_145_728;
 
 /// `OBJECT_TABLES`: `Battle_RunObjects`' pointer groups, by id range (ids
@@ -101,17 +109,27 @@ fn sfx_name(sound: u8) -> Option<&'static str> {
         .copied()
 }
 
-/// `_check_retail_rom`'s table guards (the size and hash are the ROM check's).
-fn check_guards(rom: &[u8]) -> Result<(), PackError> {
-    let before = [0x4E, 0xBA, 0xE6, 0x02, 0x4E, 0x75];
-    let after = [0x00, 0x28, 0x3B, 0x40, 0x3A, 0x52];
-    if rom.get(ENEMY_ATTACK_OFFS - before.len()..ENEMY_ATTACK_OFFS) != Some(&before[..]) {
-        return refuse("EnemyAttackOffs retail pre-table guard changed".into());
-    }
-    if rom.get(ENEMY_ATTACK_END..ENEMY_ATTACK_END + after.len()) != Some(&after[..]) {
-        return refuse("EnemyAttackOffs retail post-table guard changed".into());
-    }
-    Ok(())
+/// `_check_retail_rom`'s table guards (the size and hash are the ROM check's),
+/// returning the verified pre- and post-table bytes as uppercase hex.
+fn check_guards(rom: &[u8]) -> Result<(String, String), PackError> {
+    let before = crate::rom::pinned(
+        rom,
+        ENEMY_ATTACK_OFFS - PRE_TABLE_PIN.0,
+        PRE_TABLE_PIN,
+        "EnemyAttackOffs pre-table guard",
+    )
+    .map_err(|_| PackError("EnemyAttackOffs retail pre-table guard changed".into()))?;
+    let after = crate::rom::pinned(
+        rom,
+        ENEMY_ATTACK_END,
+        POST_TABLE_PIN,
+        "EnemyAttackOffs post-table guard",
+    )
+    .map_err(|_| PackError("EnemyAttackOffs retail post-table guard changed".into()))?;
+    Ok((
+        crate::png::hex(before).to_ascii_uppercase(),
+        crate::png::hex(after).to_ascii_uppercase(),
+    ))
 }
 
 /// `_attack_routines`.
@@ -682,7 +700,7 @@ fn census(animations: &[Json], routines: &[usize]) -> Json {
         .with("attack_plc_distinct_records", distinct_records.len())
 }
 
-fn source(tables: Vec<Json>) -> Json {
+fn source(tables: Vec<Json>, before_table: String, after_table: String) -> Json {
     let mut all = vec![
         Json::object()
             .with("name", "EnemyAttackOffs")
@@ -717,8 +735,8 @@ fn source(tables: Vec<Json>) -> Json {
         .with(
             "retail_guards",
             Json::object()
-                .with("before_table", "4EBAE6024E75")
-                .with("after_table", "00283B403A52"),
+                .with("before_table", before_table)
+                .with("after_table", after_table),
         )
         .with(
             "enemy_art_table",
@@ -765,7 +783,7 @@ pub fn build(rom: &[u8], names: &Display) -> Result<Json, PackError> {
             rom.len()
         ));
     }
-    check_guards(rom)?;
+    let (before_table, after_table) = check_guards(rom)?;
     let receipts = receipts::Receipts::load()?;
     let symbols = enemy_symbols();
     let routines = attack_routines(rom)?;
@@ -795,7 +813,7 @@ pub fn build(rom: &[u8], names: &Display) -> Result<Json, PackError> {
         .with("format_version", super::FORMAT_VERSION)
         .with("kind", "battle_enemy_animations")
         .with("count", animations.len())
-        .with("source", source(tables))
+        .with("source", source(tables, before_table, after_table))
         .with("animations", animations)
         .with("census", census);
     serde_json::from_value::<psiv_data::EnemyAnimationsFile>(serde_json::Value::from(&out))

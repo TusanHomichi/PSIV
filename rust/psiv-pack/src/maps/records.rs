@@ -18,10 +18,13 @@ pub const MAP_COUNT: usize = 417;
 pub const POINTER_SIZE: usize = 4;
 /// Every `PtrMap_Null*` entry points at `ErrorTrap`.
 pub const ERROR_TRAP: usize = 0x000200;
-/// The table's first 16 longs: entries 3 to $F are the first run of null
-/// maps, so this pins both the address and the null convention.
-const SIGNATURE: &str = "001006840010fea20011966400000200000002000000020000000200000002000000\
-                         020000000200000002000000020000000200000002000000020000000200";
+/// The table's first 16 longs, pinned by length and SHA-256 (#461): entries 3
+/// to $F are the first run of null maps, so this pins both the address and the
+/// null convention.
+const SIGNATURE_PIN: crate::rom::Pin = (
+    64,
+    "a4105f021a6a756796d2496bef5872ffe49b79a515dac9ec90330cab462a58a0",
+);
 
 const WORD_TERMINATOR: u16 = 0xFFFF;
 const BYTE_TERMINATOR: u16 = 0xFF;
@@ -920,27 +923,17 @@ pub fn walk_map(
 
 /// `_check_pointer_table`, returning the table's JSON.
 pub fn check_pointer_table(data: &[u8]) -> Result<Json, PackError> {
-    let signature: Vec<u8> = (0..SIGNATURE.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&SIGNATURE[i..i + 2], 16).expect("hex signature"))
-        .collect();
     let start = FIELD_MAP_PTRS;
     let end = start + MAP_COUNT * POINTER_SIZE;
-    let actual = data.get(start..start + signature.len());
-    if actual != Some(signature.as_slice()) {
+    let actual = data.get(start..start + SIGNATURE_PIN.0);
+    if !crate::rom::matches_pin(data, start, SIGNATURE_PIN) {
         return Err(PackError(format!(
-            "FieldMapPtrs signature mismatch at {}: expected {SIGNATURE}, got {}",
+            "FieldMapPtrs signature mismatch at {}: digest mismatch, got {}",
             hex6(start),
             hex(actual.unwrap_or_default())
         )));
     }
-    let occurrences = crate::m68k::find_all(data, SIGNATURE).len();
-    if occurrences != 1 {
-        return Err(PackError(format!(
-            "FieldMapPtrs signature occurs {occurrences} times in this ROM; it must be unique \
-             for the offset to be self-verifying"
-        )));
-    }
+    let verified = actual.expect("verified slice");
     let first = be32(data, start) as usize;
     if first != end {
         return Err(PackError(format!(
@@ -956,7 +949,7 @@ pub fn check_pointer_table(data: &[u8]) -> Result<Json, PackError> {
         .with("rom_end_exclusive", hex6(end))
         .with("entry_size", POINTER_SIZE)
         .with("count", MAP_COUNT)
-        .with("signature_hex", SIGNATURE)
+        .with("signature_hex", hex(verified))
         .with("error_trap", hex6(ERROR_TRAP))
         .with(
             "indexing",

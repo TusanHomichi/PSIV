@@ -14,13 +14,13 @@ from psiv_tools.sprites import (
     FIELD_OBJECT_COUNT,
     FIELD_OBJ_ANIMATE,
     HFLIP_BIT,
-    FIELD_OBJECTS_CLEAR_SIGNATURE,
+    FIELD_OBJECTS_CLEAR_PIN,
     FIELD_OBJECTS_CLEAR_SITE,
     FIELD_OBJECTS_MEMORY_CLEAR_LONGS,
     FIELD_OBJ_DO_OBJ_COLLISION,
-    INTERACTION_BTST_SIGNATURE,
+    INTERACTION_BTST_PIN,
     INTERACTION_CHK_OBJECTS,
-    INTERACTION_LOOP_SIGNATURE,
+    INTERACTION_LOOP_PIN,
     MOVEMENTS_TBL,
     MOVEMENT_SELECTOR_MASK,
     RENDER_FLAG_INTERACTABLE,
@@ -703,14 +703,16 @@ class TestInteractableBit(unittest.TestCase):
             with self.subTest(offset=hex(offset)):
                 self.assertEqual(self.data[offset:offset + 4], bytes.fromhex("47f8c300"))
                 head = offset + 4
+                loop_len, loop_sha = INTERACTION_LOOP_PIN
                 self.assertEqual(
-                    self.data[head:head + len(INTERACTION_LOOP_SIGNATURE)],
-                    INTERACTION_LOOP_SIGNATURE,
+                    hashlib.sha256(self.data[head:head + loop_len]).hexdigest(),
+                    loop_sha,
                 )
                 btst = head + 8
+                btst_len, btst_sha = INTERACTION_BTST_PIN
                 self.assertEqual(
-                    self.data[btst:btst + len(INTERACTION_BTST_SIGNATURE)],
-                    INTERACTION_BTST_SIGNATURE,
+                    hashlib.sha256(self.data[btst:btst + btst_len]).hexdigest(),
+                    btst_sha,
                 )
         self.assertEqual(RENDER_FLAG_INTERACTABLE, 3)
 
@@ -748,10 +750,12 @@ class TestInteractableBit(unittest.TestCase):
     def test_an_unwritten_bit_is_clear_because_the_loader_zeroes_the_slots(self):
         # This is what makes "the routine never mentions bit 3" a decided
         # answer rather than "whatever the previous map left in that slot".
+        clear_len, clear_sha = FIELD_OBJECTS_CLEAR_PIN
         self.assertEqual(
-            self.data[FIELD_OBJECTS_CLEAR_SITE:
-                      FIELD_OBJECTS_CLEAR_SITE + len(FIELD_OBJECTS_CLEAR_SIGNATURE)],
-            FIELD_OBJECTS_CLEAR_SIGNATURE,
+            hashlib.sha256(
+                self.data[FIELD_OBJECTS_CLEAR_SITE:FIELD_OBJECTS_CLEAR_SITE + clear_len]
+            ).hexdigest(),
+            clear_sha,
         )
         # `trap #0` is `moveq #0,d0 / move.l d0,(a0)+ / dbf d7`, so d7+1 longs.
         declared = int.from_bytes(

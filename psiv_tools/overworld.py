@@ -184,34 +184,16 @@ class OverworldError(ValueError):
 # ---------------------------------------------------------------------------
 # Code sites
 # ---------------------------------------------------------------------------
-#: `lea (abs).l, a2`, the only addressing form these tables are reached by.
-_LEA_A2 = bytes.fromhex("45F9")
-#: `btst #0,($FFFFEC29).w` followed by `beq.s *+8`, which skips the second
-#: `lea`. Pinning the whole shape is what proves bit 0 clear takes the first
-#: table rather than the second.
-_BTST_BIT0_MAP_INDEX = bytes.fromhex("083800 00EC29") + bytes.fromhex("6706")
-
-
-def _table_selector(first: int, second: int) -> bytes:
-    return (
-        _LEA_A2 + struct.pack(">I", first)
-        + _BTST_BIT0_MAP_INDEX
-        + _LEA_A2 + struct.pack(">I", second)
-    )
-
-
 @dataclass(frozen=True)
 class CodeSite:
-    """One `lea default / btst / lea alternate` selector in the load path."""
+    """One `lea default / btst / lea alternate` selector in the load path,
+    pinned by `(length, sha256)` (#461)."""
 
     label: str
     rom_offset: int
     motavia: int
     dezolis: int
-
-    @property
-    def signature(self) -> bytes:
-        return _table_selector(self.motavia, self.dezolis)
+    pin: tuple[int, str]
 
     def table_for(self, map_id: int) -> int:
         return self.dezolis if map_id & 1 else self.motavia
@@ -230,26 +212,40 @@ class CodeSite:
 #: page tables are the ones `loc_53A26`/`loc_53A8E` load; the jump tables are
 #: the ones `loc_53BB6`/`loc_53CAE` dispatch through after copying a page.
 PAGE_TABLE_SITES: dict[str, CodeSite] = {
-    PLANE_FG: CodeSite("loc_53A26", 0x053A44, 0x107DC2, 0x115584),
-    PLANE_BG: CodeSite("loc_53A8E", 0x053AAC, 0x10BE02, 0x1175C4),
+    PLANE_FG: CodeSite(
+        "loc_53A26", 0x053A44, 0x107DC2, 0x115584,
+        (20, "c6d540d9651b5931d4584d83a5b48a8a9a3a495d7ca3199e5a4dbd99f3757b53"),
+    ),
+    PLANE_BG: CodeSite(
+        "loc_53A8E", 0x053AAC, 0x10BE02, 0x1175C4,
+        (20, "3977000fcb3aec630945d329d8498dc525a248ad97b55fb1121b2982e13395b4"),
+    ),
 }
 PATCH_TABLE_SITES: dict[str, CodeSite] = {
-    PLANE_FG: CodeSite("loc_53BB6", 0x053BC2, 0x053BDC, 0x053BFC),
-    PLANE_BG: CodeSite("loc_53CAE", 0x053CBA, 0x053CD4, 0x053CF4),
+    PLANE_FG: CodeSite(
+        "loc_53BB6", 0x053BC2, 0x053BDC, 0x053BFC,
+        (20, "33cf0bc3739c0dd253ba142eec988ce0b37c52d62a78a66b7632e73d0f4d4d84"),
+    ),
+    PLANE_BG: CodeSite(
+        "loc_53CAE", 0x053CBA, 0x053CD4, 0x053CF4,
+        (20, "c0b3734f7837e481db525a771b25b4ee559c3d9836a56a2fcc0002a0330125b5"),
+    ),
 }
 
 #: `move.w #$FF,d2 / move.l (a0)+,(a1)+ / dbf d2 / add.w d1,d1` -- the raw copy
-#: itself, checked so that "no compression" is a property of the cartridge and
-#: not of this module's reading of it.
+#: itself, pinned by length and SHA-256 (#461) so that "no compression" is a
+#: property of the cartridge and not of this module's reading of it.
 PAGE_COPY_SITES: dict[str, int] = {PLANE_FG: 0x053BB6, PLANE_BG: 0x053CAE}
-PAGE_COPY_SIGNATURE = bytes.fromhex("343C00FF" "22D8" "51CAFFFC" "D241")
+PAGE_COPY_PIN: tuple[int, str] = (
+    12, "9f17ad7ccdb526f59b00abf64fc559691aef978e4ac102d31862a94f54d04ab2",
+)
 
 #: `GetMapLayoutChunkFG` / `...BG`, which fix the 32-row window and 128-byte
 #: row stride every patch displacement is measured against.
 GET_MAP_LAYOUT_CHUNK_FG = 0x053EE6
 GET_MAP_LAYOUT_CHUNK_BG = 0x053EEC
-GET_MAP_LAYOUT_CHUNK_SIGNATURE = bytes.fromhex(
-    "43F8A000" "6004" "43F8B000" "0241001F" "EF49" "D041" "43F10000" "4E75"
+GET_MAP_LAYOUT_CHUNK_PIN: tuple[int, str] = (
+    24, "8d567d0670069dad08956c6adfe7e8d6f8e2a2274646805c4159aa73b1b5d998",
 )
 
 EVENT_FLAGS_TEST = 0x057624
@@ -268,12 +264,14 @@ def _require_overworld(map_id: int) -> None:
         )
 
 
-def _check_bytes(rom: bytes, offset: int, expected: bytes, what: str) -> None:
-    actual = rom[offset:offset + len(expected)]
-    if actual != expected:
+def _check_pin(rom: bytes, offset: int, pin: tuple[int, str], what: str) -> bytes:
+    length, digest = pin
+    actual = rom[offset:offset + length]
+    if len(actual) != length or hashlib.sha256(actual).hexdigest() != digest:
         raise OverworldError(
-            f"{what} at 0x{offset:06X}: expected {expected.hex()}, got {actual.hex()}"
+            f"{what} at 0x{offset:06X}: retail digest mismatch (got {actual.hex()})"
         )
+    return actual
 
 
 def check_code_sites(rom: bytes) -> dict[str, Any]:
@@ -285,27 +283,28 @@ def check_code_sites(rom: bytes) -> dict[str, Any]:
     silently decoding sixteen kilobytes of something else.
     """
     for plane, site in PAGE_TABLE_SITES.items():
-        _check_bytes(rom, site.rom_offset, site.signature, f"{plane.upper()} page table selector")
+        _check_pin(rom, site.rom_offset, site.pin, f"{plane.upper()} page table selector")
     for plane, site in PATCH_TABLE_SITES.items():
-        _check_bytes(rom, site.rom_offset, site.signature, f"{plane.upper()} patch table selector")
+        _check_pin(rom, site.rom_offset, site.pin, f"{plane.upper()} patch table selector")
+    copy_bytes = b""
     for plane, offset in PAGE_COPY_SITES.items():
-        _check_bytes(rom, offset, PAGE_COPY_SIGNATURE, f"{plane.upper()} page copy loop")
-    _check_bytes(
-        rom, GET_MAP_LAYOUT_CHUNK_FG, GET_MAP_LAYOUT_CHUNK_SIGNATURE, "GetMapLayoutChunkFG"
+        copy_bytes = _check_pin(rom, offset, PAGE_COPY_PIN, f"{plane.upper()} page copy loop")
+    chunk_bytes = _check_pin(
+        rom, GET_MAP_LAYOUT_CHUNK_FG, GET_MAP_LAYOUT_CHUNK_PIN, "GetMapLayoutChunkFG"
     )
     return {
         "page_tables": {plane: site.to_json() for plane, site in PAGE_TABLE_SITES.items()},
         "patch_tables": {plane: site.to_json() for plane, site in PATCH_TABLE_SITES.items()},
         "page_copy": {
             "routines": {plane: f"0x{offset:06X}" for plane, offset in PAGE_COPY_SITES.items()},
-            "signature_hex": PAGE_COPY_SIGNATURE.hex(),
+            "signature_hex": copy_bytes.hex(),
             "compression": None,
             "longs_copied": PAGE_BYTES // 4,
         },
         "get_map_layout_chunk": {
             "fg": f"0x{GET_MAP_LAYOUT_CHUNK_FG:06X}",
             "bg": f"0x{GET_MAP_LAYOUT_CHUNK_BG:06X}",
-            "signature_hex": GET_MAP_LAYOUT_CHUNK_SIGNATURE.hex(),
+            "signature_hex": chunk_bytes.hex(),
             "window_rows": WINDOW_ROWS,
             "row_bytes": ROW_BYTES,
         },
@@ -392,7 +391,7 @@ def read_page_table(rom: bytes, map_id: int, plane: str) -> PageTable:
     if plane not in PLANES:
         raise OverworldError(f"Plane must be one of {PLANES}, got {plane!r}")
     site = PAGE_TABLE_SITES[plane]
-    _check_bytes(rom, site.rom_offset, site.signature, f"{plane.upper()} page table selector")
+    _check_pin(rom, site.rom_offset, site.pin, f"{plane.upper()} page table selector")
     offset = site.table_for(map_id)
     if offset + PAGE_COUNT * 4 > len(rom):
         raise OverworldError(f"Page table at 0x{offset:06X} runs past the end of the ROM")
@@ -720,7 +719,7 @@ def read_patch_table(rom: bytes, map_id: int, plane: str) -> tuple[int, ...]:
     """
     _require_overworld(map_id)
     site = PATCH_TABLE_SITES[plane]
-    _check_bytes(rom, site.rom_offset, site.signature, f"{plane.upper()} patch table selector")
+    _check_pin(rom, site.rom_offset, site.pin, f"{plane.upper()} patch table selector")
     base = site.table_for(map_id)
     offsets = struct.unpack_from(f">{PAGE_COUNT}h", rom, base)
     return tuple(base + offset for offset in offsets)
@@ -735,8 +734,8 @@ def decode_patches(rom: bytes, map_id: int) -> tuple[LayoutPatch, ...]:
     only page index that can reach them.
     """
     _require_overworld(map_id)
-    _check_bytes(
-        rom, GET_MAP_LAYOUT_CHUNK_FG, GET_MAP_LAYOUT_CHUNK_SIGNATURE, "GetMapLayoutChunkFG"
+    _check_pin(
+        rom, GET_MAP_LAYOUT_CHUNK_FG, GET_MAP_LAYOUT_CHUNK_PIN, "GetMapLayoutChunkFG"
     )
     patches: list[LayoutPatch] = []
     for plane in PLANES:

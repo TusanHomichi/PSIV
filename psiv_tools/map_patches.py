@@ -104,6 +104,7 @@ from .layouts import (
     ChunkTable,
     collision_type_name,
 )
+from .m68k import pin_matches
 from .render import OVERLAY_TRANSPARENT_INDICES
 
 #: The map palette blob holds CRAM lines 0, 1 and 3, in that order.
@@ -145,7 +146,7 @@ class SceneChunkWrite:
     citation: str
     chunks: tuple[int, ...] = ()
     table: tuple[int, int] | None = None
-    checks: tuple[tuple[int, str], ...] = ()
+    checks: tuple[tuple[int, int, str], ...] = ()
     via: str = "scene"
 
 
@@ -160,7 +161,7 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         map_id=0x087,
         citation="loc_6FBC4: alternating stair rows, RefreshPlaneBG at $06FBA6; closed chunk already in MapDataManager's atlas",
         chunks=(0x16,),
-        checks=((0x6FBA6, "4EB9000540FA"),),
+        checks=((0x6FBA6, 6, "56a86c9c5e40f1fa732dd709176385f0a2b558ad8c166e5b999999fbd3d89edb"),),
         via="map_effects",
     ),
     SceneChunkWrite(
@@ -168,7 +169,7 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         map_id=0x000,
         citation="loc_6B5C0: GetMapLayoutChunkBG($39,$5A) at $06B5CE, `move.b #$D3, (a1)` at $06B5D4",
         chunks=(0xD3,),
-        checks=((0x6B5D4, "12BC00D3"),),
+        checks=((0x6B5D4, 4, "4ec3451ea80cd49e387961d4499ac200068c3776732b710724dd2ebda86d3c2b"),),
         via="overworld_patches",
     ),
     SceneChunkWrite(
@@ -180,7 +181,7 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
             "when EventFlag_DezoSpaceport is set"
         ),
         chunks=(0x2C,),
-        checks=((0x6C15C, "12BC002C"),),
+        checks=((0x6C15C, 4, "aa78a65fd1b556e142664633478a88412cb1f2cf484a327d4d812cf46ff7fb08"),),
         via="overworld_patches",
     ),
     SceneChunkWrite(
@@ -188,7 +189,10 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         map_id=0x039,
         citation="`move.b #$8F, (a1)` at $075810 (FG (9,5)) and `move.b #$90, (a1)` at $075824 (BG (9,6))",
         chunks=(0x8F, 0x90),
-        checks=((0x75810, "12BC008F"), (0x75824, "12BC0090")),
+        checks=(
+            (0x75810, 4, "330f75404c68dc3d2197164fbf92ef153a1d1d7ba1a0c8a6069847642d487143"),
+            (0x75824, 4, "7f8f3aeca8b3434992bb7e77b1642ebc6b0b6e2249adcadac9790b605fff5116"),
+        ),
         via="map_effects",
     ),
     SceneChunkWrite(
@@ -196,7 +200,7 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         map_id=0x000,
         citation="Event_MotaSpaceportAppearing loc_6B7FA: GetMapLayoutChunkBG($1A,$2D) at $06B808, `move.b #$3F, (a1)` at $06B80E",
         chunks=(0x3F,),
-        checks=((0x6B80E, "12BC003F"),),
+        checks=((0x6B80E, 4, "cb617b9b39be914995f5d7fd667bc42b587c90ebb1fd630afdedcdb4153a11ac"),),
         via="overworld_patches",
     ),
     SceneChunkWrite(
@@ -208,7 +212,10 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
             "at $075F64): 10 `$FF`-terminated FG chunk triples at `(14..=16, 12)`"
         ),
         table=(0x75F34, 31),
-        checks=((0x75EF0, "41F900075F34"), (0x75F64, "41F900075FA8")),
+        checks=(
+            (0x75EF0, 6, "ca7902c73bee0c994008ae1bf8db2c1d9387c91d739fb46c7fdea8d7711613ea"),
+            (0x75F64, 6, "326f157c252f6e830f91e26a334c54c221d10263ef87f4d5479050f69e1d91f9"),
+        ),
     ),
     SceneChunkWrite(
         scene="Cutscene_CrashLaanding",
@@ -230,8 +237,8 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         ),
         chunks=tuple(range(0x54, 0x68)),
         checks=(
-            (0x6FC34, "12811342000114831544"),
-            (0x6FC5C, "0654555E5F06565760610658596263065A5B6465065C5D6667FF"),
+            (0x6FC34, 10, "c02389baba9f4a918f6700ad2da075ad1a06b0176f1d461d65948bf3e0ac6c50"),
+            (0x6FC5C, 26, "2200d9c41dcea2862e7a284c3856d2ea7333d89f4bf30b7bed646036438f0374"),
         ),
     ),
     SceneChunkWrite(
@@ -239,7 +246,7 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         map_id=0x120,
         citation="GetMapLayoutOffset(d1=$A, d2=$C, d3=1) at $06FCEE, `move.b #$47, (a1)` at $06FCF4",
         chunks=(0x47,),
-        checks=((0x6FCF4, "12BC0047"),),
+        checks=((0x6FCF4, 4, "07b83c75041fc6b0815809c23614ce75544e3062ea5be6586dfdd9750a03c866"),),
     ),
     # The six moving platforms (S9, #82). Each routine is `lea table(pc), a3`
     # twice, with the two `move.b $4(a3), (a1)` / `$5(a3), $1(a1)` writes at the
@@ -253,8 +260,8 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         citation="Event_VahFortMovingPlatform1 $06C478: start table $06C5EC, ride table $06C5F8; writes at $06C4CA/$06C4CE and $06C5C0/$06C5C4",
         chunks=(0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD),
         checks=(
-            (0x6C5EC, "02C00220C2C302C002C0C0C1"),
-            (0x6C5F8, "020002C002C0CCCDFE0002C00220CCCD"),
+            (0x6C5EC, 12, "077849545064674b12dd1d25e92d8f580395e200e772daf652f4cbe4bfa5fa72"),
+            (0x6C5F8, 16, "5ef366440f5421746594d1341faab462b134896307b28d43b28d924cdf473a94"),
         ),
     ),
     SceneChunkWrite(
@@ -263,8 +270,8 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         citation="Event_VahFortMovingPlatform2 $06C608: start table $06C77C, ride table $06C788",
         chunks=(0xC0, 0xC1, 0xCC, 0xCD),
         checks=(
-            (0x6C77C, "02C003A0C0C102C00300C0C1"),
-            (0x6C788, "FE0002C00300CCCD020002C003A0CCCD"),
+            (0x6C77C, 12, "02e31a9910873d523506c48f8039bd97af9846bb1c12ec844930c8534e287686"),
+            (0x6C788, 16, "cbb85ea56d0d8a9408575a56ed4cbb4357fc28ffa90ee2f21c3973b5d60a25a3"),
         ),
     ),
     SceneChunkWrite(
@@ -273,8 +280,8 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         citation="Event_WpnPlntMovingPlatform1 $06C798: start table $06C90C, ride table $06C918",
         chunks=(0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD),
         checks=(
-            (0x6C90C, "01C002A0C2C301C00380C0C1"),
-            (0x6C918, "020001C00380CCCDFE0001C002A0CCCD"),
+            (0x6C90C, 12, "1acb329a78921da4e67b9ab0f79d31735234b1656bc90dda95627c7fb0adc426"),
+            (0x6C918, 16, "eac1eff696e570dac66534700f87d30adad42b02d5c56b0bfbd3b8d792fba695"),
         ),
     ),
     SceneChunkWrite(
@@ -283,8 +290,8 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         citation="Event_WpnPlntMovingPlatform2 $06C928: start table $06CA9C, ride table $06CAA8",
         chunks=(0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD),
         checks=(
-            (0x6CA9C, "02200160C2C302200240C0C1"),
-            (0x6CAA8, "020002200240CCCDFE0002200160CCCD"),
+            (0x6CA9C, 12, "3d2d77621f415041e9af82215bb1b7122c63c0f8e81077d37a5711ac248daa81"),
+            (0x6CAA8, 16, "6192aa9c5f5a382cc3f4f24c5dcbc1f36975dd8b951ad6b66c9220ce77f50bd7"),
         ),
     ),
     SceneChunkWrite(
@@ -293,8 +300,8 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         citation="Event_WpnPlntMovingPlatform3 $06CAB8: start table $06CC2C, ride table $06CC38",
         chunks=(0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD),
         checks=(
-            (0x6CC2C, "03800160C2C303800240C0C1"),
-            (0x6CC38, "020003800240CCCDFE0003800160CCCD"),
+            (0x6CC2C, 12, "db8d4c3333ad11ecb207e7325a1b7ac6b3c2adc399c8fc97b8c54d5c96cd9bdf"),
+            (0x6CC38, 16, "84aed78cff4dc9369ef0b8cc5d3ba6b81ad494ac731e79254951c68b4744c947"),
         ),
     ),
     SceneChunkWrite(
@@ -303,8 +310,8 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         citation="Event_WpnPlntMovingPlatform4 $06CC48: start table $06CDB8, ride table $06CDC4",
         chunks=(0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD),
         checks=(
-            (0x6CDB8, "03E002A0C2C303E00380C0C1"),
-            (0x6CDC4, "020003E00380CCCDFE0003E002A0CCCD"),
+            (0x6CDB8, 12, "d4c45cc022a62db7f8302a45f88157176b2381b3154be12535c7ee60d07187e8"),
+            (0x6CDC4, 16, "0d6e6a730d9f9e6a03b37f828f0b404e1cdff5341c0ada5885ae505e644db4f6"),
         ),
     ),
     SceneChunkWrite(
@@ -316,10 +323,10 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         ),
         chunks=(0xA6,),
         checks=(
-            (0x6DD1A, "12BC00A6"),
-            (0x6DD1E, "13BC00A67000"),
-            (0x6DD24, "137C00A60020"),
-            (0x6DD2A, "13BC00A67020"),
+            (0x6DD1A, 4, "13fd8d48a8db48da0e682206bed7834ae44bb442a7791b4faa6255a2e8b8e868"),
+            (0x6DD1E, 6, "1ac7ce0485d428351b85187add31504f05fec031ee8f17f483b0c02e106a7426"),
+            (0x6DD24, 6, "8b6d9b6c98d951864a6de5d6d6817dcec0c3e265a87f5eb5c5d2cb03601a9128"),
+            (0x6DD2A, 6, "c524c8b43acc80554fc2ed02a078ff3a177fb2a28f207293a38aaaee9a42ac76"),
         ),
     ),
 )
@@ -327,8 +334,8 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
 
 def chunk_ids(rom: bytes, row: SceneChunkWrite) -> set[int]:
     """The chunk ids `row` writes, with every pinned byte checked against `rom`."""
-    for offset, expected in row.checks:
-        if rom[offset : offset + len(expected) // 2] != bytes.fromhex(expected):
+    for offset, length, digest in row.checks:
+        if not pin_matches(rom, offset, length, digest):
             raise MapPatchError(f"{row.scene}: the write at ${offset:06X} moved ({row.citation})")
     found = set(row.chunks)
     if row.table is not None:
@@ -399,16 +406,19 @@ GARUBERK_DOOR_OPENING_2 = 0x04
 GARUBERK_DOOR_TABLES = ((0x6F4D4, 28), (0x6F588, 28), (0x6F714, 16), (0x6F894, 16))
 
 #: Each opening first tests the leader's chunk against the closed door,
-#: `cmpi.b #$38, (a1)` at `$06F478` and `$06F52E`; pinned so a moved routine
-#: fails the build.
-GARUBERK_DOOR_CHECKS = ((0x6F478, "0C110038"), (0x6F52E, "0C110038"))
+#: `cmpi.b #$38, (a1)` at `$06F478` and `$06F52E`; pinned by `(offset, length,
+#: sha256)` (#461) so a moved routine fails the build.
+GARUBERK_DOOR_CHECKS = (
+    (0x6F478, 4, "3b56c2ed5644af7d34a8f1c88fbe72d1df7f628813d46fc67d55ce9af56c94ed"),
+    (0x6F52E, 4, "3b56c2ed5644af7d34a8f1c88fbe72d1df7f628813d46fc67d55ce9af56c94ed"),
+)
 
 
 def garuberk_door_chunks(rom: bytes) -> set[int]:
     """Every chunk id the four Garuberk door tables write, the closed `$38`
     included (it is each opening's first row and each closing's last)."""
-    for offset, expected in GARUBERK_DOOR_CHECKS:
-        if rom[offset : offset + len(expected) // 2] != bytes.fromhex(expected):
+    for offset, length, digest in GARUBERK_DOOR_CHECKS:
+        if not pin_matches(rom, offset, length, digest):
             raise MapPatchError(f"Garuberk door guard at ${offset:06X} moved")
     chunks: set[int] = set()
     for offset, length in GARUBERK_DOOR_TABLES:

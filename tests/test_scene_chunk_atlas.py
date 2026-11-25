@@ -65,9 +65,11 @@ RUST_ROW_RE = re.compile(
     r"checks:\s*&\[(.*?)\],\s*\}",
     re.S,
 )
-RUST_CHECK_RE = re.compile(r"\(\s*(0x[0-9A-Fa-f]+|\d+),\s*\"([0-9A-Fa-f]*)\",?\s*\)")
+RUST_CHECK_RE = re.compile(
+    r"\(\s*(0x[0-9A-Fa-f]+|\d+),\s*(0x[0-9A-Fa-f]+|\d+),\s*\"([0-9A-Fa-f]{64})\",?\s*\)"
+)
 
-Row = tuple[str, int, tuple[int, ...], "tuple[int, int] | None", tuple[tuple[int, str], ...]]
+Row = tuple[str, int, tuple[int, ...], "tuple[int, int] | None", tuple[tuple[int, int, str], ...]]
 
 
 def rust_rows(text: str | None = None) -> list[Row]:
@@ -86,7 +88,10 @@ def rust_rows(text: str | None = None) -> list[Row]:
                 int(map_id, 0),
                 tuple(sorted(int(c, 0) for c in chunks.replace(",", " ").split())),
                 (int(t_offset, 0), int(t_length, 0)) if t_offset else None,
-                tuple((int(o, 0), h.upper()) for o, h in RUST_CHECK_RE.findall(checks)),
+                tuple(
+                    (int(o, 0), int(n, 0), h.lower())
+                    for o, n, h in RUST_CHECK_RE.findall(checks)
+                ),
             )
         )
     if len(rows) != body.count("SceneChunkWrite {"):
@@ -104,7 +109,7 @@ def python_rows(
             row.map_id,
             tuple(sorted(row.chunks)),
             row.table,
-            tuple((o, h.upper()) for o, h in row.checks),
+            tuple((o, n, h.lower()) for o, n, h in row.checks),
         )
         for row in rows
         if row.via == "scene"
@@ -305,15 +310,28 @@ class RustBuilderRows(unittest.TestCase):
             ("chunks: &[0xA6]", "chunks: &[0xA7]"),
             ("map_id: 0x0B6", "map_id: 0x0B7"),
             ("table: Some((0x76E58, 21))", "table: Some((0x76E58, 22))"),
-            ('(0x6DD2A, "13BC00A67020")', '(0x6DD2A, "13BC00A67021")'),
-            ('(0x6DD24, "137C00A60020"),\n', ""),
+            (
+                '"c524c8b43acc80554fc2ed02a078ff3a177fb2a28f207293a38aaaee9a42ac76"',
+                '"c524c8b43acc80554fc2ed02a078ff3a177fb2a28f207293a38aaaee9a42ac77"',
+            ),
+            (
+                '            (\n'
+                '                0x6DD24,\n'
+                '                6,\n'
+                '                "8b6d9b6c98d951864a6de5d6d6817dcec0c3e265a87f5eb5c5d2cb03601a9128",\n'
+                '            ),\n',
+                "",
+            ),
         ):
             with self.subTest(old=old):
                 self.assertNotEqual(self._drifted(old, new), python_rows())
 
     def test_a_row_that_does_not_parse_is_refused(self) -> None:
         with self.assertRaises(ValueError):
-            self._drifted("table: None,\n        checks: &[\n            (0x6DD1A", "table: Nope,\n        checks: &[\n            (0x6DD1A")
+            self._drifted(
+                "table: None,\n        checks: &[\n            (\n                0x6DD1A",
+                "table: Nope,\n        checks: &[\n            (\n                0x6DD1A",
+            )
 
     def test_python_s_other_rows_are_not_rust_s(self) -> None:
         # `via` other than "scene" are Python's own guard rows.
@@ -326,12 +344,12 @@ class WreckagePins(unittest.TestCase):
     def test_each_pinned_write_is_checked(self) -> None:
         row = next(r for r in map_patches.SCENE_CHUNK_WRITES if r.scene == "Event_WreckageEngine")
         self.assertEqual(len(row.checks), 4)
-        end = max(offset + len(hex_) // 2 for offset, hex_ in row.checks)
-        image = bytearray(end)
-        for offset, hex_ in row.checks:
-            image[offset : offset + len(hex_) // 2] = bytes.fromhex(hex_)
-        self.assertEqual(map_patches.chunk_ids(bytes(image), row), {0xA6})
-        for offset, _ in row.checks:
+        self.assertTrue(all(len(digest) == 64 and length >= 4 for _, length, digest in row.checks))
+        if not ROM.exists():
+            self.skipTest(f"ROM fixture not present at {ROM}")
+        image = ROM.read_bytes()
+        self.assertEqual(map_patches.chunk_ids(image, row), {0xA6})
+        for offset, _, _ in row.checks:
             for delta in (0, 3):  # the opcode, and the chunk it stores
                 with self.subTest(offset=hex(offset), byte=delta):
                     moved = bytearray(image)

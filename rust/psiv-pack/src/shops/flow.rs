@@ -1,25 +1,68 @@
 //! How a shop is reached, what it charges and what an inn does: the port of
 //! [retired shop_flow](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/shop_flow.py), which owns the retail citations and the table of
-//! routines. Each rule is read from the instruction that applies it, found by
-//! a pinned signature, so `shops.json`'s `rules` is retail's, not a copy.
+//! routines. Each rule is read from the instruction that applies it, pinned at
+//! its retail offset by length and SHA-256 (#461), so `shops.json`'s `rules`
+//! is retail's, not a copy.
 
 use crate::json::Json;
-use crate::m68k::{expect, find_exactly, l, w};
-use crate::{PackError, Rom};
+use crate::m68k::{expect, l, w};
+use crate::{PackError, Rom, rom};
 
 use super::tables::{self, SHOP_GROUPS};
 
-/// Signatures, each with the number of times retail holds it.
-const COUNTER_SCAN: (&str, usize) = ("41f900068394", 1);
-const COUNTER_SCAN_CALL: (&str, usize) = ("4eb900065d12", 1);
-const BUY_PRICE: (&str, usize) = ("31f00014e3f8", 1);
-const SELL_PRICE: (&str, usize) = ("30300014e248", 1);
-const INN_RATES: (&str, usize) = ("43f900068112", 1);
-const INN_PARTY_MULTIPLY: (&str, usize) = ("c6f9ffffe3f0", 1);
-const GREETING_SELECTOR: (&str, usize) = ("41f900068136", 1);
-const PORTRAIT_GROUPS: (&str, usize) = ("41f900067ffe", 1);
-const RECOVER_HP: (&str, usize) = ("31680010000e", 5);
-const REST_EVENT: (&str, usize) = ("0c780006ecd0", 1);
+/// Pinned retail sites: `(offsets, length, sha256)` (#461).
+type SitePin = (&'static [usize], usize, &'static str);
+
+const COUNTER_SCAN: SitePin = (
+    &[0x065D12],
+    6,
+    "622725b2c6b78e62d805ce39f2e2724dee55e867ed0002e4f04500b03a3763c1",
+);
+const COUNTER_SCAN_CALL: SitePin = (
+    &[0x059148],
+    6,
+    "589e07ab0cdef2e665ed63e6024774b8c003484cd6b576deab810af2734f661a",
+);
+const BUY_PRICE: SitePin = (
+    &[0x0651D8],
+    6,
+    "0b4f5e58cada01e37a8b468cd50f81c9bf13fb2fa4d109f49a7bbb7aadf30fc3",
+);
+const SELL_PRICE: SitePin = (
+    &[0x065758],
+    6,
+    "edb6b53756ecca5c9946d60eca996d104e5d659bf92206c54f11d08311aed2ec",
+);
+const INN_RATES: SitePin = (
+    &[0x065E90],
+    6,
+    "3523965a498500981a30263dd8c69df2394883151e137382c6f07acba6e22056",
+);
+const INN_PARTY_MULTIPLY: SitePin = (
+    &[0x065EAC],
+    6,
+    "ea3efbfef27db2b9fde641c26844341504730edcec6aaaf1d11bded3b0f4d81a",
+);
+const GREETING_SELECTOR: SitePin = (
+    &[0x065ED4],
+    6,
+    "1b1a2a7737c29e46074b1e575a5a99a1773796dda94481028b3ca4dec9945232",
+);
+const PORTRAIT_GROUPS: SitePin = (
+    &[0x065E04],
+    6,
+    "1c05ef214ef0052df76a2d18efc5aeeba69cd72c76819332bebcd654d76d97ec",
+);
+const RECOVER_HP: SitePin = (
+    &[0x0276F4, 0x03D740, 0x03DB0E, 0x066306, 0x06E93A],
+    6,
+    "9d8a7a2b83006194e8e4c57ae2c8b684ef52c73f431b26c5fb03dde53da587a2",
+);
+const REST_EVENT: SitePin = (
+    &[0x066148],
+    6,
+    "a1dc434a4c603e2ccf23adfe180702c5fae778e9a92fb68ee253be6ef42daac1",
+);
 
 /// `Character_Stats` offsets `RecoverStats` writes.
 const RECOVERY_FIELDS: [(u16, &str); 7] = [
@@ -59,13 +102,16 @@ fn ram(word: u16) -> String {
 
 fn sites(
     rom: &[u8],
-    (signature, count): (&str, usize),
+    (offsets, len, digest): SitePin,
     label: &str,
 ) -> Result<Vec<usize>, PackError> {
-    Ok(find_exactly(rom, signature, count, label)?)
+    for &at in offsets {
+        rom::pinned(rom, at, (len, digest), label)?;
+    }
+    Ok(offsets.to_vec())
 }
 
-fn site(rom: &[u8], pin: (&str, usize), label: &str) -> Result<usize, PackError> {
+fn site(rom: &[u8], pin: SitePin, label: &str) -> Result<usize, PackError> {
     Ok(sites(rom, pin, label)?[0])
 }
 

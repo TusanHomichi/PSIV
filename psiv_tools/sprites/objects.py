@@ -7,6 +7,7 @@ the block is read out of the cartridge rather than out of the clone.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Any, Sequence
 
@@ -35,7 +36,9 @@ FIELD_OBJECT_STRIDE = 4
 #: is `bset #5, render_flags(a4)` -- the flag that switches the sprite builder
 #: to the streaming path.
 FIELD_OBJ_ANIMATE = 0x044728
-FIELD_OBJ_ANIMATE_SIGNATURE = bytes.fromhex("08ec00050002302c0006226c0008")
+FIELD_OBJ_ANIMATE_PIN: tuple[int, str] = (
+    14, "81857df7d10ea01fc5e1c060ce867452f497ef3ffe21ef36d374758f8825bc91",
+)
 FIELD_OBJ_ANIMATE2 = FIELD_OBJ_ANIMATE + 6
 
 #: 68000 encodings the init-block scanner recognises. `(d16, A4)` is
@@ -87,9 +90,13 @@ RENDER_FLAG_INTERACTABLE = 3
 INTERACTION_CHK_OBJECTS = 0x058D50
 FIELD_OBJ_DO_OBJ_COLLISION = 0x047DA8
 #: `moveq #$33,d7 / tst.w (a3) / beq.w .. / btst #3,$2(a3) / beq.w`, the head
-#: of both readers' loops. The `$33` is 52 secondary object slots.
-INTERACTION_LOOP_SIGNATURE = bytes.fromhex("7e334a536700")
-INTERACTION_BTST_SIGNATURE = bytes.fromhex("082b000300026700")
+#: of both readers' loops. Pinned by `(length, sha256)` (#461).
+INTERACTION_LOOP_PIN: tuple[int, str] = (
+    6, "3befbe1274f26d7b410dd0016065074f6ca442462729af7f8111fa8bc61eda72",
+)
+INTERACTION_BTST_PIN: tuple[int, str] = (
+    8, "2c2cc875ad88bc9a39971efbb57354b9b598324c484e4271fc08cc794c323a84",
+)
 
 #: `GameMode_LoadFieldMap` zero-fills `$400` longwords from
 #: `Field_Objects_Memory` through `trap #0` before it parses a record, and
@@ -100,9 +107,11 @@ INTERACTION_BTST_SIGNATURE = bytes.fromhex("082b000300026700")
 #: left in that slot".
 FIELD_OBJECTS_MEMORY_CLEAR_LONGS = 0x400
 #: `move.w #$3FF,d7 / lea (Field_Objects_Memory).w,a0 / trap #0`, in
-#: `GameMode_LoadFieldMap`.
+#: `GameMode_LoadFieldMap`, pinned by `(length, sha256)` (#461).
 FIELD_OBJECTS_CLEAR_SITE = 0x0517A4
-FIELD_OBJECTS_CLEAR_SIGNATURE = bytes.fromhex("3e3c03ff41f8c0004e40")
+FIELD_OBJECTS_CLEAR_PIN: tuple[int, str] = (
+    10, "b55c1930b7cf6e423d93a1ba6039591c50bd504c78ff653957ccb66c7c452422",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +183,12 @@ class FieldObjectRoutine:
         }
 
 
+def _pin_matches(rom: bytes, offset: int, pin: tuple[int, str]) -> bool:
+    length, digest = pin
+    chunk = rom[offset:offset + length]
+    return len(chunk) == length and hashlib.sha256(chunk).hexdigest() == digest
+
+
 def _check_jump_table(rom: bytes) -> None:
     for index in range(FIELD_OBJECT_COUNT):
         entry = FIELD_OBJECTS_JMP_TBL + index * 4
@@ -189,8 +204,7 @@ def _check_jump_table(rom: bytes) -> None:
         )
     if _u16(rom, FIELD_OBJ_ANIMATE) != _BSET_TO_A4:
         raise SpriteError("FieldObj_Animate does not start with bset #5, render_flags(a4)")
-    got = rom[FIELD_OBJ_ANIMATE:FIELD_OBJ_ANIMATE + len(FIELD_OBJ_ANIMATE_SIGNATURE)]
-    if got != FIELD_OBJ_ANIMATE_SIGNATURE:
+    if not _pin_matches(rom, FIELD_OBJ_ANIMATE, FIELD_OBJ_ANIMATE_PIN):
         raise SpriteError(
             f"FieldObj_Animate at {_hex(FIELD_OBJ_ANIMATE)} does not match its signature"
         )
@@ -201,7 +215,7 @@ def _check_interaction_readers(rom: bytes) -> None:
 
     `Interaction_ChkObjects` is the talk probe and `FieldObj_DoObjCollision` is
     the walker's object collision. They open with the same six instructions, so
-    the same two signatures pin both, and an offset that has drifted fails here
+    the same two pins guard both, and an offset that has drifted fails here
     rather than silently making every object interactable.
     """
     for label, offset in (
@@ -209,10 +223,10 @@ def _check_interaction_readers(rom: bytes) -> None:
         ("FieldObj_DoObjCollision", FIELD_OBJ_DO_OBJ_COLLISION),
     ):
         head = offset + 4  # past `lea (Field_Obj_Secondary).w, a3`
-        if rom[head:head + len(INTERACTION_LOOP_SIGNATURE)] != INTERACTION_LOOP_SIGNATURE:
+        if not _pin_matches(rom, head, INTERACTION_LOOP_PIN):
             raise SpriteError(f"{label} at {_hex(offset)} does not open its slot loop")
         btst = head + 8
-        if rom[btst:btst + len(INTERACTION_BTST_SIGNATURE)] != INTERACTION_BTST_SIGNATURE:
+        if not _pin_matches(rom, btst, INTERACTION_BTST_PIN):
             raise SpriteError(
                 f"{label} at {_hex(offset)} does not test render_flags bit "
                 f"{RENDER_FLAG_INTERACTABLE}"
