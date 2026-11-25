@@ -212,8 +212,13 @@ class RomSignatures(unittest.TestCase):
     def test_raw_signature_constants_fail(self):
         rust_const = "const SETUP_SIGNATURE: [u8; 4] = [0x01, 0x02, 0x03, 0x04];\n"
         py_const = 'FOO_SIGNATURE = bytes.fromhex("deadbeef")\n'
+        py_bytes_seq = "FOO_SIGNATURE = bytes([0x01, 0x02, 0x03, 0x04])\n"
+        py_list = "FOO_SIGNATURE = [0x01, 0x02, 0x03, 0x04]\n"
+        py_tuple = "FOO_SIGNATURE = (0x01, 0x02, 0x03, 0x04)\n"
+        py_bytearray = "FOO_SIGNATURE = bytearray([0x01, 0x02, 0x03, 0x04])\n"
         self.assertEqual(len(rom_signatures_in("rust/psiv-pack/src/x.rs", rust_const)), 1)
-        self.assertEqual(len(rom_signatures_in("psiv_tools/x.py", py_const)), 1)
+        for sample in (py_const, py_bytes_seq, py_list, py_tuple, py_bytearray):
+            self.assertEqual(len(rom_signatures_in("psiv_tools/x.py", sample)), 1, sample)
 
     def test_find_exactly_and_hex_literals_fail(self):
         rust_search = 'let hits = find_exactly(rom, "deadbeefcafe", 1, "x");\n'

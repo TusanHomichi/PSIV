@@ -117,7 +117,8 @@ SIGNATURE_GUARD_EXEMPT = frozenset({"rust/psiv-pack/src/png.rs", "psiv_tools/png
 RAW_SIGNATURE_CONST = re.compile(
     r"(?:^\s*(?:pub(?:\([^)]*\))?\s+)?const\s+[A-Z0-9_]*SIGNATURE\b[^=\n]*=\s*"
     r"(?:\[|&\[|b\"|\"[0-9A-Fa-f ]+\")"
-    r"|^\s*[A-Z0-9_]*SIGNATURE\b\s*(?::[^=\n]+)?=\s*(?:bytes\.fromhex|b[\"']|\"[0-9A-Fa-f ]+\"))",
+    r"|^\s*[A-Z0-9_]*SIGNATURE\b\s*(?::[^=\n]+)?=\s*"
+    r"(?:bytes\.fromhex|bytes\s*\(|bytearray\s*\(|\[|\(|b[\"']|\"[0-9A-Fa-f ]+\"))",
     re.MULTILINE,
 )
 #: Opcode-search calls replaced by fixed-offset digest pins (#461).
