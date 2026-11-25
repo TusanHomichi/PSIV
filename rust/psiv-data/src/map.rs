@@ -63,6 +63,7 @@ pub use warp::{TransitionTable, Warp, WarpSource};
 use crate::camera::MapScroll;
 use crate::collision::{Collision, CollisionType};
 use crate::ids::MapId;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The ROM holds exactly 43 Kosinski-compressed dialogue trees.
@@ -73,7 +74,7 @@ use serde::{Deserialize, Serialize};
 pub const DIALOGUE_TREE_COUNT: u8 = 43;
 
 /// A field map as the runtime needs it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct MapRecord {
     /// The pack format this record was written in. Repeated per map so a single
     /// file is self-describing.

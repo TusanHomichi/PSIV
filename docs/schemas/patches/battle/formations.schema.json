@@ -1,0 +1,741 @@
+{
+  "$defs": {
+    "EncounterGroupPatch": {
+      "additionalProperties": false,
+      "description": "One encounter group.",
+      "properties": {
+        "formation_ids": {
+          "description": "The formation ids it can roll.",
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "group": {
+          "description": "Its index, as `Battle_EnemyFormationIndexes` stores it per map.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "FormationEnemyPatch": {
+      "additionalProperties": false,
+      "description": "One enemy slot of a formation.",
+      "properties": {
+        "enemy_id": {
+          "description": "Index into `EnemyData`.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "position": {
+          "description": "The on-screen position byte. Presentation only.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "slot": {
+          "description": "Which of the four enemy slots, one-based.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "FormationPatch": {
+      "additionalProperties": false,
+      "description": "One `$FF`-terminated formation record.",
+      "properties": {
+        "ambush_chance": {
+          "description": "Byte 0, compared against the party's highest agility.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "can_run": {
+          "description": "Whether byte 1 is below `$F0`.",
+          "type": "boolean"
+        },
+        "count": {
+          "description": "Byte 4. Formation `$177` declares four and lists three — the\ncartridge's own inconsistency, which is why\n[`Formation::count_matches_entries`] exists.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "count_matches_entries": {
+          "description": "Whether byte 4 agrees with the number of entries.",
+          "type": "boolean"
+        },
+        "drop_item": {
+          "default": null,
+          "description": "Byte 3, or `None` when the formation drops nothing.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "drop_rate": {
+          "description": "Byte 2, out of 128.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enemies": {
+          "description": "The enemies, in slot order.",
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/FormationEnemyPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `slot`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `slot`.",
+              "items": {
+                "$ref": "#/$defs/FormationEnemyPatch",
+                "required": [
+                  "slot"
+                ]
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "event_battle_index": {
+          "description": "`Event_Battle_Index`, on a boss formation.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Its index across the four normal data blocks.\n\nAbsent on a boss formation, which is reached through\n[`Formation::event_battle_index`] instead — the two live in different\nindex spaces because `Battle_SetupEnemyData` reaches them by different\nroutes (`ps4.asm:11813`). A record writes only the key it has.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "run_chance": {
+          "description": "Byte 1, the same comparison for escape.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "InlineFormationPatch": {
+      "additionalProperties": false,
+      "description": "A formation record stored uncompressed in a battle object's code.\n\nThe object copies the whole record - header included - over\n`Enemy_Formation_Data` (`$FFFF41F0`, whose second byte is\n`Enemy_Run_Chance`) and calls `loc_14D46` (`ps4.asm:29735`) to rebuild the\nenemy side, so every header byte takes effect, not just the enemies.",
+      "properties": {
+        "ambush_chance": {
+          "description": "Byte 0, compared against the party's highest agility.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "can_run": {
+          "description": "Whether byte 1 is below `$F0`.",
+          "type": "boolean"
+        },
+        "count": {
+          "description": "Byte 4. Formation `$177` declares four and lists three — the\ncartridge's own inconsistency, which is why\n[`Formation::count_matches_entries`] exists.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "count_matches_entries": {
+          "description": "Whether byte 4 agrees with the number of entries.",
+          "type": "boolean"
+        },
+        "drop_item": {
+          "default": null,
+          "description": "Byte 3, or `None` when the formation drops nothing.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "drop_rate": {
+          "description": "Byte 2, out of 128.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enemies": {
+          "description": "The enemies, in slot order.",
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/FormationEnemyPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `slot`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `slot`.",
+              "items": {
+                "$ref": "#/$defs/FormationEnemyPatch",
+                "required": [
+                  "slot"
+                ]
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "event_battle_index": {
+          "description": "`Event_Battle_Index`, on a boss formation.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Its index across the four normal data blocks.\n\nAbsent on a boss formation, which is reached through\n[`Formation::event_battle_index`] instead — the two live in different\nindex spaces because `Battle_SetupEnemyData` reaches them by different\nroutes (`ps4.asm:11813`). A record writes only the key it has.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "label": {
+          "description": "The disassembly label of the record's bytes (`loc_23D00`): the name the\nengine looks the record up by.",
+          "type": "string"
+        },
+        "loaded_by": {
+          "description": "The object that loads it.",
+          "type": "string"
+        },
+        "rom_offset": {
+          "description": "Where those bytes sit in the ROM, as `0x`-prefixed hex.",
+          "type": "string"
+        },
+        "run_chance": {
+          "description": "Byte 1, the same comparison for escape.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "MapBindingPatch": {
+      "additionalProperties": false,
+      "description": "One map's row in `Battle_EnemyFormationIndexes`, plus how to read it.",
+      "properties": {
+        "group": {
+          "default": null,
+          "description": "The encounter group, when `mode` is `group`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "groups_available": {
+          "default": null,
+          "description": "Groups the grid can yield (overworlds only).",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "in_table": {
+          "description": "Whether the 416-byte table actually covers this id. `false` only for\nMapID `$1A0`, whose read runs past the end (`mode` is `outside_table`).",
+          "type": "boolean"
+        },
+        "map_id": {
+          "description": "The map.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "map_symbol": {
+          "default": null,
+          "description": "Its `MapID_*` symbol.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "description": "How encounters are sourced here. `none` | `group` | `position_grid` |\n`outside_table` — the fourth exists so the 416-vs-417 overrun stays a\nvisible anomaly rather than an ordinary no-encounters map.",
+          "type": "string"
+        },
+        "position_grid": {
+          "default": null,
+          "description": "The grid name, when `mode` is `position_grid`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "default": null,
+          "description": "The raw table byte — `None` exactly when `in_table` is false.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "vehicle_groups": {
+          "default": null,
+          "description": "Vehicle-selected groups (overworlds only). Tier 3.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "PositionGridPatch": {
+      "additionalProperties": false,
+      "description": "One overworld's formation-group grid.",
+      "properties": {
+        "cell_size_pixels": {
+          "description": "World pixels per grid cell (64: the cartridge shifts coordinates\nright by 6).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cells": {
+          "description": "Rows of columns — `cells[y][x]`, exactly the cartridge's\n`(y >> 6) * 64 + (x >> 6)`. A value `>= 0x80` means the fallback.",
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "description": "Sparse cell-level 2D grid patch (`[row, col, value]` tuples or `{\"row\", \"col\", \"value\"}` objects).",
+              "properties": {
+                "cells": {
+                  "items": {
+                    "oneOf": [
+                      {
+                        "items": false,
+                        "maxItems": 3,
+                        "minItems": 3,
+                        "prefixItems": [
+                          {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          {
+                            "maximum": 255,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        ],
+                        "type": "array"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "col": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "row": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "value": {
+                            "maximum": 255,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "row",
+                          "col",
+                          "value"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "cells"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "Rows of columns — `cells[y][x]`, exactly the cartridge's\n`(y >> 6) * 64 + (x >> 6)`. A value `>= 0x80` means the fallback.",
+              "items": {
+                "items": {
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "columns": {
+          "description": "Grid width in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fallback_cells": {
+          "default": null,
+          "description": "How many cells hold the fallback byte.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "fallback_group": {
+          "description": "The group a negative cell byte falls back to.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "groups_used": {
+          "default": [],
+          "description": "Groups the cells actually name.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "indexing": {
+          "default": null,
+          "description": "The cartridge's own indexing note.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "default": null,
+          "description": "The disassembly label.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "map": {
+          "additionalProperties": false,
+          "description": "The map this grid serves.",
+          "properties": {
+            "id": {
+              "description": "Map id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "symbol": {
+              "default": null,
+              "description": "The `MapID_*` symbol.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "name": {
+          "description": "The binding key (`motavia` / `dezolis`).",
+          "type": "string"
+        },
+        "rom_offset": {
+          "default": null,
+          "description": "Where the compressed grid sits in the ROM.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rows": {
+          "description": "Grid height in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/battle/formations.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "boss_formation_count": {
+      "description": "How many boss formations it declares.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "boss_formations": {
+      "description": "The boss formations, indexed by `Event_Battle_Index`.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/FormationPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `event_battle_index`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `event_battle_index`.",
+          "items": {
+            "$ref": "#/$defs/FormationPatch",
+            "required": [
+              "event_battle_index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "encounter_groups": {
+      "additionalProperties": false,
+      "description": "`Battle_FormationIndexes`, the tables a random encounter rolls into.",
+      "properties": {
+        "entries_per_group": {
+          "description": "How many formation ids each group holds — 32 in retail, which is why\nthe encounter roll masks with `$1F`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "group_count": {
+          "description": "How many groups there are.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "groups": {
+          "description": "The groups, in index order.",
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/EncounterGroupPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `group`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `group`.",
+              "items": {
+                "$ref": "#/$defs/EncounterGroupPatch",
+                "required": [
+                  "group"
+                ]
+              },
+              "type": "array"
+            }
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "format_version": {
+      "const": 2,
+      "description": "The pack format that wrote this.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "formation_count": {
+      "description": "How many normal formations the file declares.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "formations": {
+      "description": "The normal formations, in id order.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/FormationPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/FormationPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "inline_formations": {
+      "description": "The formations battle objects keep in their own code and copy over\n`Enemy_Formation_Data` mid-battle (Fusion's, COMBINE's). Absent from a\npack written before they were decoded.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/InlineFormationPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `label`.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `label`.",
+          "items": {
+            "$ref": "#/$defs/InlineFormationPatch",
+            "required": [
+              "label"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "map_bindings": {
+      "description": "Which encounter source each of the 417 maps uses.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/MapBindingPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `map_id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `map_id`.",
+          "items": {
+            "$ref": "#/$defs/MapBindingPatch",
+            "required": [
+              "map_id"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "position_grids": {
+      "description": "The two overworld position grids, 64px cells, indexed `[y][x]`.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/PositionGridPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `name`.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `name`.",
+          "items": {
+            "$ref": "#/$defs/PositionGridPatch",
+            "required": [
+              "name"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (battle/formations.json)",
+  "type": "object"
+}

@@ -6,10 +6,11 @@
 
 use std::collections::BTreeMap;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The provenance and build guard for the retail animation extraction.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EnemyAnimationSource {
     /// Retail table label.
     pub label: String,
@@ -38,7 +39,7 @@ pub struct EnemyAnimationSource {
 }
 
 /// One retail pointer table included in the animation extraction.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EnemyAnimationTableSource {
     /// Table label.
     pub name: String,
@@ -53,7 +54,7 @@ pub struct EnemyAnimationTableSource {
 }
 
 /// The extraction census, retained in typed form for pack diagnostics.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EnemyAnimationCensus {
     /// Enemy records covered.
     pub enemy_count: u32,
@@ -116,7 +117,7 @@ pub struct EnemyAnimationCensus {
 /// A three-way extraction result.  `partial` is deliberately distinct from
 /// `deferred`: the renderer may use an exact subset only when the sidecar says
 /// so, and never by treating a missing field as a green result.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EnemyAnimationEvidence {
     /// `exact`, `partial`, or `deferred`.
     pub status: String,
@@ -134,7 +135,7 @@ impl Default for EnemyAnimationEvidence {
 }
 
 /// One direct or object-local retail sound write.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EnemyAnimationSfxWrite {
     /// Battle object id, or `null` when the attack routine writes directly.
     pub object_id: Option<u16>,
@@ -149,7 +150,7 @@ pub struct EnemyAnimationSfxWrite {
 }
 
 /// One fixed mapping sequence consumed by retail's `loc_256AE` helper.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EnemyAnimationFrameSequence {
     /// Object whose `$8(a4)` mapping pointer is assigned.
     pub object_id: Option<u16>,
@@ -178,7 +179,7 @@ pub struct EnemyAnimationFrameSequence {
 }
 
 /// One enemy's selected attack routine and the presentation facts it proves.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EnemyAnimation {
     /// Enemy record id.
     pub enemy_id: u16,
@@ -217,7 +218,7 @@ pub struct EnemyAnimation {
 }
 
 /// The selected retail write for an enemy attack.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EnemyAnimationDispatch {
     /// Dispatch kind.
     pub kind: String,
@@ -228,7 +229,7 @@ pub struct EnemyAnimationDispatch {
 }
 
 /// The complete additive animation file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EnemyAnimationsFile {
     /// Pack format version.
     pub format_version: u32,

@@ -9,7 +9,9 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
-use psiv_data::{Sequence, SequenceFrame, Sheet as SheetRecord, SheetFile, VehiclePaletteVariant};
+use psiv_data::{
+    Sequence, SequenceFrame, Sheet as SheetRecord, SheetFile, SheetPalette, VehiclePaletteVariant,
+};
 use serde_json::{Map, Value, json};
 
 use super::compose::{Sheet, SpriteCensus};
@@ -70,19 +72,19 @@ fn sheet_record(
     mut research: Map<String, Value>,
 ) -> Result<SheetRecord, PackError> {
     research.insert("png_sha256".into(), png::image_sha256(image)?.into());
-    research.insert(
-        "palette".into(),
-        json!({
-            "cram_line": sheet.palette_line,
-            "source": if sheet.palette_line == PAL_INIT_LINE_3_CRAM_LINE {
+    let palette = Some(SheetPalette {
+        cram_line: Some(sheet.palette_line),
+        source: Some(
+            if sheet.palette_line == PAL_INIT_LINE_3_CRAM_LINE {
                 "Pal_Init_Line_3"
             } else {
                 "map palette blob"
-            },
-            "transparent_index": SPRITE_TRANSPARENT_INDEX,
-            "colors": sheet.palette,
-        }),
-    );
+            }
+            .to_owned(),
+        ),
+        transparent_index: Some(SPRITE_TRANSPARENT_INDEX),
+        colors: Some(sheet.palette.to_vec()),
+    });
     research.insert(
         "mirrors".into(),
         Value::Object(
@@ -123,6 +125,7 @@ fn sheet_record(
         origin_x: -sheet.bounds.left,
         origin_y: -sheet.bounds.top,
         sequences,
+        palette,
         research,
     })
 }

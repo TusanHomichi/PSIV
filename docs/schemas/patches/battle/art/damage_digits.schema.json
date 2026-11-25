@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "CommandUiTilePatch": {
+      "additionalProperties": false,
+      "description": "One 8x8 pattern, keyed by the VRAM tile the cartridge loads it to.",
+      "properties": {
+        "rows": {
+          "description": "Eight rows of eight hex digits, one CRAM index per pixel.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "vram_tile": {
+          "description": "The VRAM tile index (`$15E..$17B` icons, `$17C..$183` cursor).",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/battle/art/damage_digits.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "format_version": {
+      "const": 2,
+      "description": "The pack format that wrote it.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "tile_count": {
+      "description": "The declared tile count.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "tiles": {
+      "description": "The tiles, in VRAM order.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/CommandUiTilePatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `vram_tile`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `vram_tile`.",
+          "items": {
+            "$ref": "#/$defs/CommandUiTilePatch",
+            "required": [
+              "vram_tile"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (battle/art/damage_digits.json)",
+  "type": "object"
+}

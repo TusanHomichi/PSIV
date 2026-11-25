@@ -1,0 +1,91 @@
+{
+  "$defs": {
+    "FifthRowRecord": {
+      "additionalProperties": false,
+      "description": "One row of `loc_72182`, without its art byte.",
+      "properties": {
+        "character": {
+          "description": "The character id.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "first_line": {
+          "description": "The first of the friend's dialogue lines.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "picked_flag": {
+          "description": "The `EventFlag_*Picked` set while this friend is the fifth.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x": {
+          "description": "Where the friend stands: X in pixels.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Y in pixels.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "character",
+        "first_line",
+        "picked_flag"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/fifth/fifth.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "format_version": {
+      "const": 1,
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "records": {
+      "items": {
+        "format": "uint8",
+        "maximum": 255,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "array"
+    },
+    "rom_sha256": {
+      "description": "SHA-256 digest as 64 hexadecimal characters.",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-fA-F]{64}$",
+      "type": "string"
+    },
+    "rows": {
+      "items": {
+        "$ref": "#/$defs/FifthRowRecord"
+      },
+      "type": "array"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (fifth/fifth.json)",
+  "type": "object"
+}

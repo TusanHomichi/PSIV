@@ -10,6 +10,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::error::DataError;
@@ -23,7 +24,7 @@ const REQUIRED_TILES: usize = (LAST_TILE - FIRST_TILE + 1) as usize;
 const PALETTE_WORDS: usize = 15;
 
 /// One 8x8 pattern, keyed by the VRAM tile the cartridge loads it to.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CommandUiTile {
     /// The VRAM tile index (`$15E..$17B` icons, `$17C..$183` cursor).
     pub vram_tile: u16,
@@ -32,7 +33,7 @@ pub struct CommandUiTile {
 }
 
 /// The parsed file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CommandUiArt {
     /// The pack format that wrote it.
     pub format_version: u32,

@@ -1,9 +1,10 @@
 //! Decoded `MapUpdateJmpTbl` programs; rules execute in psiv-runtime.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// One table entry, bound in the map's cartridge order.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct MapUpdate {
     /// Byte index in the 64-entry jump table.
     pub index: u8,
@@ -16,7 +17,7 @@ pub struct MapUpdate {
 }
 
 /// A flag read by an update.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateGate {
     /// Physical flag door, independent of fork labels.
@@ -28,7 +29,7 @@ pub struct UpdateGate {
 }
 
 /// The three flag-test doors used by these routines.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum UpdateBank {
     /// Base events, $F100.
@@ -40,7 +41,7 @@ pub enum UpdateBank {
 }
 
 /// One CRAM-shadow word write.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PaletteWrite {
     /// CRAM slot, 0..63.
@@ -50,7 +51,7 @@ pub struct PaletteWrite {
 }
 
 /// Phase selection for a palette table.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PalettePhase {
     /// `(Main_Frame_Count & mask) >> shift`.
@@ -68,7 +69,7 @@ pub enum PalettePhase {
 }
 
 /// One independently clocked set of palette writes.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PaletteCycle {
     /// Execute when clock & frame_mask == 0.
@@ -82,7 +83,7 @@ pub struct PaletteCycle {
 }
 
 /// Scroll helper's treatment of the sine byte.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ScrollMode {
     /// Logical shifts of the sine byte, Garuberk horizontal scroll.
@@ -96,7 +97,7 @@ pub enum ScrollMode {
 /// One group of conveyor belt chunks sharing a direction toggle and 8-frame
 /// chunk-id table (`MapUpdate_VahFortConveyorBelts` `$11` /
 /// `MapUpdate_WpnPlntConveyorBelts` `$12`).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ConveyorGroup {
     /// Optional temporary event flag (`$0B`/`$0C` or `$11`/`$12`) selecting
@@ -114,7 +115,7 @@ pub struct ConveyorGroup {
 
 /// Update instructions and extracted tables. Unsupported hardware inputs are
 /// explicit records, never substituted with invented state.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum UpdateProgram {
     /// Retail `moveq #0,d0; rts`.

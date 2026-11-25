@@ -6,6 +6,7 @@
 
 use super::cell::CellRect;
 use super::reference::RangeRef;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// One map interaction area.
@@ -13,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// The ROM stores an 8-pixel source coordinate and an `XYRangeJmpTbl` index.
 /// The pack resolves both into the same 16-pixel collision-cell rectangle the
 /// runtime uses for landing checks, while retaining the raw bytes for audit.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct InteractionArea {
     /// Position in this map's interaction-area list.
@@ -40,7 +41,7 @@ pub struct InteractionArea {
 }
 
 /// An interaction area's raw 8-pixel source coordinate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct InteractionSource {
     /// Raw X word from the record, in 8-pixel units.
@@ -56,7 +57,7 @@ pub struct InteractionSource {
 }
 
 /// The flag-bank selector stored in an interaction record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct InteractionFlagType {
     /// Raw byte 6.

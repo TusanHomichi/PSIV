@@ -1,0 +1,232 @@
+{
+  "$defs": {
+    "LevelPatch": {
+      "additionalProperties": false,
+      "description": "One 22-byte level record.",
+      "properties": {
+        "experience_required": {
+          "description": "Total experience needed to reach it.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hp": {
+          "description": "New maximum HP.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "level": {
+          "description": "The level this record grants.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "new_skill": {
+          "additionalProperties": false,
+          "description": "An id with the extractor's name beside it.",
+          "properties": {
+            "id": {
+              "description": "The raw id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "default": null,
+              "description": "What it is called, when it is called anything.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "new_technique": {
+          "additionalProperties": false,
+          "description": "An id with the extractor's name beside it.",
+          "properties": {
+            "id": {
+              "description": "The raw id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "default": null,
+              "description": "What it is called, when it is called anything.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "skill_uses": {
+          "description": "Maximum uses for each of the eight learned-skill positions.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 8,
+          "minItems": 8,
+          "type": "array"
+        },
+        "stats": {
+          "additionalProperties": false,
+          "description": "New base stats.",
+          "properties": {
+            "agility": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "dexterity": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "mental": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "strength": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "tp": {
+          "description": "New maximum TP.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "LevelTablePatch": {
+      "additionalProperties": false,
+      "description": "One character's level table.",
+      "properties": {
+        "character": {
+          "description": "The character's name.",
+          "type": "string"
+        },
+        "character_id": {
+          "description": "Index into `Character_Stats`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "levels": {
+          "description": "The records, in level order.",
+          "oneOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/LevelPatch"
+              },
+              "description": "Sparse ID-keyed patch map keyed by `level`.",
+              "propertyNames": {
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": "object"
+            },
+            {
+              "description": "Array of partial record patches, each carrying `level`.",
+              "items": {
+                "$ref": "#/$defs/LevelPatch",
+                "required": [
+                  "level"
+                ]
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "starting_level": {
+          "description": "The `[starting level .w]` half of the pointer-table entry, subtracted\nfrom the current level before indexing [`LevelTable::levels`].",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/battle/levels.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "character_count": {
+      "description": "How many characters have tables.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "characters": {
+      "description": "One table per character, in `CharLevelTablePtrs` order.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/LevelTablePatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `character_id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `character_id`.",
+          "items": {
+            "$ref": "#/$defs/LevelTablePatch",
+            "required": [
+              "character_id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "format_version": {
+      "const": 2,
+      "description": "The pack format that wrote this.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "total_records": {
+      "description": "How many level records there are in total.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (battle/levels.json)",
+  "type": "object"
+}

@@ -1,0 +1,108 @@
+{
+  "$defs": {
+    "SoundTestTrackPatch": {
+      "additionalProperties": false,
+      "description": "One entry in `SoundTestStrings` / `SoundTestData`.",
+      "properties": {
+        "composer": {
+          "description": "Composer display label (`IPPO` or `GAKI CHAN`).",
+          "type": "string"
+        },
+        "composer_id": {
+          "description": "Composer byte (`0 = IPPO`, `1 = GAKI CHAN`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "index": {
+          "description": "Zero-based track index (`0..track_count`).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sound_id": {
+          "description": "Retail `Sound_Index` byte (`SoundTestData` byte 0).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "title": {
+          "description": "Cartridge display title (`SoundTestStrings`).",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/title/sound_test.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "format_version": {
+      "const": 1,
+      "description": "Pack format version (1).",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "repeat_override": {
+      "additionalProperties": false,
+      "description": "Retail's repeat-play override (`ps4.asm:88554-88561`): playing\n`MusicID_DungeonArrange2` twice in a row plays `MusicID_DungeonArrange2Cont`.",
+      "properties": {
+        "play_sound_id": {
+          "description": "Alternate `Sound_Index` byte played on repeat.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "when_sound_id": {
+          "description": "Track `sound_id` that triggers the alternate track when repeated.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "track_count": {
+      "description": "Declared track count, checked against `tracks.len()`.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "tracks": {
+      "description": "Ordered tracks (`index == position`).",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/SoundTestTrackPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/SoundTestTrackPatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (title/sound_test.json)",
+  "type": "object"
+}

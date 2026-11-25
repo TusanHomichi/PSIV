@@ -1,10 +1,11 @@
 //! `battle/enemies.json`: the 48-byte `EnemyData` records.
 
 use super::{NamedId, Property};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// `battle/enemies.json`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EnemiesFile {
     /// The pack format that wrote this.
     pub format_version: u32,
@@ -19,7 +20,7 @@ pub struct EnemiesFile {
 }
 
 /// One 48-byte `EnemyData` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Enemy {
     /// Index into `EnemyData`.
     pub id: u16,
@@ -48,7 +49,7 @@ pub struct Enemy {
 /// An enemy's combat stats. `defense` and `magic_defense` keep the pack's
 /// spelling.
 #[allow(missing_docs)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EnemyStats {
     pub strength: u8,
@@ -61,7 +62,7 @@ pub struct EnemyStats {
 }
 
 /// The two bytes `Battle_SetupEnemyData` reuses the TP slots for.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EnemyAttack {
     /// What element a plain attack carries.
@@ -71,7 +72,7 @@ pub struct EnemyAttack {
 }
 
 /// `$50`..`$5F` of the in-battle stats struct.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EnemyAi {
     /// Four condition ids, `0` terminating.
@@ -83,7 +84,7 @@ pub struct EnemyAi {
 }
 
 /// What an enemy contributes to the victory pools.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Rewards {
     /// Added to `$FFFF41CE`.

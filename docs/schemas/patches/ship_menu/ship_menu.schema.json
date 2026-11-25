@@ -1,0 +1,275 @@
+{
+  "$defs": {
+    "BackgroundRecord": {
+      "additionalProperties": false,
+      "description": "One cover combination's background file.",
+      "properties": {
+        "covers": {
+          "description": "The cover bits: Rykros 1, Kuran 2, the Air Castle 4.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "file": {
+          "description": "The background, pack-relative: 320 x 224 CRAM indices.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "covers",
+        "file"
+      ],
+      "type": "object"
+    },
+    "FlightCaption": {
+      "additionalProperties": false,
+      "description": "`SpaceTravel_PlaceNamePtrs`: a complete RunText2 line (leading spaces kept).",
+      "properties": {
+        "glyph_count": {
+          "description": "How many glyphs it draws.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "instant": {
+          "description": "Drawn without per-glyph waits (`d4 = 1`).",
+          "type": "boolean"
+        },
+        "text": {
+          "description": "The caption.",
+          "type": "string"
+        },
+        "world": {
+          "description": "The world.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "world",
+        "text",
+        "glyph_count",
+        "instant"
+      ],
+      "type": "object"
+    },
+    "PaletteEntry": {
+      "additionalProperties": false,
+      "description": "One of the 32 palette words, as a colour.",
+      "properties": {
+        "rgb": {
+          "description": "The colour.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "rgb"
+      ],
+      "type": "object"
+    },
+    "ShipWindowPatch": {
+      "additionalProperties": false,
+      "description": "One `WinGroup_Event` record: a window's size and position in cells.",
+      "properties": {
+        "height": {
+          "description": "Height in cells, frame included.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "description": "The window id `Window_Create` is called with.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width": {
+          "description": "Width in cells, frame included.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x": {
+          "description": "Left cell.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Top cell.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/ship_menu/ship_menu.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "backgrounds": {
+      "description": "One per cover combination.",
+      "items": {
+        "$ref": "#/$defs/BackgroundRecord"
+      },
+      "type": "array"
+    },
+    "colors": {
+      "additionalProperties": false,
+      "description": "The colours the frame loop writes.",
+      "properties": {
+        "dark": {
+          "description": "The darkened lines' colour.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "highlight": {
+          "description": "The blinking marker's colour (`$EEE`).",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "confirm_suffix": {
+      "description": "The confirmation's two halves.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "flight_captions": {
+      "default": [],
+      "description": "One caption per world.",
+      "items": {
+        "$ref": "#/$defs/FlightCaption"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "format_version": {
+      "const": 1,
+      "description": "The file's version.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "kind": {
+      "description": "`ship_menu`.",
+      "type": "string"
+    },
+    "names": {
+      "description": "The six world names.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "palette": {
+      "description": "CRAM lines 0 and 1.",
+      "items": {
+        "$ref": "#/$defs/PaletteEntry"
+      },
+      "type": "array"
+    },
+    "place_windows": {
+      "description": "`WinGroup_PlaceName`, by name length.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/ShipWindowPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/ShipWindowPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "prompt": {
+      "description": "The prompt.",
+      "type": "string"
+    },
+    "rom_sha256": {
+      "description": "The ROM it came from.",
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-fA-F]{64}$",
+      "type": "string"
+    },
+    "windows": {
+      "description": "`WinGroup_Event`'s records for this screen.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/ShipWindowPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/ShipWindowPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (ship_menu/ship_menu.json)",
+  "type": "object"
+}

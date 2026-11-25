@@ -3,11 +3,12 @@
 //! These are the bytes map load stores rather than content it places; the accessors
 //! spell the flag tests out so a caller does not compare zeroes.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The map's music. Id 0 means "keep playing whatever is playing", which is
 /// what `changes_music` records.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Music {
     /// The music id as the map record stores it.
     pub id: u8,
@@ -19,7 +20,7 @@ pub struct Music {
 }
 
 /// The four per-map flags.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Flags {
     /// Non-zero on maps that drain HP as the party walks.
     pub poison: u8,

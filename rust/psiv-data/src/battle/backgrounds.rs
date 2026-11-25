@@ -8,6 +8,7 @@
 
 use std::path::Path;
 
+use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::DataError;
@@ -43,13 +44,13 @@ pub struct BattleBackgrounds {
     pub dark_force_to: u8,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 pub(crate) struct File {
     format_version: u32,
     selection: Selection,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 struct Selection {
     event_battle: Table,
     field_map: FieldTable,
@@ -57,18 +58,18 @@ struct Selection {
     dark_force_2_swap: Swap,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 struct Table {
     indexes: Vec<u8>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 struct FieldTable {
     indexes: Vec<u8>,
     none: u8,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 struct Swap {
     from: u8,
     to: u8,

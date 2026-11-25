@@ -1,5 +1,6 @@
 //! Map-record camera setup copied from `loc_51AB2`.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The two longwords that `loc_51AB2` can seed as camera step counters.
@@ -7,7 +8,7 @@ use serde::{Deserialize, Serialize};
 /// The pack keeps the ROM's eight-digit hexadecimal spelling because these
 /// are 16.16 signed longwords, not pixel counts. Runtime code parses them at
 /// the camera boundary and rejects no information by narrowing them to words.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ScrollCounters {
     /// `Camera_X_Step_Counter_*`, as an eight-digit hexadecimal string.
@@ -21,7 +22,7 @@ pub struct ScrollCounters {
 /// `loc_51AB2` consumes the first byte as `$EC24`, then the low byte of each
 /// plane word as `$EC25`/`$EC26`; when a plane byte is zero it consumes the
 /// following two longwords as that plane's initial step counters.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct MapScroll {
     /// Global sprite-plane selector, `$EC24` (`0` foreground, nonzero background).
     pub mode: u8,

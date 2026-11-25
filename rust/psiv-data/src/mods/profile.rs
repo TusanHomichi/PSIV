@@ -7,6 +7,7 @@
 //! sidecar lives next to `slot_1..3.sram` without touching any `.sram` bytes.
 
 use crate::mods::{ModError, ModManifest};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
@@ -24,7 +25,7 @@ pub const MOD_PROFILE_FORMAT_VERSION: u32 = 1;
 const MAX_PLAIN_PROFILE_SLUG_LEN: usize = 48;
 
 /// One active mod recorded in `mod_profile.json`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ModProfileEntry {
     /// Stable mod id.
@@ -36,7 +37,7 @@ pub struct ModProfileEntry {
 }
 
 /// Sidecar metadata stored in `mod_profile.json` beside modded `.sram` files.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ModProfile {
     /// Profile sidecar format version (`MOD_PROFILE_FORMAT_VERSION`).

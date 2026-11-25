@@ -12,6 +12,7 @@
 //! and the census's free-form `unresolved` list are kept as JSON values: the
 //! game reads none of them, so they have no typed home yet.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -20,7 +21,7 @@ use std::collections::BTreeMap;
 pub const SOUND_FORMAT_VERSION: u32 = 1;
 
 /// The ROM a file was built from.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RomStamp {
     /// Lowercase SHA-256 of the image.
     pub sha256: String,
@@ -29,7 +30,7 @@ pub struct RomStamp {
 }
 
 /// A sound file named by the index, with its SHA-256.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct FileRef {
     /// Pack-relative path.
     pub file: String,
@@ -38,7 +39,7 @@ pub struct FileRef {
 }
 
 /// One entry of the index's file inventory.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct FileEntry {
     /// Pack-relative path.
     pub file: String,
@@ -49,7 +50,7 @@ pub struct FileEntry {
 }
 
 /// `sound/index.json`.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct IndexFile {
     /// [`SOUND_FORMAT_VERSION`].
     pub format_version: u32,
@@ -72,7 +73,7 @@ pub struct IndexFile {
 }
 
 /// The decode census over every track of every record.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Census {
     /// Music records.
     pub music_record_count: u32,
@@ -113,7 +114,7 @@ pub struct Census {
 }
 
 /// One track's instrument use, in the census.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct TrackInstruments {
     /// The track's id, as in [`Track::track_id`].
     pub track_id: String,
@@ -124,7 +125,7 @@ pub struct TrackInstruments {
 }
 
 /// `sound/driver.json`.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct DriverFile {
     /// [`SOUND_FORMAT_VERSION`].
     pub format_version: u32,
@@ -137,7 +138,7 @@ pub struct DriverFile {
 }
 
 /// The driver's tables and notes.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Driver {
     /// Where the extraction's facts come from (research).
     pub provenance: Value,
@@ -160,7 +161,7 @@ pub struct Driver {
 }
 
 /// A verified ROM region and its raw copy.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Region {
     /// Disassembly label.
     pub source_label: String,
@@ -177,7 +178,7 @@ pub struct Region {
 }
 
 /// The envelope tables.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Envelopes {
     /// What each modulation control byte does, keyed by `0xNN`.
     pub modulation_control_bytes: BTreeMap<String, String>,
@@ -190,7 +191,7 @@ pub struct Envelopes {
 }
 
 /// One envelope stream, through its terminal control byte.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Envelope {
     /// Table index.
     pub index: u32,
@@ -209,7 +210,7 @@ pub struct Envelope {
 }
 
 /// The Z80 DAC driver, its bank table and its sample banks.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Dac {
     /// The Z80 driver program.
     pub z80_driver: Region,
@@ -228,7 +229,7 @@ pub struct Dac {
 }
 
 /// One `zBankTbl` entry.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct DacTableEntry {
     /// The DAC sound id it serves.
     pub sound_id: u8,
@@ -239,7 +240,7 @@ pub struct DacTableEntry {
 }
 
 /// One DAC bank.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct DacBank {
     /// Bank number.
     pub bank: u8,
@@ -254,7 +255,7 @@ pub struct DacBank {
 }
 
 /// One DAC sample.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct DacSample {
     /// The DAC sound id that plays it.
     pub sound_id: u8,
@@ -277,7 +278,7 @@ pub struct DacSample {
 }
 
 /// `sound/music.json`.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MusicFile {
     /// [`SOUND_FORMAT_VERSION`].
     pub format_version: u32,
@@ -290,7 +291,7 @@ pub struct MusicFile {
 }
 
 /// `sound/sfx.json`.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SfxFile {
     /// [`SOUND_FORMAT_VERSION`].
     pub format_version: u32,
@@ -303,7 +304,7 @@ pub struct SfxFile {
 }
 
 /// The two SFX pointer tables.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SfxGroups {
     /// `SFXPtrs`.
     pub regular: RecordGroup<SfxHeader>,
@@ -312,7 +313,7 @@ pub struct SfxGroups {
 }
 
 /// One pointer table's records.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RecordGroup<H> {
     /// The sound id of the table's first record.
     pub id_first: u8,
@@ -321,7 +322,7 @@ pub struct RecordGroup<H> {
 }
 
 /// One music or SFX record.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Record<H> {
     /// Retail sound id.
     pub id: u8,
@@ -343,7 +344,7 @@ pub struct Record<H> {
 }
 
 /// A record's place in the ROM and its raw copy.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RawRecord {
     /// Start, `0xNNNNNN`.
     pub rom_offset: String,
@@ -358,7 +359,7 @@ pub struct RawRecord {
 }
 
 /// A music record's header.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MusicHeader {
     /// The voice table's offset from the record start.
     pub voice_table_relative: u16,
@@ -381,7 +382,7 @@ pub struct MusicHeader {
 }
 
 /// An SFX record's header.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SfxHeader {
     /// The voice table's offset from the record start.
     pub voice_table_relative: u16,
@@ -400,7 +401,7 @@ pub struct SfxHeader {
 }
 
 /// One 25-byte FM voice.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Voice {
     /// Index in the record's voice table.
     pub index: u32,
@@ -419,7 +420,7 @@ pub struct Voice {
 }
 
 /// A track descriptor's family.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum TrackFamily {
     /// A music FM descriptor.
@@ -431,7 +432,7 @@ pub enum TrackFamily {
 }
 
 /// One track and its static decode.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Track {
     /// `music:NN:fm:I`, `music:NN:psg:I` or `sfx:NN:I`.
     pub track_id: String,
@@ -452,7 +453,7 @@ pub struct Track {
 }
 
 /// A track's start.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct TrackSource {
     /// Start, `0xNNNNNN`.
     pub rom_offset: String,
@@ -465,7 +466,7 @@ pub struct TrackSource {
 }
 
 /// A descriptor's initial values; which are present depends on the family.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct TrackInitial {
     /// SFX: the descriptor's channel word.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -486,7 +487,7 @@ pub struct TrackInitial {
 }
 
 /// What the static walk of one track saw.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct TrackDecode {
     /// Distinct (position, call stack) states reached.
     pub reachable_instruction_states: u32,

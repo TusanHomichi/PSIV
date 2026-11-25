@@ -4,6 +4,7 @@
 
 use std::path::Path;
 
+use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::error::DataError;
@@ -15,7 +16,7 @@ pub const SOUND_TEST_FILE: &str = "title/sound_test.json";
 pub const SOUND_TEST_VERSION: u32 = 1;
 
 /// One entry in `SoundTestStrings` / `SoundTestData`.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct SoundTestTrack {
     /// Zero-based track index (`0..track_count`).
     pub index: usize,
@@ -31,7 +32,7 @@ pub struct SoundTestTrack {
 
 /// Retail's repeat-play override (`ps4.asm:88554-88561`): playing
 /// `MusicID_DungeonArrange2` twice in a row plays `MusicID_DungeonArrange2Cont`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct SoundTestRepeatOverride {
     /// Track `sound_id` that triggers the alternate track when repeated.
     pub when_sound_id: u8,
@@ -40,7 +41,7 @@ pub struct SoundTestRepeatOverride {
 }
 
 /// Validated `title/sound_test.json`.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct SoundTestFile {
     /// Pack format version (1).
     pub format_version: u32,

@@ -7,6 +7,7 @@
 
 use std::path::Path;
 
+use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::DataError;
@@ -18,7 +19,7 @@ pub const FUSION_ART_PATH: &str = "battle/art/fusion.json";
 pub const FUSION_FRAMES: usize = 5;
 
 /// The Fusion frames and the palette they draw in.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct FusionArt {
     /// The pack's format version.
     pub format_version: u32,
@@ -30,7 +31,7 @@ pub struct FusionArt {
 
 /// One frame: its PNG, and its top-left and size relative to the piece's
 /// position.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct FusionFrame {
     /// Its place in [`FusionArt::frames`].
     pub index: usize,

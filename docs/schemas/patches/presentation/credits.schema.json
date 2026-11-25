@@ -1,0 +1,326 @@
+{
+  "$defs": {
+    "CreditsArt": {
+      "additionalProperties": false,
+      "description": "Decompressed tiles, in upload order. Two colour indices per byte, high first.",
+      "properties": {
+        "compression": {
+          "description": "Retail decompressor used for this stream.",
+          "type": "string"
+        },
+        "consumed": {
+          "description": "Compressed bytes consumed, including the stream terminator.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rom_addr": {
+          "description": "Source address in the verified US retail ROM.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tiles": {
+          "description": "Packed 4bpp bytes, 32 per 8×8 tile, high nibble first.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "vram_destination": {
+          "description": "VRAM byte address where the tiles are uploaded.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "rom_addr",
+        "compression",
+        "consumed",
+        "vram_destination",
+        "tiles"
+      ],
+      "type": "object"
+    },
+    "CreditsCommands": {
+      "additionalProperties": false,
+      "description": "(TextCounter & $3F, opcode) pairs followed by $FF and its alignment byte.",
+      "properties": {
+        "bytes": {
+          "description": "Original record bytes, including terminator and command alignment.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "rom_addr": {
+          "description": "Source address in the verified US retail ROM.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "rom_addr",
+        "bytes"
+      ],
+      "type": "object"
+    },
+    "CreditsMapping": {
+      "additionalProperties": false,
+      "description": "Enigma's d0 is an additive base tile word, never a length.",
+      "properties": {
+        "base_tile": {
+          "description": "Additive pattern-name base passed in d0 to EniDecomp.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "columns": {
+          "description": "Number of tile columns consumed by PlaneMapToRAM.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "consumed": {
+          "description": "Compressed bytes consumed, including the stream terminator.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ram_destinations": {
+          "description": "All RAM destinations receiving this decoded stream.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "rom_addr": {
+          "description": "Source address in the verified US retail ROM.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rows": {
+          "description": "Number of tile rows in the complete decoded stream.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "words": {
+          "description": "Big-endian words, decoded without discarding attribute bits.",
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "rom_addr",
+        "consumed",
+        "base_tile",
+        "ram_destinations",
+        "columns",
+        "rows",
+        "words"
+      ],
+      "type": "object"
+    },
+    "CreditsPalette": {
+      "additionalProperties": false,
+      "description": "Palette buffer destination is a word index. Fade holds eight five-word rows.",
+      "properties": {
+        "rom_addr": {
+          "description": "Source address in the verified US retail ROM.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "start_word": {
+          "description": "First destination word in Palette_Table_Buffer.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "words": {
+          "description": "Big-endian words, decoded without discarding attribute bits.",
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "rom_addr",
+        "start_word",
+        "words"
+      ],
+      "type": "object"
+    },
+    "CreditsText": {
+      "additionalProperties": false,
+      "description": "An ordinal record, including its $FF terminator. Headers use the credit\ntile charset; names use the normal RunText2 font charset. No lossy string.",
+      "properties": {
+        "bytes": {
+          "description": "Original record bytes, including terminator and command alignment.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "rom_addr": {
+          "description": "Source address in the verified US retail ROM.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "rom_addr",
+        "bytes"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/presentation/credits.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "art": {
+      "description": "Small planet, large planet and credit font, in upload order.",
+      "items": {
+        "$ref": "#/$defs/CreditsArt"
+      },
+      "type": "array"
+    },
+    "commands": {
+      "description": "The two stage command tables, including their sentinels.",
+      "items": {
+        "$ref": "#/$defs/CreditsCommands"
+      },
+      "type": "array"
+    },
+    "fade": {
+      "additionalProperties": false,
+      "description": "Eight five-colour rows selected by CreditsFadeInOut.",
+      "properties": {
+        "rom_addr": {
+          "description": "Source address in the verified US retail ROM.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "start_word": {
+          "description": "First destination word in Palette_Table_Buffer.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "words": {
+          "description": "Big-endian words, decoded without discarding attribute bits.",
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "font_upload": {
+      "additionalProperties": false,
+      "description": "The signed tile upload command and its terminator.",
+      "properties": {
+        "art_rom_addr": {
+          "description": "Nemesis source pointer read from the upload command.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "destination_tile": {
+          "description": "Destination tile number passed to the VRAM address helper.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rom_addr": {
+          "description": "Source address in the verified US retail ROM.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "terminator": {
+          "description": "Signed negative upload sentinel.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "headers": {
+      "description": "Header records indexed by CredText_A >> 3.",
+      "items": {
+        "$ref": "#/$defs/CreditsText"
+      },
+      "type": "array"
+    },
+    "mappings": {
+      "description": "Five complete pattern-name streams in source-address order.",
+      "items": {
+        "$ref": "#/$defs/CreditsMapping"
+      },
+      "type": "array"
+    },
+    "names": {
+      "description": "Name records indexed by (CredText_B >> 3) * 4 plus line.",
+      "items": {
+        "$ref": "#/$defs/CreditsText"
+      },
+      "type": "array"
+    },
+    "palettes": {
+      "description": "Initial uploads to palette buffer words 0 and 48.",
+      "items": {
+        "$ref": "#/$defs/CreditsPalette"
+      },
+      "type": "array"
+    },
+    "source_rom_sha256": {
+      "description": "ROM identity shared with the enclosing manifest.",
+      "type": "string"
+    },
+    "version": {
+      "description": "Contract version, independent of the pack envelope.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (presentation/credits.json)",
+  "type": "object"
+}

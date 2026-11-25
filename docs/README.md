@@ -18,8 +18,8 @@ issues, not documents.
 
 ## Mod and contribute
 
-- [Modding guide](MODDING.md): which pack file holds what, and two worked
-  edits.
+- [Modding guide](MODDING.md): shareable mod folders, version compatibility
+  policy, published [JSON Schemas](schemas/), and worked edits.
 - [Contributing](../CONTRIBUTING.md): issues, labels, pull requests and
   where questions go.
 - [Build, run and verify](DEVELOPMENT.md): developer setup, the checks and

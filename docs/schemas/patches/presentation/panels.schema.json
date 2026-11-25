@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "PaletteRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "raw_hex": {
+          "type": "string"
+        },
+        "rom_addr": {
+          "type": "string"
+        },
+        "words": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "rom_addr",
+        "words",
+        "raw_hex"
+      ],
+      "type": "object"
+    },
+    "PanelRecordPatch": {
+      "additionalProperties": false,
+      "properties": {
+        "art_tile_a": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "art_tile_b": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "palette_a": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "palette_b": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/presentation/panels.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "palettes": {
+      "items": {
+        "$ref": "#/$defs/PaletteRecord"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "panels": {
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/PanelRecordPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/PanelRecordPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (presentation/panels.json)",
+  "type": "object"
+}

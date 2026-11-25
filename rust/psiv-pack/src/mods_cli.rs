@@ -1,10 +1,10 @@
-//! `psiv-pack mod <init|diff|check>` subcommands (#118, #789).
+//! `psiv-pack mod <init|diff|check|schema>` subcommands (#118, #789, #790).
 
 use std::path::{Path, PathBuf};
 
 use psiv_data::mods::{
-    DiffOptions, ModManifest, apply_mods, audit_mod_shareability, diff_packs_with_options,
-    init_mod_dir, load_mod,
+    DiffOptions, ModManifest, apply_mods, audit_mod_shareability, check_mod_schemas,
+    diff_packs_with_options, init_mod_dir, load_mod, write_mod_schemas,
 };
 use psiv_pack::PackError;
 
@@ -12,7 +12,8 @@ pub const MOD_USAGE: &str = "\
 usage:
   psiv-pack mod init <out-dir> --id <id> [--name <name>] [--version <ver>]
   psiv-pack mod diff <base-pack> <edited-pack> <out-dir> [--id <id>] [--name <name>] [--version <ver>] [--allow-derived]
-  psiv-pack mod check <base-pack> <mod-dir>...";
+  psiv-pack mod check <base-pack> <mod-dir>...
+  psiv-pack mod schema <out-dir> [--check]";
 
 pub fn run_mod(args: &[String]) -> Result<(), PackError> {
     let Some((sub, rest)) = args.split_first() else {
@@ -22,6 +23,7 @@ pub fn run_mod(args: &[String]) -> Result<(), PackError> {
         "init" => run_init(rest),
         "diff" => run_diff(rest),
         "check" => run_check(rest),
+        "schema" => run_schema(rest),
         _ => Err(PackError(MOD_USAGE.into())),
     }
 }
@@ -194,5 +196,31 @@ fn run_check(args: &[String]) -> Result<(), PackError> {
         applied.patched_files.len(),
         applied.replaced_assets.len()
     );
+    Ok(())
+}
+
+fn run_schema(args: &[String]) -> Result<(), PackError> {
+    let mut check_only = false;
+    let mut positional = Vec::new();
+    for arg in args {
+        match arg.as_str() {
+            "--check" => check_only = true,
+            flag if flag.starts_with("--") => {
+                return Err(PackError(format!("unknown flag {flag}\n{MOD_USAGE}")));
+            }
+            other => positional.push(other),
+        }
+    }
+    let [out_dir] = positional.as_slice() else {
+        return Err(PackError(MOD_USAGE.into()));
+    };
+    let dir = Path::new(out_dir);
+    if check_only {
+        check_mod_schemas(dir).map_err(|problems| PackError(problems.join("\n")))?;
+        println!("ok: schemas in {out_dir} match psiv-data");
+    } else {
+        let written = write_mod_schemas(dir).map_err(|e| PackError(e.to_string()))?;
+        println!("wrote {} schema file(s) to {out_dir}", written.len());
+    }
     Ok(())
 }
