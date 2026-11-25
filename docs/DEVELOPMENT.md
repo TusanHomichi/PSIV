@@ -396,10 +396,10 @@ name in `packTests` in `flake.nix`), the gate's own tests (every
 fixture extractor's tests (every `tests/test_oracle_battle_fixture*.py`: fake
 logs and the tracked fixtures), the certify pair table's tests (every
 `tests/test_certify*.py`: the tracked recipes and tapes), `godot-gl` (the shell's Godot
-opening a software OpenGL context under the shell's Xvfb, both started as
-`tools/certify.py` starts them, so a nixpkgs bump that breaks the captures'
-display fails at its PR:
-[#538](https://github.com/TusanHomichi/PSIV/issues/538)), plus ruff's syntax and undefined-name rules over the Python; the Rust
+opening both a software OpenGL/GLX context and a software OpenGL ES/EGL context
+under the shell's Xvfb, so a nixpkgs bump that breaks either display path fails
+at its PR: [#538](https://github.com/TusanHomichi/PSIV/issues/538),
+[#770](https://github.com/TusanHomichi/PSIV/issues/770)), plus ruff's syntax and undefined-name rules over the Python; the Rust
 build fetches the Genesis Plus GX sound core at the commit
 `oracle/build_core.sh` pins. The rest of the Python suite, much of which reads the ROM, the
 disassembly and the pack, does not run there, so a test in it cannot show it
