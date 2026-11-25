@@ -585,6 +585,24 @@ fn patch_schemas_validate_id_keyed_dialogue_shorthands_and_reject_bad_inputs() {
     )
     .expect_err("levels schema must reject nested typo HP");
     validate_against_schema(&abilities_schema, &json!({"combos": null})).unwrap();
+
+    // 5. Sprite sheet palette metadata (`palette.cram_line`) is modeled and strictly validated.
+    let sprite_schema = load_published_schema("patches/sprite.schema.json");
+    validate_against_schema(
+        &sprite_schema,
+        &json!({"sheets": {"Chaz": {"palette": {"cram_line": 2}}}}),
+    )
+    .unwrap();
+    validate_against_schema(
+        &sprite_schema,
+        &json!({"sheets": {"Chaz": {"palette": {"cram_line": 4}}}}),
+    )
+    .expect_err("sprite schema must reject out-of-range cram_line 4");
+    validate_against_schema(
+        &sprite_schema,
+        &json!({"sheets": {"Chaz": {"palette": {"cram_lin": 2}}}}),
+    )
+    .expect_err("sprite schema must reject typo palette.cram_lin");
 }
 
 #[test]
