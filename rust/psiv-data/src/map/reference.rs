@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// An `XYRangeJmpTbl` entry, by index and name.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RangeRef {
     /// Index into `XYRangeJmpTbl`, `0..15`.
     pub id: u8,

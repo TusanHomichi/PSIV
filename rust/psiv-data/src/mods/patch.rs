@@ -12,30 +12,192 @@
 //!   — rebuilds `segments`, `pages`, and `text` cleanly (preserving any leading
 //!   portrait control code unless `"keep_portrait": false`).
 
+use super::schema_check;
 use serde_json::{Map, Value, json};
+
+/// Pattern matching one or more pack-relative JSON paths.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FilePattern {
+    /// Exact pack-relative path (for example `"battle/enemies.json"`).
+    Exact(&'static str),
+    /// Directory prefix and filename suffix (for example `"maps/"` + `".json"`).
+    Prefix {
+        /// Leading directory prefix including trailing `/`.
+        prefix: &'static str,
+        /// Required filename suffix.
+        suffix: &'static str,
+    },
+}
+
+impl FilePattern {
+    pub(crate) fn matches(self, rel_file: &str) -> bool {
+        match self {
+            Self::Exact(exact) => rel_file == exact,
+            Self::Prefix { prefix, suffix } => {
+                rel_file.starts_with(prefix) && rel_file.ends_with(suffix)
+            }
+        }
+    }
+}
+
+/// Declarative specification of one ID-keyed pack table array.
+///
+/// Shared between [`array_key_field`] and the schema/pack guard tests so a
+/// field rename cannot silently drift away from the actual pack schema.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct KeyedArraySpec {
+    pub file: FilePattern,
+    pub path: &'static [&'static str],
+    pub key_field: &'static str,
+}
+
+pub(crate) const MAPS_JSON: FilePattern = FilePattern::Prefix {
+    prefix: "maps/",
+    suffix: ".json",
+};
+
+/// Every pack table array that supports sparse ID-keyed patching and diffing.
+pub(crate) const KEYED_ARRAYS: &[KeyedArraySpec] = &[
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/enemies.json"),
+        path: &["enemies"],
+        key_field: "id",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/equipment.json"),
+        path: &["items"],
+        key_field: "id",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/characters.json"),
+        path: &["characters"],
+        key_field: "character_id",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/abilities.json"),
+        path: &["techniques"],
+        key_field: "id",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/abilities.json"),
+        path: &["skills"],
+        key_field: "id",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/abilities.json"),
+        path: &["enemy_skills"],
+        key_field: "id",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/abilities.json"),
+        path: &["item_effects"],
+        key_field: "id",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/abilities.json"),
+        path: &["combos"],
+        key_field: "id",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/formations.json"),
+        path: &["formations"],
+        key_field: "id",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/formations.json"),
+        path: &["boss_formations"],
+        key_field: "event_battle_index",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/formations.json"),
+        path: &["map_bindings"],
+        key_field: "map_id",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/levels.json"),
+        path: &["characters"],
+        key_field: "character_id",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("battle/levels.json"),
+        path: &["characters", "*", "levels"],
+        key_field: "level",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("shops.json"),
+        path: &["inventories"],
+        key_field: "index",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("shops.json"),
+        path: &["inns"],
+        key_field: "index",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("shops.json"),
+        path: &["counters"],
+        key_field: "id",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("dialogue/trees.json"),
+        path: &["trees"],
+        key_field: "tree",
+    },
+    KeyedArraySpec {
+        file: FilePattern::Exact("dialogue/trees.json"),
+        path: &["trees", "*", "entries"],
+        key_field: "id",
+    },
+    KeyedArraySpec {
+        file: MAPS_JSON,
+        path: &["npcs"],
+        key_field: "index",
+    },
+    KeyedArraySpec {
+        file: MAPS_JSON,
+        path: &["warps"],
+        key_field: "index",
+    },
+    KeyedArraySpec {
+        file: MAPS_JSON,
+        path: &["treasure_chests"],
+        key_field: "index",
+    },
+    KeyedArraySpec {
+        file: MAPS_JSON,
+        path: &["interaction_areas"],
+        key_field: "index",
+    },
+    KeyedArraySpec {
+        file: MAPS_JSON,
+        path: &["map_updates"],
+        key_field: "index",
+    },
+];
 
 /// Returns the stable ID field name when `path` inside `rel_file` addresses a
 /// known ID-keyed record array.
-fn array_key_field(rel_file: &str, path: &[&str]) -> Option<&'static str> {
-    match (rel_file, path) {
-        ("battle/enemies.json", ["enemies"]) => Some("id"),
-        ("battle/equipment.json", ["items"]) => Some("id"),
-        ("battle/characters.json", ["characters"]) => Some("character_id"),
+pub(crate) fn array_key_field(rel_file: &str, path: &[&str]) -> Option<&'static str> {
+    KEYED_ARRAYS
+        .iter()
+        .find(|spec| spec.file.matches(rel_file) && spec.path == path)
+        .map(|spec| spec.key_field)
+}
+
+/// Returns `true` when `(rel_file, schema_path)` addresses a JSON object that
+/// maps arbitrary user/asset keys rather than fixed struct fields.
+fn is_dynamic_map(rel_file: &str, schema_path: &[&str]) -> bool {
+    match (rel_file, schema_path) {
+        (file, ["map_update_images" | "art_cycle_images"]) if MAPS_JSON.matches(file) => true,
+        ("dialogue/font.json", ["by_char"]) => true,
+        ("dialogue/window.json", ["roles"]) => true,
+        ("title/palette_cycle.json", ["frames"]) => true,
+        ("battle/art/enemy_attacks.json", ["enemies", "*", "palette_overrides"]) => true,
         (
-            "battle/abilities.json",
-            ["techniques" | "skills" | "enemy_skills" | "item_effects" | "combos"],
-        ) => Some("id"),
-        ("battle/formations.json", ["formations"]) => Some("id"),
-        ("battle/formations.json", ["boss_formations"]) => Some("event_battle_index"),
-        ("battle/formations.json", ["map_bindings"]) => Some("map_id"),
-        ("battle/levels.json", ["characters"]) => Some("character_id"),
-        ("battle/levels.json", ["characters", "*", "levels"]) => Some("level"),
-        ("shops.json", ["inventories" | "inns"]) => Some("index"),
-        ("shops.json", ["counters"]) => Some("id"),
-        ("dialogue/trees.json", ["trees"]) => Some("tree"),
-        ("dialogue/trees.json", ["trees", "*", "entries"]) => Some("id"),
-        (file, ["npcs" | "warps" | "treasures"]) if file.starts_with("maps/") => Some("index"),
-        _ => None,
+            "battle/art/enemies.json",
+            ["palette_layout", "fixed_colors" | "index_15_by_cram_line"],
+        ) => true,
+        _ => false,
     }
 }
 
@@ -43,57 +205,102 @@ fn is_dialogue_entry(rel_file: &str, path: &[&str]) -> bool {
     rel_file == "dialogue/trees.json" && path == ["trees", "*", "entries", "*"]
 }
 
+fn format_path(display_path: &[&str], key: &str) -> String {
+    if display_path.is_empty() {
+        key.to_owned()
+    } else {
+        format!("{}.{key}", display_path.join("."))
+    }
+}
+
 /// Applies `patch` onto `base` in place, using ID-keyed merging for known
-/// table arrays and RFC 7396 recursive merge for objects.
+/// table arrays and strict schema-validated merging for objects.
+///
+/// When `rel_file` has a `psiv-data` Rust schema and `base` is a complete file
+/// of that schema, unknown/ignored fields are rejected against the crate's own
+/// `Deserialize` implementation (allowing all modeled optional fields while
+/// rejecting typos even in newly inserted optional subtrees or replaced unkeyed
+/// arrays). For files outside `psiv-data` or partial JSON fixtures, keys absent
+/// from `base` (outside dynamic maps) are rejected directly.
 pub fn apply_json_patch(base: &mut Value, patch: &Value, rel_file: &str) -> Result<(), String> {
-    apply_at_slice(base, patch, rel_file, &[])
+    let baseline = schema_check::prepare_baseline(rel_file, base);
+    let strict_base_keys = baseline.is_none();
+    apply_at_slice(base, patch, rel_file, &[], &[], strict_base_keys)?;
+    if let Some(baseline) = &baseline {
+        schema_check::verify_patched(rel_file, baseline, base)?;
+    }
+    Ok(())
 }
 
 fn apply_at_slice(
     base: &mut Value,
     patch: &Value,
     rel_file: &str,
-    path: &[&str],
+    schema_path: &[&str],
+    display_path: &[&str],
+    strict_base_keys: bool,
 ) -> Result<(), String> {
-    if is_dialogue_entry(rel_file, path)
+    if is_dialogue_entry(rel_file, schema_path)
         && let (Value::Object(base_obj), Value::Object(patch_obj)) = (base as &mut Value, patch)
-        && (patch_obj.contains_key("replace") || patch_obj.contains_key("lines"))
     {
-        apply_dialogue_shorthand(base_obj, patch_obj)?;
-        for (k, v) in patch_obj {
-            if matches!(k.as_str(), "replace" | "lines" | "keep_portrait") {
-                continue;
-            }
-            if v.is_null() {
-                base_obj.remove(k);
-            } else {
-                base_obj.insert(k.clone(), v.clone());
-            }
+        if patch_obj.contains_key("keep_portrait") && !patch_obj.contains_key("lines") {
+            return Err(format!(
+                "{}: `keep_portrait` is only valid alongside `lines`",
+                format_path(display_path, "keep_portrait")
+            ));
         }
-        return Ok(());
+        if patch_obj.contains_key("replace") || patch_obj.contains_key("lines") {
+            apply_dialogue_shorthand(base_obj, patch_obj)?;
+            for (k, v) in patch_obj {
+                if matches!(k.as_str(), "replace" | "lines" | "keep_portrait") {
+                    continue;
+                }
+                apply_object_entry(
+                    base_obj,
+                    k,
+                    v,
+                    rel_file,
+                    schema_path,
+                    display_path,
+                    strict_base_keys,
+                )?;
+            }
+            return Ok(());
+        }
     }
 
     if let (Value::Array(base_arr), Some(key_field)) =
-        (base as &mut Value, array_key_field(rel_file, path))
+        (base as &mut Value, array_key_field(rel_file, schema_path))
     {
-        return apply_keyed_array(base_arr, patch, rel_file, path, key_field);
+        return apply_keyed_array(
+            base_arr,
+            patch,
+            rel_file,
+            schema_path,
+            display_path,
+            key_field,
+            strict_base_keys,
+        );
     }
 
     match (base, patch) {
         (Value::Object(base_map), Value::Object(patch_map)) => {
             for (k, v) in patch_map {
-                if v.is_null() {
-                    base_map.remove(k);
-                    continue;
-                }
-                if let Some(existing) = base_map.get_mut(k) {
-                    let mut next_path: Vec<&str> = path.to_vec();
-                    next_path.push(k.as_str());
-                    apply_at_slice(existing, v, rel_file, &next_path)?;
-                } else {
-                    base_map.insert(k.clone(), v.clone());
-                }
+                apply_object_entry(
+                    base_map,
+                    k,
+                    v,
+                    rel_file,
+                    schema_path,
+                    display_path,
+                    strict_base_keys,
+                )?;
             }
+            Ok(())
+        }
+        (Value::Array(base_arr), Value::Array(patch_arr)) if strict_base_keys => {
+            validate_replacement_array(base_arr, patch_arr, rel_file, schema_path, display_path)?;
+            *base_arr = patch_arr.clone();
             Ok(())
         }
         (target, replacement) => {
@@ -101,6 +308,165 @@ fn apply_at_slice(
             Ok(())
         }
     }
+}
+
+/// Recursive key-union schema inferred from existing base JSON values for files
+/// outside `psiv-data` (such as Godot-only `battle/art/*.json` files).
+enum BaseShape {
+    Object(std::collections::BTreeMap<String, BaseShape>),
+    Array(Box<BaseShape>),
+    Any,
+}
+
+impl BaseShape {
+    fn merge(&mut self, value: &Value) {
+        match value {
+            Value::Object(map) => {
+                if matches!(self, Self::Any) {
+                    *self = Self::Object(std::collections::BTreeMap::new());
+                }
+                if let Self::Object(fields) = self {
+                    for (k, v) in map {
+                        fields.entry(k.clone()).or_insert(Self::Any).merge(v);
+                    }
+                }
+            }
+            Value::Array(items) => {
+                if matches!(self, Self::Any) {
+                    *self = Self::Array(Box::new(Self::Any));
+                }
+                if let Self::Array(elem) = self {
+                    for item in items {
+                        elem.merge(item);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn validate_replacement_array(
+    base_arr: &[Value],
+    patch_arr: &[Value],
+    rel_file: &str,
+    schema_path: &[&str],
+    display_path: &[&str],
+) -> Result<(), String> {
+    let mut elem_shape = BaseShape::Any;
+    for item in base_arr {
+        elem_shape.merge(item);
+    }
+    let mut elem_schema: Vec<&str> = schema_path.to_vec();
+    elem_schema.push("*");
+    let prefix = display_path.join(".");
+    for (idx, item) in patch_arr.iter().enumerate() {
+        let item_path = if prefix.is_empty() {
+            format!("[{idx}]")
+        } else {
+            format!("{prefix}[{idx}]")
+        };
+        validate_value_against_shape(&elem_shape, item, rel_file, &elem_schema, &item_path)?;
+    }
+    Ok(())
+}
+
+fn validate_value_against_shape(
+    shape: &BaseShape,
+    value: &Value,
+    rel_file: &str,
+    schema_path: &[&str],
+    path: &str,
+) -> Result<(), String> {
+    match (shape, value) {
+        (BaseShape::Object(fields), Value::Object(map)) if !fields.is_empty() => {
+            if is_dynamic_map(rel_file, schema_path) {
+                return Ok(());
+            }
+            for (k, v) in map {
+                let next_path = if path.is_empty() {
+                    k.clone()
+                } else {
+                    format!("{path}.{k}")
+                };
+                let Some(child_shape) = fields.get(k) else {
+                    return Err(format!(
+                        "unknown field `{next_path}` (not present in base `{rel_file}`)"
+                    ));
+                };
+                let mut next_schema: Vec<&str> = schema_path.to_vec();
+                next_schema.push(k);
+                validate_value_against_shape(child_shape, v, rel_file, &next_schema, &next_path)?;
+            }
+            Ok(())
+        }
+        (BaseShape::Array(elem_shape), Value::Array(items)) => {
+            let mut next_schema: Vec<&str> = schema_path.to_vec();
+            next_schema.push("*");
+            for (idx, item) in items.iter().enumerate() {
+                let next_path = format!("{path}[{idx}]");
+                validate_value_against_shape(elem_shape, item, rel_file, &next_schema, &next_path)?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+fn apply_object_entry(
+    base_map: &mut Map<String, Value>,
+    k: &str,
+    v: &Value,
+    rel_file: &str,
+    schema_path: &[&str],
+    display_path: &[&str],
+    strict_base_keys: bool,
+) -> Result<(), String> {
+    let dynamic = is_dynamic_map(rel_file, schema_path);
+    if strict_base_keys && !base_map.contains_key(k) && !dynamic {
+        return Err(format!(
+            "unknown field `{}` (not present in base `{rel_file}`)",
+            format_path(display_path, k)
+        ));
+    }
+    if v.is_null() {
+        if dynamic {
+            base_map.remove(k);
+        } else {
+            match base_map.get(k) {
+                Some(Value::Null) => {}
+                Some(_) => {
+                    // Removing an existing non-null key matches `diff_json` encoding omitted
+                    // keys as `null` (so `#[serde(default)]` fields revert to default and
+                    // `Option<T>` fields become `None`).
+                    base_map.remove(k);
+                }
+                None => {
+                    // Keep absent keys as `null` so `schema_check::verify_patched` still
+                    // sees and rejects unknown null-valued keys like `{"HP": null}`.
+                    base_map.insert(k.to_owned(), Value::Null);
+                }
+            }
+        }
+        return Ok(());
+    }
+    if let Some(existing) = base_map.get_mut(k) {
+        let mut next_schema: Vec<&str> = schema_path.to_vec();
+        next_schema.push(k);
+        let mut next_display: Vec<&str> = display_path.to_vec();
+        next_display.push(k);
+        apply_at_slice(
+            existing,
+            v,
+            rel_file,
+            &next_schema,
+            &next_display,
+            strict_base_keys,
+        )?;
+    } else {
+        base_map.insert(k.to_owned(), v.clone());
+    }
+    Ok(())
 }
 
 fn value_key_string(record: &Value, key_field: &str) -> Option<String> {
@@ -116,11 +482,13 @@ fn apply_keyed_array(
     base_arr: &mut [Value],
     patch: &Value,
     rel_file: &str,
-    path: &[&str],
+    schema_path: &[&str],
+    display_path: &[&str],
     key_field: &str,
+    strict_base_keys: bool,
 ) -> Result<(), String> {
-    let mut child_path: Vec<&str> = path.to_vec();
-    child_path.push("*");
+    let mut child_schema: Vec<&str> = schema_path.to_vec();
+    child_schema.push("*");
 
     match patch {
         Value::Object(by_id) => {
@@ -130,10 +498,19 @@ fn apply_keyed_array(
                 }) else {
                     return Err(format!(
                         "{}: no record with {key_field}={id_key}",
-                        path.join(".")
+                        display_path.join(".")
                     ));
                 };
-                apply_at_slice(record, entry_patch, rel_file, &child_path)?;
+                let mut child_display: Vec<&str> = display_path.to_vec();
+                child_display.push(id_key.as_str());
+                apply_at_slice(
+                    record,
+                    entry_patch,
+                    rel_file,
+                    &child_schema,
+                    &child_display,
+                    strict_base_keys,
+                )?;
             }
             Ok(())
         }
@@ -142,7 +519,7 @@ fn apply_keyed_array(
                 let Some(id_key) = value_key_string(entry_patch, key_field) else {
                     return Err(format!(
                         "{}[{idx}]: patch entry must carry `{key_field}`",
-                        path.join(".")
+                        display_path.join(".")
                     ));
                 };
                 let Some(record) = base_arr.iter_mut().find(|item| {
@@ -150,16 +527,25 @@ fn apply_keyed_array(
                 }) else {
                     return Err(format!(
                         "{}: no record with {key_field}={id_key}",
-                        path.join(".")
+                        display_path.join(".")
                     ));
                 };
-                apply_at_slice(record, entry_patch, rel_file, &child_path)?;
+                let mut child_display: Vec<&str> = display_path.to_vec();
+                child_display.push(id_key.as_str());
+                apply_at_slice(
+                    record,
+                    entry_patch,
+                    rel_file,
+                    &child_schema,
+                    &child_display,
+                    strict_base_keys,
+                )?;
             }
             Ok(())
         }
         _ => Err(format!(
             "{}: expected an ID-keyed object or array of records carrying `{key_field}`",
-            path.join(".")
+            display_path.join(".")
         )),
     }
 }
@@ -226,10 +612,11 @@ fn apply_dialogue_shorthand(
     }
 
     if let Some(lines_val) = patch.get("lines") {
-        let keep_portrait = patch
-            .get("keep_portrait")
-            .and_then(Value::as_bool)
-            .unwrap_or(true);
+        let keep_portrait = match patch.get("keep_portrait") {
+            None => true,
+            Some(Value::Bool(flag)) => *flag,
+            Some(_) => return Err("dialogue `keep_portrait` must be a boolean".to_owned()),
+        };
         let pages_lines = parse_dialogue_lines(lines_val)?;
         let leading_portrait = if keep_portrait {
             entry

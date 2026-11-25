@@ -22,8 +22,11 @@ mod inventory;
 mod map_art;
 mod patch;
 mod profile;
+mod schema_check;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_strict;
 
 pub use diff::{DiffSummary, diff_packs};
 pub use inventory::{ModInventoryEntry, find_mod_dir_by_id, inspect_mods_dir, set_mod_enabled};
@@ -68,6 +71,7 @@ const fn default_enabled() -> bool {
 
 /// Metadata stored in `<mod-dir>/mod.json`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModManifest {
     /// Mod manifest format version; must equal [`MOD_FORMAT_VERSION`].
     pub format_version: u32,
@@ -564,6 +568,16 @@ pub fn apply_mods(
     }
     if out_dir.join("battle").join("enemies.json").is_file()
         && let Err(error) = BattleFiles::load(out_dir)
+    {
+        return Err(attribute_data_error(&error, out_dir, &provenance, mods));
+    }
+    if out_dir.join(crate::battle::COMMAND_UI_ART_PATH).is_file()
+        && let Err(error) = crate::battle::CommandUiArt::load(out_dir)
+    {
+        return Err(attribute_data_error(&error, out_dir, &provenance, mods));
+    }
+    if out_dir.join(crate::battle::DAMAGE_DIGIT_ART_PATH).is_file()
+        && let Err(error) = crate::battle::DamageDigitArt::load(out_dir)
     {
         return Err(attribute_data_error(&error, out_dir, &provenance, mods));
     }

@@ -32,11 +32,34 @@ fn mod_init_diff_and_check_round_trip_and_refuse_invalid_mod() {
     );
     assert!(init_dir.join("mod.json").is_file());
 
-    // 2. Patch enemy 10 HP and check via `psiv-pack mod check`
+    // 2. Patch enemy 10 HP and a real map's treasure_chests by index, then `psiv-pack mod check`
+    let base_game = psiv_data::GameData::load(&pack).unwrap();
+    let (chest_map_id, chest_map) = base_game
+        .maps()
+        .find(|(_, m)| !m.treasure_chests.is_empty())
+        .expect("retail pack has maps with treasure chests");
+    let chest_map_rel = base_game
+        .manifest()
+        .entry(chest_map_id)
+        .unwrap()
+        .json
+        .clone();
+    let chest = &chest_map.treasure_chests[0];
+
     fs::create_dir_all(init_dir.join("patches/battle")).unwrap();
     fs::write(
         init_dir.join("patches/battle/enemies.json"),
         r#"{"enemies":{"10":{"hp":77}}}"#,
+    )
+    .unwrap();
+    let chest_patch_file = init_dir.join("patches").join(&chest_map_rel);
+    fs::create_dir_all(chest_patch_file.parent().unwrap()).unwrap();
+    fs::write(
+        &chest_patch_file,
+        format!(
+            r#"{{"treasure_chests":{{"{}":{{"white_chest":{}}}}}}}"#,
+            chest.index, !chest.white_chest
+        ),
     )
     .unwrap();
     let check = Command::new(binary)
@@ -52,7 +75,7 @@ fn mod_init_diff_and_check_round_trip_and_refuse_invalid_mod() {
     );
     let stdout = String::from_utf8_lossy(&check.stdout);
     assert!(
-        stdout.contains("ok: 1 mod(s), 1 patched file(s)"),
+        stdout.contains("ok: 1 mod(s), 2 patched file(s)"),
         "{stdout}"
     );
 
@@ -74,6 +97,12 @@ fn mod_init_diff_and_check_round_trip_and_refuse_invalid_mod() {
         diff.status.success(),
         "mod diff failed: {}",
         String::from_utf8_lossy(&diff.stderr)
+    );
+    let diffed_chest_patch = fs::read_to_string(diff_dir.join("patches").join(&chest_map_rel))
+        .expect("diffed mod must emit map treasure_chests patch");
+    assert!(
+        diffed_chest_patch.contains("\"treasure_chests\""),
+        "{diffed_chest_patch}"
     );
 
     let recheck = Command::new(binary)
@@ -105,6 +134,46 @@ fn mod_init_diff_and_check_round_trip_and_refuse_invalid_mod() {
     assert!(stderr.contains("starter"), "{stderr}");
     assert!(stderr.contains("battle/enemies.json"), "{stderr}");
     assert!(stderr.contains("70000"), "{stderr}");
+
+    // 5. Negative control: typo patch field ("HP": 99) fails with exit code 2 naming mod, file, and field
+    fs::write(
+        init_dir.join("patches/battle/enemies.json"),
+        r#"{"enemies":{"10":{"HP":99}}}"#,
+    )
+    .unwrap();
+    let bad_typo = Command::new(binary)
+        .args(["mod", "check"])
+        .arg(&pack)
+        .arg(&init_dir)
+        .output()
+        .unwrap();
+    assert_eq!(bad_typo.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&bad_typo.stderr);
+    assert!(stderr.contains("starter"), "{stderr}");
+    assert!(stderr.contains("battle/enemies.json"), "{stderr}");
+    assert!(
+        stderr.contains("enemies[10].HP") || stderr.contains("enemies.10.HP"),
+        "{stderr}"
+    );
+
+    // 6. Negative control: unknown field in mod.json fails with exit code 2 naming mod.json and field
+    let bad_manifest_dir = scratch.join("bad-manifest");
+    fs::create_dir_all(&bad_manifest_dir).unwrap();
+    fs::write(
+        bad_manifest_dir.join("mod.json"),
+        r#"{"format_version":1,"id":"bad-manifest","name":"Bad","version":"1.0.0","typo_flag":true}"#,
+    )
+    .unwrap();
+    let bad_manifest = Command::new(binary)
+        .args(["mod", "check"])
+        .arg(&pack)
+        .arg(&bad_manifest_dir)
+        .output()
+        .unwrap();
+    assert_eq!(bad_manifest.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&bad_manifest.stderr);
+    assert!(stderr.contains("mod.json"), "{stderr}");
+    assert!(stderr.contains("typo_flag"), "{stderr}");
 
     let _ = fs::remove_dir_all(&scratch);
 }

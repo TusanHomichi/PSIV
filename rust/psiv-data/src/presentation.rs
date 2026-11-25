@@ -49,7 +49,7 @@ pub struct ScenePalettes {
 }
 
 #[derive(Deserialize)]
-struct File {
+pub(crate) struct File {
     #[serde(default)]
     palettes: Vec<PaletteRecord>,
     #[serde(default)]

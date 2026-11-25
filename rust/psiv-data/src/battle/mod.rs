@@ -398,7 +398,7 @@ pub struct NamedId {
 
 mod abilities;
 mod animations;
-mod backgrounds;
+pub(crate) mod backgrounds;
 mod command_art;
 mod damage_art;
 mod enemies;

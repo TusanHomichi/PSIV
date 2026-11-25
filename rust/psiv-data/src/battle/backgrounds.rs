@@ -44,7 +44,7 @@ pub struct BattleBackgrounds {
 }
 
 #[derive(Deserialize)]
-struct File {
+pub(crate) struct File {
     format_version: u32,
     selection: Selection,
 }

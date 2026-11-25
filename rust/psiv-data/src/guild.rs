@@ -24,7 +24,7 @@ pub struct GuildFile {
 pub type GuildLine = Vec<[u8; 3]>;
 
 #[derive(Deserialize)]
-struct GuildJson {
+pub(crate) struct GuildJson {
     format_version: u32,
     kind: String,
     rom_sha256: RomHash,

@@ -49,6 +49,7 @@ pub struct Enemy {
 /// spelling.
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EnemyStats {
     pub strength: u8,
     pub mental: u8,
@@ -61,6 +62,7 @@ pub struct EnemyStats {
 
 /// The two bytes `Battle_SetupEnemyData` reuses the TP slots for.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EnemyAttack {
     /// What element a plain attack carries.
     pub element: NamedId,
@@ -70,6 +72,7 @@ pub struct EnemyAttack {
 
 /// `$50`..`$5F` of the in-battle stats struct.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EnemyAi {
     /// Four condition ids, `0` terminating.
     pub condition_ids: Vec<u8>,
@@ -81,6 +84,7 @@ pub struct EnemyAi {
 
 /// What an enemy contributes to the victory pools.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Rewards {
     /// Added to `$FFFF41CE`.
     pub experience: u16,

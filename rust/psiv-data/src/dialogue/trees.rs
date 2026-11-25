@@ -21,6 +21,7 @@ pub struct WorldInteractionTrees {
 
 /// The `cmpi.b` / `bcs` branch before the world table lookup.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FirstWorldOverride {
     /// Inclusive unsigned entry cutoff read from the cartridge instruction.
     pub entry_from: u8,
@@ -30,6 +31,7 @@ pub struct FirstWorldOverride {
 
 /// One `(event_flag, entry)` row of `TalkOption_DialogueIDs` (`$05DF52`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TalkOptionEntry {
     /// Event flag tested in priority order; first set flag wins.
     pub flag: u16,
@@ -186,6 +188,7 @@ pub struct DialogueEntry {
 
 /// One windowful of text.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Page {
     /// One or two lines, already broken exactly as the cartridge breaks them.
     pub lines: Vec<String>,

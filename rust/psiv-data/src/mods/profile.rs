@@ -25,6 +25,7 @@ const MAX_PLAIN_PROFILE_SLUG_LEN: usize = 48;
 
 /// One active mod recorded in `mod_profile.json`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModProfileEntry {
     /// Stable mod id.
     pub id: String,
@@ -36,6 +37,7 @@ pub struct ModProfileEntry {
 
 /// Sidecar metadata stored in `mod_profile.json` beside modded `.sram` files.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModProfile {
     /// Profile sidecar format version (`MOD_PROFILE_FORMAT_VERSION`).
     pub format_version: u32,

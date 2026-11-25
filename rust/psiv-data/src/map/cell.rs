@@ -53,6 +53,7 @@ impl CellPos {
 
 /// A cell position as the pack spells it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Cell {
     /// Column, in cells.
     pub x_cell: u32,
@@ -69,6 +70,7 @@ impl Cell {
 
 /// A half-open rectangle of collision cells: `x..x + width`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CellRect {
     /// Leftmost column, in cells.
     pub x: u32,

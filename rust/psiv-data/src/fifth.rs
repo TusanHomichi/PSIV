@@ -36,7 +36,7 @@ pub struct FifthRowRecord {
 }
 
 #[derive(Deserialize)]
-struct FifthJson {
+pub(crate) struct FifthJson {
     format_version: u32,
     kind: String,
     rom_sha256: RomHash,

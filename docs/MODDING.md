@@ -134,7 +134,7 @@ that key (`[{"id": 10, "hp": 99}]`).
 | Techniques, skills, enemy skills, combos | `battle/abilities.json` | `techniques`, `skills`, `enemy_skills`, `item_effects`, `combos` → `id` | `rust/psiv-data/src/battle/abilities.rs` |
 | Level-up tables | `battle/levels.json` | `characters` → `character_id`, `levels` → `level` | `rust/psiv-data/src/battle/levels.rs` |
 | Shops and inns | `shops.json` | `inventories` → `index`, `inns` → `index`, `counters` → `id` | `rust/psiv-data/src/shops.rs` |
-| Maps: collision, warps, NPCs, treasures | `maps/<id>_<symbol>.json` (art: `.png`, `_over.png`) | `npcs`, `warps`, `treasures` → `index` | `rust/psiv-data/src/map.rs` |
+| Maps: collision, warps, NPCs, treasures | `maps/<id>_<symbol>.json` (art: `.png`, `_over.png`) | `npcs`, `warps`, `treasure_chests`, `interaction_areas`, `map_updates` → `index` | `rust/psiv-data/src/map.rs` |
 | New-game starting state | `game_start.json` | recursive JSON merge | `rust/psiv-data/src/new_game.rs` |
 | Sprites & sound | `sprites/`, `sound/` | recursive JSON merge + replacement files in `assets/` | `rust/psiv-data/src/sprites.rs`, `sound/schema.rs` |
 

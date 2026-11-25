@@ -37,6 +37,7 @@ pub struct SheetFile {
 
 /// One CRAM-line-3 vehicle palette used by one or more maps.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct VehiclePaletteVariant {
     /// Map ids whose vehicle sprites use this palette.
     pub map_ids: Vec<u16>,
@@ -76,6 +77,7 @@ pub struct Sheet {
 
 /// One animation sequence.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Sequence {
     /// Frames in play order.
     pub frames: Vec<SequenceFrame>,
@@ -89,6 +91,7 @@ pub struct Sequence {
 
 /// One step of a sequence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct SequenceFrame {
     /// Frame index into the strip.
     pub index: u32,

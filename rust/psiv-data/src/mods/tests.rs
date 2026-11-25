@@ -867,7 +867,8 @@ fn inspect_mods_dir_lists_enabled_disabled_and_invalid_and_set_enabled_persists(
     init_mod_dir(&dir.join("beta-dup"), &beta_on).unwrap();
     assert_eq!(find_mod_dir_by_id(&dir, "beta"), None);
 
-    // Toggling preserves any extra/unmodeled keys in mod.json instead of dropping them.
+    // Disabling a mod with unknown keys preserves its extra keys so the user can recover
+    // in-game without losing metadata, unblocks discover_mods, and re-enabling it is refused.
     let extra_dir = dir.join("extra-meta");
     fs::create_dir_all(&extra_dir).unwrap();
     fs::write(
@@ -875,6 +876,10 @@ fn inspect_mods_dir_lists_enabled_disabled_and_invalid_and_set_enabled_persists(
         r#"{"format_version":1,"id":"extra-meta","name":"Extra","version":"1.0.0","enabled":true,"homepage":"https://example.invalid/mod","custom_nested":{"tag":"v1"}}"#,
     )
     .unwrap();
+    assert_eq!(
+        find_mod_dir_by_id(&dir, &extra_dir.display().to_string()),
+        Some(extra_dir.clone())
+    );
     let toggled = set_mod_enabled(&extra_dir, false).unwrap();
     assert!(!toggled.enabled);
     let saved: serde_json::Value =
@@ -883,6 +888,66 @@ fn inspect_mods_dir_lists_enabled_disabled_and_invalid_and_set_enabled_persists(
     assert_eq!(saved["enabled"], serde_json::Value::Bool(false));
     assert_eq!(saved["homepage"], "https://example.invalid/mod");
     assert_eq!(saved["custom_nested"]["tag"], "v1");
+    let reenable_extra_err = set_mod_enabled(&extra_dir, true)
+        .expect_err("enabling a mod with unknown manifest keys must be refused");
+    assert!(
+        reenable_extra_err.detail.contains("unknown field"),
+        "{reenable_extra_err}"
+    );
+    fs::remove_dir_all(dir.join("beta-dup")).unwrap();
+    let discovered = discover_mods(&dir).unwrap();
+    assert_eq!(
+        discovered
+            .iter()
+            .map(|m| m.manifest.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["beta"]
+    );
 
     let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn strict_manifest_and_patch_fields_fail_closed_without_rom() {
+    let scratch = temp_dir("strict-no-rom");
+    let bad_mod = scratch.join("bad-manifest");
+    fs::create_dir_all(&bad_mod).unwrap();
+    fs::write(
+        bad_mod.join(MOD_MANIFEST_FILE),
+        r#"{"format_version":1,"id":"bad","name":"Bad","version":"1.0.0","enabled_flag":true}"#,
+    )
+    .unwrap();
+    let err = load_mod(&bad_mod).expect_err("unknown field in mod.json must be rejected");
+    assert!(err.detail.contains("enabled_flag"), "{err}");
+
+    let bad_profile = scratch.join("bad-profile");
+    fs::create_dir_all(&bad_profile).unwrap();
+    fs::write(
+        bad_profile.join(MOD_PROFILE_FILE),
+        r#"{"format_version":1,"mods":[],"extra_key":1}"#,
+    )
+    .unwrap();
+    let perr = ModProfile::read_from_dir(&bad_profile)
+        .expect_err("unknown field in mod_profile.json must be rejected");
+    assert!(perr.detail.contains("extra_key"), "{perr}");
+
+    let mut enemies = json!({"enemies": [{"id": 10, "hp": 25}]});
+    let typo_err = apply_json_patch(
+        &mut enemies,
+        &json!({"enemies": {"10": {"HP": 99}}}),
+        "battle/enemies.json",
+    )
+    .expect_err("unknown patch field HP must fail closed");
+    assert!(typo_err.contains("enemies.10.HP"), "{typo_err}");
+
+    let mut map = json!({"treasure_chests": [{"index": 0, "meseta": 100}]});
+    apply_json_patch(
+        &mut map,
+        &json!({"treasure_chests": {"0": {"meseta": 777}}}),
+        "maps/010_Piata.json",
+    )
+    .unwrap();
+    assert_eq!(map["treasure_chests"][0]["meseta"], 777);
+
+    let _ = fs::remove_dir_all(&scratch);
 }

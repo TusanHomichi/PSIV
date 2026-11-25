@@ -317,6 +317,7 @@ pub struct ElementRef {
 /// than theoretical.
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EquipmentBonuses {
     pub strength: i8,
     pub mental: i8,
