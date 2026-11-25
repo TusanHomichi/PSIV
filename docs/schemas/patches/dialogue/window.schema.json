@@ -1,0 +1,420 @@
+{
+  "$defs": {
+    "MenuWindow": {
+      "additionalProperties": false,
+      "description": "One `WinGroup_Menu` record, in screen cells with the frame included.",
+      "properties": {
+        "height_cells": {
+          "description": "Height in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "index": {
+          "description": "Record index in the group.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width_cells": {
+          "description": "Width in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x_cell": {
+          "description": "Left column.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_cell": {
+          "description": "Top row.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "width_cells",
+        "height_cells",
+        "x_cell",
+        "y_cell"
+      ],
+      "type": "object"
+    },
+    "PixelRect": {
+      "additionalProperties": false,
+      "description": "A rect in Genesis screen pixels.",
+      "properties": {
+        "height": {
+          "description": "Height.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "width": {
+          "description": "Width.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "x": {
+          "description": "Left edge.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "y": {
+          "description": "Top edge.",
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
+    "WindowRecord": {
+      "additionalProperties": false,
+      "description": "One `WinGroup_Dialogue` record.",
+      "properties": {
+        "height_cells": {
+          "description": "Height in cells, frame included.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "index": {
+          "description": "Record index in the group.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "The pack's name for it: `controls`, `dialogue`, `portrait`, `yes_no`.",
+          "type": "string"
+        },
+        "rect": {
+          "$ref": "#/$defs/PixelRect",
+          "description": "Its rect in Genesis screen pixels, frame included."
+        },
+        "width_cells": {
+          "description": "Width in cells, frame included.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "name",
+        "rect",
+        "width_cells",
+        "height_cells"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/dialogue/window.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "format_version": {
+      "description": "Pack format; checked against [`DIALOGUE_FORMAT_VERSION`].",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "geometry": {
+      "additionalProperties": false,
+      "description": "Border thickness, cell size, and the open animation.",
+      "properties": {
+        "border_cells": {
+          "description": "Border thickness in cells: 1.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cell_pixels": {
+          "description": "Cell size in pixels: 8.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "open_animation": {
+          "additionalProperties": false,
+          "description": "How the frame grows when it opens.",
+          "properties": {
+            "axis": {
+              "description": "`\"horizontal\"`.",
+              "type": "string"
+            },
+            "frames_per_step": {
+              "description": "Frames per step: 1.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "from": {
+              "description": "`\"center\"`.",
+              "type": "string"
+            },
+            "step_cells": {
+              "description": "Cells added per step: 2.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "shadow": {
+          "description": "Whether the frame casts a shadow: it does not.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "menu_windows": {
+      "description": "Every window in `WinGroup_Menu`, the camp menu's group, in record\norder: the record a routine passes `Window_Create` is its index.",
+      "items": {
+        "$ref": "#/$defs/MenuWindow"
+      },
+      "type": "array"
+    },
+    "palette": {
+      "additionalProperties": false,
+      "description": "`Pal_Init_Line_3`, the CRAM line the whole window renders in.",
+      "properties": {
+        "colors": {
+          "description": "Sixteen RGB triples.",
+          "items": {
+            "items": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "fill_index": {
+          "description": "The index the interior is filled with: $E.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "png": {
+      "description": "The tile strip, pack-root-relative. Nothing in it is transparent.",
+      "type": "string"
+    },
+    "portrait_window": {
+      "additionalProperties": false,
+      "description": "The portrait box.",
+      "properties": {
+        "rect": {
+          "additionalProperties": false,
+          "description": "Where the 48x48 picture goes, in Genesis screen pixels.",
+          "properties": {
+            "height": {
+              "description": "Height.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "width": {
+              "description": "Width.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "x": {
+              "description": "Left edge.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "y": {
+              "description": "Top edge.",
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "window": {
+          "description": "Index into [`WindowFile::windows`].",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "roles": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "description": "One role's tile in the strip, with the flips its plane word carries.",
+        "properties": {
+          "flip_h": {
+            "description": "Whether the plane word flips it horizontally.",
+            "type": "boolean"
+          },
+          "flip_v": {
+            "description": "Whether the plane word flips it vertically.",
+            "type": "boolean"
+          },
+          "height": {
+            "description": "8.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "priority": {
+            "description": "Whether the plane word sets priority (all nine do).",
+            "type": "boolean"
+          },
+          "tile": {
+            "description": "Tile index in the blob, which is also the cell index in the strip.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "width": {
+            "description": "8.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "x": {
+            "description": "X of the cell in the strip, in pixels.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "description": "Y of the cell in the strip, in pixels.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "description": "The nine tile roles, keyed by [`Role::as_str`].",
+      "type": "object"
+    },
+    "text_window": {
+      "additionalProperties": false,
+      "description": "The message box.",
+      "properties": {
+        "chars_per_line": {
+          "description": "32.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "glyph_height": {
+          "description": "16.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "glyph_width": {
+          "description": "8.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "interior": {
+          "additionalProperties": false,
+          "description": "The text area in cells.",
+          "properties": {
+            "height_cells": {
+              "description": "Height in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "width_cells": {
+              "description": "Width in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x_cell": {
+              "description": "Left edge in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "y_cell": {
+              "description": "Top edge in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "lines_per_window": {
+          "description": "2.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rect": {
+          "additionalProperties": false,
+          "description": "The whole box including its frame, in Genesis screen pixels.",
+          "properties": {
+            "height": {
+              "description": "Height.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "width": {
+              "description": "Width.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "x": {
+              "description": "Left edge.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "y": {
+              "description": "Top edge.",
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "window": {
+          "description": "Index into [`WindowFile::windows`].",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "windows": {
+      "description": "Every window in `WinGroup_Dialogue`, in record order.",
+      "items": {
+        "$ref": "#/$defs/WindowRecord"
+      },
+      "type": "array"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (dialogue/window.json)",
+  "type": "object"
+}

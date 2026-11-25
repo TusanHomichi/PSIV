@@ -1,9 +1,10 @@
 //! `battle/formations.json`: formation records and the encounter tables.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// `battle/formations.json`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct FormationsFile {
     /// The pack format that wrote this.
     pub format_version: u32,
@@ -32,7 +33,7 @@ pub struct FormationsFile {
 }
 
 /// One map's row in `Battle_EnemyFormationIndexes`, plus how to read it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct MapBinding {
     /// The map.
     pub map_id: u16,
@@ -64,7 +65,7 @@ pub struct MapBinding {
 }
 
 /// One overworld's formation-group grid.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct PositionGrid {
     /// The binding key (`motavia` / `dezolis`).
     pub name: String,
@@ -100,7 +101,7 @@ pub struct PositionGrid {
 }
 
 /// A map reference as the battle files spell it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct NamedMapRef {
     /// Map id.
     pub id: u16,
@@ -110,7 +111,7 @@ pub struct NamedMapRef {
 }
 
 /// One `$FF`-terminated formation record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Formation {
     /// Its index across the four normal data blocks.
     ///
@@ -162,7 +163,7 @@ impl Formation {
 /// `Enemy_Formation_Data` (`$FFFF41F0`, whose second byte is
 /// `Enemy_Run_Chance`) and calls `loc_14D46` (`ps4.asm:29735`) to rebuild the
 /// enemy side, so every header byte takes effect, not just the enemies.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct InlineFormation {
     /// The disassembly label of the record's bytes (`loc_23D00`): the name the
     /// engine looks the record up by.
@@ -177,7 +178,7 @@ pub struct InlineFormation {
 }
 
 /// One enemy slot of a formation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct FormationEnemy {
     /// Which of the four enemy slots, one-based.
     pub slot: u8,
@@ -188,7 +189,7 @@ pub struct FormationEnemy {
 }
 
 /// `Battle_FormationIndexes`, the tables a random encounter rolls into.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EncounterGroups {
     /// How many groups there are.
     pub group_count: u32,
@@ -200,7 +201,7 @@ pub struct EncounterGroups {
 }
 
 /// One encounter group.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EncounterGroup {
     /// Its index, as `Battle_EnemyFormationIndexes` stores it per map.
     pub group: u32,

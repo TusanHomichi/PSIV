@@ -9,6 +9,7 @@
 
 use crate::ids::{MapId, RomHash};
 use crate::map::MapRef;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The pack format this build reads. A pack that declares anything else is
@@ -19,7 +20,7 @@ use serde::{Deserialize, Serialize};
 pub const PACK_FORMAT_VERSION: u32 = 2;
 
 /// The pack index.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Manifest {
     /// Bumped whenever the packer changes the on-disk shape.
     pub format_version: u32,
@@ -93,7 +94,7 @@ impl Manifest {
 /// The pack records its hash and `psiv-data` refuses a mismatched pack set --
 /// the same fail-closed hash discipline as everything else in the project
 /// (docs/EXTRACTION.md, "Supported ROM").
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct RomInfo {
     /// SHA-256 of the ROM image.
     pub sha256: RomHash,
@@ -102,7 +103,7 @@ pub struct RomInfo {
 }
 
 /// One packed map: what it is, where its files are, and how big it is.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct MapEntry {
     /// The map's id.
     pub id: MapId,
@@ -134,7 +135,7 @@ pub struct MapEntry {
 }
 
 /// One map the packer left out, and the reason.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct SkippedMap {
     /// The map's id.
     pub id: MapId,
@@ -226,7 +227,7 @@ mod tests {
 /// The manifest's post-opening placement and flags. The separate
 /// `game_start.json` initializer also supplies money, settings, and the
 /// transient party used while the opening plays.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GameStartSummary {
     /// The first controllable map.
     pub map: GameStartMap,
@@ -257,7 +258,7 @@ pub struct GameStartSummary {
 }
 
 /// The starting map reference.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GameStartMap {
     /// Map id.
     pub id: u16,
@@ -267,7 +268,7 @@ pub struct GameStartMap {
 }
 
 /// The starting facing.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GameStartFacing {
     /// Raw byte.
     pub id: u8,

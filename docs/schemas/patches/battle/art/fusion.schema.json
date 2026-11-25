@@ -1,0 +1,74 @@
+{
+  "$defs": {
+    "FusionFrame": {
+      "additionalProperties": false,
+      "description": "One frame: its PNG, and its top-left and size relative to the piece's\nposition.",
+      "properties": {
+        "index": {
+          "description": "Its place in [`FusionArt::frames`].",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "origin": {
+          "description": "Top-left relative to the piece's position, in pixels.",
+          "items": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "png": {
+          "description": "The PNG, relative to the pack.",
+          "type": "string"
+        },
+        "size": {
+          "description": "Width and height in pixels.",
+          "items": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "index",
+        "png",
+        "origin",
+        "size"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/battle/art/fusion.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "format_version": {
+      "description": "The pack's format version.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "frames": {
+      "description": "The frames, in the order the routine selects them.",
+      "items": {
+        "$ref": "#/$defs/FusionFrame"
+      },
+      "type": "array"
+    },
+    "palette_enemy_id": {
+      "description": "The enemy whose palette the frames use: the casting Zol slug.",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (battle/art/fusion.json)",
+  "type": "object"
+}

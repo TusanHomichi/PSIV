@@ -9,8 +9,7 @@ use std::process::ExitCode;
 
 use psiv_pack::{PackError, Rom, SECTIONS, build_pack, claims, default_workers, install};
 
-const USAGE: &str =
-    "usage: psiv-pack <rom> <pack> | psiv-pack --claims | psiv-pack mod <init|diff|check> ...";
+const USAGE: &str = "usage: psiv-pack <rom> <pack> | psiv-pack --claims | psiv-pack mod <init|diff|check|schema> ...";
 
 fn run(args: &[String]) -> Result<(), PackError> {
     if let Some((first, rest)) = args.split_first()

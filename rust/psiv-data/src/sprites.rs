@@ -9,11 +9,12 @@
 
 use std::collections::BTreeMap;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 /// One sprite-sheet index file (`sprites/party.json` or `sprites/npcs.json`).
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct SheetFile {
     /// Pack format; checked against [`crate::PACK_FORMAT_VERSION`].
     pub format_version: u32,
@@ -32,11 +33,12 @@ pub struct SheetFile {
     /// What the pack carries and the game doesn't read (`field_objects`,
     /// `palette_source`): it has no typed home yet.
     #[serde(flatten)]
+    #[schemars(skip)]
     pub research: Map<String, Value>,
 }
 
 /// One CRAM-line-3 vehicle palette used by one or more maps.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct VehiclePaletteVariant {
     /// Map ids whose vehicle sprites use this palette.
@@ -50,7 +52,7 @@ pub struct VehiclePaletteVariant {
 }
 
 /// One frame-strip sheet.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct Sheet {
     /// Sheet id: a party member's name, or an NPC art id like
     /// `NPCType2_a2bfdc9c` (symbol + content hash).
@@ -72,11 +74,12 @@ pub struct Sheet {
     /// What the pack carries and the game doesn't read (the palette, mirrors,
     /// art provenance, placements): it has no typed home yet.
     #[serde(flatten)]
+    #[schemars(skip)]
     pub research: Map<String, Value>,
 }
 
 /// One animation sequence.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Sequence {
     /// Frames in play order.
@@ -90,7 +93,7 @@ pub struct Sequence {
 }
 
 /// One step of a sequence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SequenceFrame {
     /// Frame index into the strip.

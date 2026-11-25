@@ -6,10 +6,11 @@
 
 use super::cell::CellPos;
 use super::facing::{Facing, SpriteFacing};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// A field object: townsfolk, guards, the ones that just stand there.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Npc {
     /// Position in this map's object list.
     pub index: u32,
@@ -75,7 +76,7 @@ impl Npc {
 }
 
 /// An object's binding to a sprite sheet.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SpriteRef {
     /// Sheet id inside the index file named by `sheets`.

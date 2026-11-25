@@ -1,0 +1,278 @@
+{
+  "$defs": {
+    "EquipmentPatch": {
+      "additionalProperties": false,
+      "description": "One 22-byte `InventoryData` record, in the parts battle reads.",
+      "properties": {
+        "bonuses": {
+          "additionalProperties": false,
+          "description": "Record bytes `$B`..`$11`. Signed: retail bonuses run from `-10` to\n`+127`.",
+          "properties": {
+            "agility": {
+              "format": "int8",
+              "maximum": 127,
+              "minimum": -128,
+              "type": "integer"
+            },
+            "attack": {
+              "format": "int8",
+              "maximum": 127,
+              "minimum": -128,
+              "type": "integer"
+            },
+            "defense": {
+              "format": "int8",
+              "maximum": 127,
+              "minimum": -128,
+              "type": "integer"
+            },
+            "dexterity": {
+              "format": "int8",
+              "maximum": 127,
+              "minimum": -128,
+              "type": "integer"
+            },
+            "magic_defense": {
+              "format": "int8",
+              "maximum": 127,
+              "minimum": -128,
+              "type": "integer"
+            },
+            "mental": {
+              "format": "int8",
+              "maximum": 127,
+              "minimum": -128,
+              "type": "integer"
+            },
+            "strength": {
+              "format": "int8",
+              "maximum": 127,
+              "minimum": -128,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "display_name": {
+          "default": null,
+          "description": "The cartridge's own name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "element": {
+          "additionalProperties": false,
+          "description": "Record byte `$12`, with the role its type gives it.",
+          "properties": {
+            "id": {
+              "description": "The element id, `0` for none.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "default": null,
+              "description": "The element's name, when it has one.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "default": null,
+              "description": "`attack_element` on a weapon, `resistance_granted` on armour, absent on\nanything unequippable.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "equippable_by_mask": {
+          "default": "",
+          "description": "Record bytes `$08..$09`, decoded as the character usability bitmask.\n\nThis stays as the pack's hexadecimal spelling at the schema boundary;\nthe runtime parses it fail-closed when it builds the camp command seam.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Index into `InventoryData`, one-based.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "is_weapon": {
+          "description": "Whether it can swing.",
+          "type": "boolean"
+        },
+        "meseta_cost": {
+          "default": null,
+          "description": "Record word `$14`, also controls the necessary-item discard guard.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "multi_target": {
+          "description": "Whether a swing reaches every enemy.",
+          "type": "boolean"
+        },
+        "post_attack_effect_id": {
+          "default": null,
+          "description": "Record byte `$13`: what a hit with it inflicts. Tier 2.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "symbol": {
+          "description": "The disassembly's identifier.",
+          "type": "string"
+        },
+        "two_handed": {
+          "description": "Whether equipping it clears the other hand.",
+          "type": "boolean"
+        },
+        "type": {
+          "additionalProperties": false,
+          "description": "Record byte `$A`.",
+          "properties": {
+            "id": {
+              "description": "The type byte.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "description": "The extractor's name.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "EquipmentType": {
+      "additionalProperties": false,
+      "description": "One entry of the decoded type table.",
+      "properties": {
+        "element_role": {
+          "default": null,
+          "description": "What its element byte means: `attack_element`, `resistance_granted`, or\nnothing.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "equippable": {
+          "description": "Whether it can be equipped at all.",
+          "type": "boolean"
+        },
+        "is_weapon": {
+          "description": "Whether it can swing.",
+          "type": "boolean"
+        },
+        "multi_target": {
+          "description": "Whether a swing reaches every enemy.",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "The extractor's name for it.",
+          "type": "string"
+        },
+        "slot": {
+          "default": null,
+          "description": "Which slot `Equip_Item` puts it in, or `None` for the three types it\nrefuses.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "two_handed": {
+          "description": "Whether equipping it clears the other hand.",
+          "type": "boolean"
+        },
+        "type": {
+          "description": "The record's type byte (`$A`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "two_handed",
+        "is_weapon",
+        "multi_target",
+        "equippable"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/battle/equipment.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "count": {
+      "description": "How many records the file declares.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "format_version": {
+      "description": "The pack format that wrote this.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "items": {
+      "description": "The records, in id order.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/EquipmentPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^[0-9]+$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/EquipmentPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "types": {
+      "description": "`Equip_Item`'s jump table (`$05F6AE`), read out of the ROM.",
+      "items": {
+        "$ref": "#/$defs/EquipmentType"
+      },
+      "type": "array"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (battle/equipment.json)",
+  "type": "object"
+}

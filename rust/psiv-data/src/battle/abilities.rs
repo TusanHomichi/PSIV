@@ -1,10 +1,11 @@
 //! `battle/abilities.json`: the eight-byte ability records.
 
 use super::NamedId;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// `battle/abilities.json`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct AbilitiesFile {
     /// The pack format that wrote this.
     pub format_version: u32,
@@ -24,7 +25,7 @@ pub struct AbilitiesFile {
 }
 
 /// One retail combination attack record (`ComboData` + `ComboSetupData` + `ComboNames`).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Combo {
     /// One-based combo id (`1..=14`).
     pub id: u8,
@@ -84,7 +85,7 @@ impl AbilitiesFile {
 }
 
 /// `AbilityEffectsOffs` and the warning that goes with it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EffectTable {
     /// The table's retail address, as a hex string.
     pub table: String,
@@ -99,7 +100,7 @@ pub struct EffectTable {
 /// The four kinds share a layout but not a vocabulary: a technique's byte 1 is
 /// a TP cost while a skill's is a stat selector, so both spellings appear and
 /// only one is populated per record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Ability {
     /// Index into its own table.
     pub id: u16,
@@ -159,7 +160,7 @@ pub struct Ability {
 }
 
 /// Raw cartridge targeting byte; the engine interprets the two nibbles.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct AbilityTargeting {
     /// Original byte, retained so the bridge never infers range from a name.
     pub raw: u8,

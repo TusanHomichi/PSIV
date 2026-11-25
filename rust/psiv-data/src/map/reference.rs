@@ -5,10 +5,11 @@
 //! it, so a record reads without the tables and a message can print either.
 
 use crate::ids::MapId;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// An `XYRangeJmpTbl` entry, by index and name.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RangeRef {
     /// Index into `XYRangeJmpTbl`, `0..15`.
@@ -18,7 +19,7 @@ pub struct RangeRef {
 }
 
 /// A reference to another map.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct MapRef {
     /// The referenced map's id.
     pub id: MapId,

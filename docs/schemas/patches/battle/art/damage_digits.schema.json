@@ -1,0 +1,55 @@
+{
+  "$defs": {
+    "CommandUiTile": {
+      "additionalProperties": false,
+      "description": "One 8x8 pattern, keyed by the VRAM tile the cartridge loads it to.",
+      "properties": {
+        "rows": {
+          "description": "Eight rows of eight hex digits, one CRAM index per pixel.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "vram_tile": {
+          "description": "The VRAM tile index (`$15E..$17B` icons, `$17C..$183` cursor).",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "vram_tile",
+        "rows"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/battle/art/damage_digits.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "format_version": {
+      "description": "The pack format that wrote it.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "tile_count": {
+      "description": "The declared tile count.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "tiles": {
+      "description": "The tiles, in VRAM order.",
+      "items": {
+        "$ref": "#/$defs/CommandUiTile"
+      },
+      "type": "array"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (battle/art/damage_digits.json)",
+  "type": "object"
+}

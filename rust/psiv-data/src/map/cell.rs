@@ -4,6 +4,7 @@
 //! `COLLISION_CELL_PIXELS` pixels; `Cell` is a position as the pack spells it, with
 //! the standing-cell shift the packer applied already in `y_cell`.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// One collision cell is 16x16 pixels: `GetChunkAndCollision` picks a quadrant
@@ -11,7 +12,7 @@ use serde::{Deserialize, Serialize};
 pub const COLLISION_CELL_PIXELS: u32 = 16;
 
 /// Map size, in cells, chunks and pixels.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Dimensions {
     /// Width in collision cells. This is the coordinate space of everything
     /// else in the record.
@@ -36,7 +37,9 @@ pub struct Dimensions {
 /// Not deserialised directly -- the pack spells its coordinates `x_cell` and
 /// `y_cell` at each site, so that no number in the JSON is ambiguous about its
 /// unit. This is the type they are read into.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 pub struct CellPos {
     /// Column, in cells, from the left edge.
     pub x: u32,
@@ -52,7 +55,7 @@ impl CellPos {
 }
 
 /// A cell position as the pack spells it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Cell {
     /// Column, in cells.
@@ -69,7 +72,7 @@ impl Cell {
 }
 
 /// A half-open rectangle of collision cells: `x..x + width`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CellRect {
     /// Leftmost column, in cells.

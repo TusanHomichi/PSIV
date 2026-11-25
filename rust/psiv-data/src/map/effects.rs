@@ -5,10 +5,11 @@
 //! replays the writes the cartridge's own gates selected. A palette copy the decoder
 //! once deferred is carried with the NPC sheet variants the extractor baked for it.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// One `MapDataManager` jump-table entry as it applies to this map.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct MapEffect {
     /// The jump-table entry index.
     pub entry: u16,
@@ -28,7 +29,7 @@ pub struct MapEffect {
 }
 
 /// One execution route through an effect routine.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EffectPath {
     /// Flag conditions that must all hold for this path to run.
     #[serde(default)]
@@ -52,7 +53,7 @@ pub struct EffectPath {
 }
 
 /// A formerly deferred CRAM copy resolved by the asset extractor.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct PaletteEffect {
     /// The extractor currently resolves `palette_write` here.
     pub resolved_as: String,
@@ -88,14 +89,14 @@ impl PaletteEffect {
 }
 
 /// The NPC assets affected by a palette copy. Map pixels use other CRAM lines.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct PaletteAffectedSprites {
     /// Replacements retain the object's movement and dialogue identity.
     pub npc_sheets: Vec<PaletteSpriteReplacement>,
 }
 
 /// One NPC's base sheet and the variant baked with the copied CRAM words.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct PaletteSpriteReplacement {
     /// Index in the map's object list.
     pub npc_index: usize,
@@ -106,7 +107,7 @@ pub struct PaletteSpriteReplacement {
 }
 
 /// One flag condition on an effect path.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EffectGate {
     /// `event_flags` or `chest_flags` — the only banks retail gates on.
     pub bank: String,
@@ -121,7 +122,7 @@ pub struct EffectGate {
 
 /// One write a path performs. Kind-specific fields are optional so one type
 /// covers the union; the `kind` string is authoritative.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EffectWrite {
     /// `object_despawn` | `object_rewrite` | `object_dialogue` | `object_x` |
     /// `object_y` | `layout_write` | `layout_replace`.
@@ -180,7 +181,7 @@ pub struct EffectWrite {
 }
 
 /// A resolved collision cell for a `layout_write`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ResolvedCell {
     /// Column, in collision cells.
     pub x: u32,

@@ -186,7 +186,7 @@ pub(crate) fn array_key_field(rel_file: &str, path: &[&str]) -> Option<&'static 
 
 /// Returns `true` when `(rel_file, schema_path)` addresses a JSON object that
 /// maps arbitrary user/asset keys rather than fixed struct fields.
-fn is_dynamic_map(rel_file: &str, schema_path: &[&str]) -> bool {
+pub(crate) fn is_dynamic_map(rel_file: &str, schema_path: &[&str]) -> bool {
     match (rel_file, schema_path) {
         (file, ["map_update_images" | "art_cycle_images"]) if MAPS_JSON.matches(file) => true,
         ("dialogue/font.json", ["by_char"]) => true,
@@ -201,7 +201,7 @@ fn is_dynamic_map(rel_file: &str, schema_path: &[&str]) -> bool {
     }
 }
 
-fn is_dialogue_entry(rel_file: &str, path: &[&str]) -> bool {
+pub(crate) fn is_dialogue_entry(rel_file: &str, path: &[&str]) -> bool {
     rel_file == "dialogue/trees.json" && path == ["trees", "*", "entries", "*"]
 }
 

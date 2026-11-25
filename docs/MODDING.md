@@ -74,12 +74,17 @@ release folder) to create a mod:
 1. **Never distribute or commit base pack files.** Create a mod folder with
    `psiv-pack mod init` (ships inside every release archive beside the game
    binary, or run via `cargo run --release --manifest-path rust/Cargo.toml -p psiv-pack -- mod ...`).
-2. **Patch tables by stable ID under `patches/`** (see the table key reference
+2. **Use the published JSON Schemas** under [`docs/schemas/`](schemas/)
+   ([`mod.schema.json`](schemas/mod.schema.json) and `docs/schemas/patches/`) —
+   generated directly from `psiv-data`'s Rust types — so editors and coding
+   agents can validate `mod.json` and every patch file directly without reading
+   Rust source.
+3. **Patch tables by stable ID under `patches/`** (see the table key reference
    below) and place original replacement art/audio under `assets/`.
-3. **Validate before launching** with `psiv-pack mod check <base-pack> <mod-dir>`.
+4. **Validate before launching** with `psiv-pack mod check <base-pack> <mod-dir>`.
    It runs the exact same fail-closed schema checks the game runs on startup and
    names the mod, file, and field if anything does not fit.
-4. **Drop the validated mod folder into `mods/`** (or test directly with
+5. **Drop the validated mod folder into `mods/`** (or test directly with
    `PSIV_MODS=/path/to/mod`).
 
 ## `mod.json` manifest
@@ -98,10 +103,39 @@ release folder) to create a mod:
 }
 ```
 
-- `id`: 1–64 lowercase ASCII letters, digits, `-` or `_`.
+- `id`: 1–64 lowercase ASCII letters, digits, `-` or `_` (excluding reserved
+  Windows device names such as `con` or `nul`).
 - `order`: optional integer (default `100`); lower loads first, ties break by `id`.
 - `enabled`: optional boolean (default `true`); set `false` to disable without
   deleting the folder.
+- Published JSON Schema: [`docs/schemas/mod.schema.json`](schemas/mod.schema.json)
+  (with strict `additionalProperties: false` matching the runtime loader).
+
+### Version compatibility policy
+
+`mod.json` carries two integer format versions checked against explicit
+inclusive compatibility ranges in
+[`rust/psiv-data/src/mods/compat.rs`](../rust/psiv-data/src/mods/compat.rs):
+
+- **`format_version`** (current `1`, supported `1..=1`): schema version of
+  `mod.json` itself.
+- **`pack_format_version`** (optional, defaults to current `2`, supported
+  `2..=2`): target runtime pack format version.
+
+Additive vs. breaking bumps follow one rule for both versions:
+
+- **Additive bump** (new optional fields or new pack tables that leave existing
+  patches intact): the current/maximum version increments while the minimum
+  supported version stays pinned. Existing mods declaring an older version
+  inside `min..=max` continue to load without edits, and `apply_mods` still
+  validates every patched table fail-closed against the loaded pack.
+- **Breaking bump** (renamed/removed fields, changed patch keys, or
+  incompatible layouts): the minimum supported version advances to the new
+  version. Mods targeting an older version fail closed with an error naming the
+  mod, declared version, supported range, and upgrade step (`psiv-pack mod check`).
+- **Newer-than-build version**: a mod declaring a version above this build's
+  maximum fails closed and directs the player to update PSIV (and rebuild the
+  runtime pack) or lower `pack_format_version` if no newer fields are used.
 
 ## CLI tools (`psiv-pack mod`)
 
@@ -115,28 +149,34 @@ source checkout, replace `psiv-pack` with
 | `psiv-pack mod init <out-dir> --id <id> [--name <name>] [--version <ver>]` | Scaffolds a mod folder (`mod.json`, `patches/`, `assets/`). |
 | `psiv-pack mod check <base-pack> <mod-dir>...` | Layers one or more mods over `<base-pack>` and runs full schema validation. |
 | `psiv-pack mod diff <base-pack> <edited-pack> <out-dir> [--id <id>] [--name <name>]` | Diffs an edited pack copy against `<base-pack>` and writes only the changed JSON patches and assets into a shareable mod folder. |
+| `psiv-pack mod schema <out-dir> [--check]` | Generates Draft 2020-12 JSON Schema files from `psiv-data` into `<out-dir>` (or with `--check`, verifies `<out-dir>` is byte-for-byte in sync with `psiv-data`). |
 
 ## What each file holds and its patch key
 
 The game reads pack data through `psiv-data` (`rust/psiv-data/src/`), and the
-Rust types there are the schema: a field's name, type and range are what the
-loader accepts. Under `patches/<file>`, known record arrays accept either an
-ID-keyed object (`{"10": {"hp": 99}}`) or an array of partial objects carrying
-that key (`[{"id": 10, "hp": 99}]`).
+Rust types there are the single owning schema: a field's name, type and range
+are what the loader accepts, and the published Draft 2020-12 JSON Schemas under
+[`docs/schemas/`](schemas/) are generated directly from those types (enforced
+in sync by unit tests and `psiv-pack mod schema docs/schemas --check`). Under
+`patches/<file>`, known record arrays accept either an ID-keyed object
+(`{"10": {"hp": 99}}`) or an array of partial objects carrying that key
+(`[{"id": 10, "hp": 99}]`), with strict unknown-field rejection
+(`additionalProperties: false`).
 
-| To change | Pack file | Keyed arrays (`array` → key field) | Schema |
+| To change | Pack file | Keyed arrays (`array` → key field) | Published JSON Schema |
 | --- | --- | --- | --- |
-| Dialogue and text windows | `dialogue/trees.json` | `trees` → `tree`, `entries` → `id` | `rust/psiv-data/src/dialogue/trees.rs` |
-| Enemies: HP, stats, resistances, AI, rewards | `battle/enemies.json` | `enemies` → `id` | `rust/psiv-data/src/battle/enemies.rs` |
-| Battle formations and map encounters | `battle/formations.json` | `formations` → `id`, `boss_formations` → `event_battle_index`, `map_bindings` → `map_id` | `rust/psiv-data/src/battle/formations.rs` |
-| Items and equipment | `battle/equipment.json` | `items` → `id` | `rust/psiv-data/src/battle/party.rs` |
-| Party members | `battle/characters.json` | `characters` → `character_id` | `rust/psiv-data/src/battle/party.rs` |
-| Techniques, skills, enemy skills, combos | `battle/abilities.json` | `techniques`, `skills`, `enemy_skills`, `item_effects`, `combos` → `id` | `rust/psiv-data/src/battle/abilities.rs` |
-| Level-up tables | `battle/levels.json` | `characters` → `character_id`, `levels` → `level` | `rust/psiv-data/src/battle/levels.rs` |
-| Shops and inns | `shops.json` | `inventories` → `index`, `inns` → `index`, `counters` → `id` | `rust/psiv-data/src/shops.rs` |
-| Maps: collision, warps, NPCs, treasures | `maps/<id>_<symbol>.json` (art: `.png`, `_over.png`) | `npcs`, `warps`, `treasure_chests`, `interaction_areas`, `map_updates` → `index` | `rust/psiv-data/src/map.rs` |
-| New-game starting state | `game_start.json` | recursive JSON merge | `rust/psiv-data/src/new_game.rs` |
-| Sprites & sound | `sprites/`, `sound/` | recursive JSON merge + replacement files in `assets/` | `rust/psiv-data/src/sprites.rs`, `sound/schema.rs` |
+| Mod manifest | `mod.json` | — | [`mod.schema.json`](schemas/mod.schema.json) |
+| Dialogue and text windows | `dialogue/trees.json` | `trees` → `tree`, `entries` → `id` | [`trees.schema.json`](schemas/patches/dialogue/trees.schema.json) |
+| Enemies: HP, stats, resistances, AI, rewards | `battle/enemies.json` | `enemies` → `id` | [`enemies.schema.json`](schemas/patches/battle/enemies.schema.json) |
+| Battle formations and map encounters | `battle/formations.json` | `formations` → `id`, `boss_formations` → `event_battle_index`, `map_bindings` → `map_id` | [`formations.schema.json`](schemas/patches/battle/formations.schema.json) |
+| Items and equipment | `battle/equipment.json` | `items` → `id` | [`equipment.schema.json`](schemas/patches/battle/equipment.schema.json) |
+| Party members | `battle/characters.json` | `characters` → `character_id` | [`characters.schema.json`](schemas/patches/battle/characters.schema.json) |
+| Techniques, skills, enemy skills, combos | `battle/abilities.json` | `techniques`, `skills`, `enemy_skills`, `item_effects`, `combos` → `id` | [`abilities.schema.json`](schemas/patches/battle/abilities.schema.json) |
+| Level-up tables | `battle/levels.json` | `characters` → `character_id`, `levels` → `level` | [`levels.schema.json`](schemas/patches/battle/levels.schema.json) |
+| Shops and inns | `shops.json` | `inventories` → `index`, `inns` → `index`, `counters` → `id` | [`shops.schema.json`](schemas/patches/shops.schema.json) |
+| Maps: collision, warps, NPCs, treasures | `maps/<id>_<symbol>.json` (art: `.png`, `_over.png`) | `npcs`, `warps`, `treasure_chests`, `interaction_areas`, `map_updates` → `index` | [`map.schema.json`](schemas/patches/map.schema.json) |
+| New-game starting state | `game_start.json` | recursive JSON merge | [`game_start.schema.json`](schemas/patches/game_start.schema.json) |
+| Sprites & sound | `sprites/`, `sound/` | recursive JSON merge + replacement files in `assets/` | [`sprite.schema.json`](schemas/patches/sprite.schema.json), [`sound/`](schemas/patches/sound/) |
 
 ## Example 1: change an enemy's stats
 

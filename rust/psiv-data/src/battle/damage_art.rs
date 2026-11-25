@@ -8,6 +8,7 @@
 
 use std::path::Path;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::CommandUiTile;
@@ -22,7 +23,7 @@ const LAST_TILE: u16 = 0x5FF;
 const REQUIRED_TILES: usize = (LAST_TILE - FIRST_TILE + 1) as usize;
 
 /// The parsed file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DamageDigitArt {
     /// The pack format that wrote it.
     pub format_version: u32,

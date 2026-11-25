@@ -6,10 +6,11 @@
 //! `initialized` conformance vector for the result.
 
 use super::{LevelStats, NamedId, Property};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// `battle/characters.json` — the eleven 66-byte `InitialCharStats` records.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CharactersFile {
     /// The pack format that wrote this.
     pub format_version: u32,
@@ -20,7 +21,7 @@ pub struct CharactersFile {
 }
 
 /// One starting character.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Character {
     /// Index into `Character_Stats`, and the key into `levels.json`.
     pub character_id: u8,
@@ -70,14 +71,14 @@ pub struct Character {
 }
 
 /// Pack path for the composed 80x80 STATUS plane map, including its border.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct StatusPortrait {
     /// Path relative to the runtime pack.
     pub png: String,
 }
 
 /// The sixteen technique slots in an `InitialCharStats` source record.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TechniqueSlots {
     /// Technique ids, in retail slot order. Zero means an empty slot.
     #[serde(default)]
@@ -85,7 +86,7 @@ pub struct TechniqueSlots {
 }
 
 /// The eight skill slots and their initial use counts.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct SkillSlots {
     /// Skill ids, in retail slot order. Zero means an empty slot.
     #[serde(default)]
@@ -96,7 +97,7 @@ pub struct SkillSlots {
 }
 
 /// The four equipment slots. A slot the character starts with empty is `null`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Loadout {
     /// `$4C`.
     #[serde(default)]
@@ -137,7 +138,7 @@ impl Loadout {
 }
 
 /// One filled equipment slot.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Equipped {
     /// Index into `InventoryData`.
     pub item_id: u8,
@@ -156,7 +157,7 @@ pub struct Equipped {
 /// `InitializeCharStats` (`$0044652`) finishes every character with
 /// `UpdateCharModStats` (`$0005F754`) and `UpdateCharElems` (`$0005FD2A`); this
 /// is the result. `psiv-core` reproduces all eleven from the record alone.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Initialized {
     /// Each base stat with its equipment-modified value.
     pub stats: std::collections::BTreeMap<String, DerivedStat>,
@@ -175,7 +176,7 @@ pub struct Initialized {
 }
 
 /// One stat before and after equipment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DerivedStat {
     /// What the record holds.
     pub base: u8,
@@ -185,7 +186,7 @@ pub struct DerivedStat {
 }
 
 /// The two cached weapon elements.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct WeaponElements {
     /// `$50`.
     pub right_hand: NamedId,
@@ -195,7 +196,7 @@ pub struct WeaponElements {
 
 /// `battle/equipment.json` — the 160 `InventoryData` records and the decoded
 /// type table.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EquipmentFile {
     /// The pack format that wrote this.
     pub format_version: u32,
@@ -222,7 +223,7 @@ impl EquipmentFile {
 }
 
 /// One entry of the decoded type table.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EquipmentType {
     /// The record's type byte (`$A`).
     #[serde(rename = "type")]
@@ -248,7 +249,7 @@ pub struct EquipmentType {
 }
 
 /// One 22-byte `InventoryData` record, in the parts battle reads.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Equipment {
     /// Index into `InventoryData`, one-based.
     pub id: u8,
@@ -286,7 +287,7 @@ pub struct Equipment {
 }
 
 /// An item's type, by byte and name.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct EquipmentKindRef {
     /// The type byte.
     pub id: u8,
@@ -295,7 +296,7 @@ pub struct EquipmentKindRef {
 }
 
 /// An item's element byte and what it does with it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ElementRef {
     /// The element id, `0` for none.
     pub id: u8,
@@ -316,7 +317,7 @@ pub struct ElementRef {
 /// dexterity to `-10`), so the difference between the two adders is live rather
 /// than theoretical.
 #[allow(missing_docs)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EquipmentBonuses {
     pub strength: i8,

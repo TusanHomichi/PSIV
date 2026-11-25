@@ -1,0 +1,484 @@
+{
+  "$defs": {
+    "AbilityPatch": {
+      "additionalProperties": false,
+      "description": "One eight-byte ability record, whichever table it came from.\n\nThe four kinds share a layout but not a vocabulary: a technique's byte 1 is\na TP cost while a skill's is a stat selector, so both spellings appear and\nonly one is populated per record.",
+      "properties": {
+        "battle_object_or_graphic_id": {
+          "description": "Item record byte 7: its battle object/gameplay dispatcher.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "display_name": {
+          "default": null,
+          "description": "The cartridge's own name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effect_id": {
+          "description": "Byte 0, the index into `AbilityEffectsOffs`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "effect_out_of_range": {
+          "description": "Whether [`Ability::effect_id`] runs past the dispatch table. Retail has\nexactly one: `BLACK WAVE`, used only by the unreferenced enemy `Zio3`.",
+          "type": "boolean"
+        },
+        "element": {
+          "additionalProperties": false,
+          "description": "An id with the extractor's name beside it.",
+          "properties": {
+            "id": {
+              "description": "The raw id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "default": null,
+              "description": "What it is called, when it is called anything.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Index into its own table.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "description": "Which table: `techniques`, `skills`, `enemy_skills` or `item_effects`.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The extractor's name, for the tables that carry one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parameter_2": {
+          "description": "Byte 1, for an item effect. The field is named `parameter_2` in the\nextracted record because its meaning depends on the item effect.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "power_or_hit_chance": {
+          "default": null,
+          "description": "Byte 3.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "relevant_stat": {
+          "additionalProperties": false,
+          "description": "An id with the extractor's name beside it.",
+          "properties": {
+            "id": {
+              "description": "The raw id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "default": null,
+              "description": "What it is called, when it is called anything.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "requires_weapon": {
+          "description": "Byte 1's high bit, for a skill.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "resistance_stat": {
+          "additionalProperties": false,
+          "description": "An id with the extractor's name beside it.",
+          "properties": {
+            "id": {
+              "description": "The raw id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "default": null,
+              "description": "What it is called, when it is called anything.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "symbol": {
+          "description": "The disassembly's identifier, for the tables that carry one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target_id": {
+          "description": "Enemy-skill byte 2. Its meaning is dispatcher-specific; Fission's\nobject restores the formation's cached neighbor instead of reading it.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "targeting": {
+          "additionalProperties": false,
+          "description": "Raw cartridge targeting byte; the engine interprets the two nibbles.",
+          "properties": {
+            "raw": {
+              "description": "Original byte, retained so the bridge never infers range from a name.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "targeting_or_parameter_3": {
+          "description": "Byte 2, for an item effect: single-target or party-target mode.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "tp_cost": {
+          "description": "Byte 1, for a technique.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ComboPatch": {
+      "additionalProperties": false,
+      "description": "One retail combination attack record (`ComboData` + `ComboSetupData` + `ComboNames`).",
+      "properties": {
+        "display_name": {
+          "description": "Cartridge display name from `ComboNames`.",
+          "type": "string"
+        },
+        "effect_id": {
+          "description": "Byte 0 of `ComboData`: `1` = damage (`loc_2864`), `2` = instant death (`loc_5FB4`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "element": {
+          "additionalProperties": false,
+          "description": "Byte 5 of `ComboData`: target element selector (`1..=14`).",
+          "properties": {
+            "id": {
+              "description": "The raw id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "default": null,
+              "description": "What it is called, when it is called anything.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "id": {
+          "description": "One-based combo id (`1..=14`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ordered": {
+          "description": "Whether participant order is fixed (`ComboSetupData` header bit 7).",
+          "type": "boolean"
+        },
+        "participants": {
+          "description": "Number of consecutive party participants (`2`, `3`, or `4`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "power_or_hit_chance": {
+          "description": "Byte 3 of `ComboData`: chance threshold (`0x40`) for instant-death combos, `0` for damage.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "range": {
+          "description": "Byte 2 of `ComboData`: range (`1` = single enemy, `2` = all enemies).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "resistance_stat": {
+          "additionalProperties": false,
+          "description": "Byte 4 of `ComboData`: target stat selector (`1..=7`).",
+          "properties": {
+            "id": {
+              "description": "The raw id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "default": null,
+              "description": "What it is called, when it is called anything.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "setups": {
+          "description": "Valid ability sequences from `ComboSetupData`.\nEach byte encodes a technique (`id`, `< 0x80`) or skill (`0x80 | id`).",
+          "items": {
+            "items": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/battle/abilities.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "combos": {
+      "description": "Combination attacks (`ComboData` + `ComboSetupData` + `ComboNames`).",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/ComboPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^[0-9]+$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/ComboPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "effects": {
+      "additionalProperties": false,
+      "description": "What the dispatch table looks like.",
+      "properties": {
+        "bounds_checked": {
+          "description": "Always false — `TRAP #2` dispatches with no bound.",
+          "type": "boolean"
+        },
+        "count": {
+          "description": "How many entries it really has: 44.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "table": {
+          "description": "The table's retail address, as a hex string.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "enemy_skills": {
+      "description": "Enemy skills.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/AbilityPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^[0-9]+$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/AbilityPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "format_version": {
+      "description": "The pack format that wrote this.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "item_effects": {
+      "description": "The eight-byte records embedded in inventory entries.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/AbilityPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^[0-9]+$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/AbilityPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "skills": {
+      "description": "Player skills.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/AbilityPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^[0-9]+$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/AbilityPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "techniques": {
+      "description": "Player techniques.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/AbilityPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `id`.",
+          "propertyNames": {
+            "pattern": "^[0-9]+$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `id`.",
+          "items": {
+            "$ref": "#/$defs/AbilityPatch",
+            "required": [
+              "id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (battle/abilities.json)",
+  "type": "object"
+}

@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use schemars::JsonSchema;
 use serde::Deserialize;
 
 // ---------------------------------------------------------------------------
@@ -16,7 +17,7 @@ use serde::Deserialize;
 // ---------------------------------------------------------------------------
 
 /// `dialogue/font.json`: the 8x16 glyph strip.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct FontFile {
     /// Pack format; checked against [`DIALOGUE_FORMAT_VERSION`].
     pub format_version: u32,
@@ -35,7 +36,7 @@ pub struct FontFile {
 }
 
 /// One cell of the glyph strip.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct Glyph {
     /// The font byte, which is the cell index.
     pub byte: u8,
@@ -55,7 +56,7 @@ pub struct Glyph {
 }
 
 /// Strip-wide glyph metrics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct GlyphMetrics {
     /// Cells in the strip.
     pub count: u32,
@@ -70,7 +71,7 @@ pub struct GlyphMetrics {
 // ---------------------------------------------------------------------------
 
 /// `dialogue/window.json`: the frame's tiles and how they are laid out.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct WindowFile {
     /// Pack format; checked against [`DIALOGUE_FORMAT_VERSION`].
     pub format_version: u32,
@@ -162,7 +163,7 @@ impl fmt::Display for Role {
 }
 
 /// One role's tile in the strip, with the flips its plane word carries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct RoleTile {
     /// Tile index in the blob, which is also the cell index in the strip.
     pub tile: u32,
@@ -183,7 +184,7 @@ pub struct RoleTile {
 }
 
 /// Border thickness, cell size, and how a window opens.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct WindowGeometry {
     /// Border thickness in cells: 1.
     pub border_cells: u32,
@@ -196,7 +197,7 @@ pub struct WindowGeometry {
 }
 
 /// `loc_68690`: the frame is redrawn wider from the centre each step.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct OpenAnimation {
     /// `"horizontal"`.
     pub axis: String,
@@ -209,7 +210,7 @@ pub struct OpenAnimation {
 }
 
 /// The message box.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct TextWindow {
     /// Index into [`WindowFile::windows`].
     pub window: u32,
@@ -229,7 +230,7 @@ pub struct TextWindow {
 
 /// The portrait box. The portrait art covers the frame completely -- the PNGs
 /// carry their own border.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct PortraitWindow {
     /// Index into [`WindowFile::windows`].
     pub window: u32,
@@ -238,7 +239,7 @@ pub struct PortraitWindow {
 }
 
 /// One `WinGroup_Dialogue` record.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct WindowRecord {
     /// Record index in the group.
     pub index: u32,
@@ -253,7 +254,7 @@ pub struct WindowRecord {
 }
 
 /// One `WinGroup_Menu` record, in screen cells with the frame included.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct MenuWindow {
     /// Record index in the group.
     pub index: u32,
@@ -268,7 +269,7 @@ pub struct MenuWindow {
 }
 
 /// A rect in Genesis screen pixels.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct PixelRect {
     /// Left edge.
     pub x: i32,
@@ -281,7 +282,7 @@ pub struct PixelRect {
 }
 
 /// A region in 8-pixel cells.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct CellRegion {
     /// Left edge in cells.
     pub x_cell: u32,
@@ -294,7 +295,7 @@ pub struct CellRegion {
 }
 
 /// `Pal_Init_Line_3` and the two indices the window is drawn in.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct WindowPalette {
     /// Sixteen RGB triples.
     pub colors: Vec<[u8; 3]>,
@@ -307,7 +308,7 @@ pub struct WindowPalette {
 // ---------------------------------------------------------------------------
 
 /// `dialogue/portraits.json`: the `$F4` table.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct PortraitFile {
     /// Pack format; checked against [`DIALOGUE_FORMAT_VERSION`].
     pub format_version: u32,
@@ -321,7 +322,7 @@ pub struct PortraitFile {
 }
 
 /// One portrait.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct Portrait {
     /// `$F4` id.
     pub id: u8,
@@ -335,7 +336,7 @@ pub struct Portrait {
 }
 
 /// Portrait size and placement.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct PortraitGeometry {
     /// 48.
     pub width: u32,

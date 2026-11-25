@@ -1,0 +1,2939 @@
+{
+  "$defs": {
+    "ChunkDefCopy": {
+      "additionalProperties": false,
+      "description": "One `Chunk_Table` 16-word chunk-definition copy (`source_chunk` ->\n`dest_chunk`) resolved to every `(chunk_x, chunk_y)` cell on this map that\nreferences `dest_chunk` (`MapDataMan_Dezolis` `loc_525AC` /\n`Event_EclipseTorchUsed` `$07041E`, `#676`).",
+      "properties": {
+        "dest_chunk": {
+          "description": "Destination chunk id in `Chunk_Table` (`($FFFF6960 - $FFFF6000) / $20 = $4B`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "event_flag": {
+          "description": "Event bank bit index that activates this copy on map load, when set.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "source_chunk": {
+          "description": "Source chunk id in `Chunk_Table` (`($FFFF6100 - $FFFF6000) / $20 = $08`).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tiles": {
+          "description": "Every map chunk referencing `dest_chunk` on FG or BG, with its post-copy\ncollision cells and composed patch-atlas tile index.",
+          "items": {
+            "$ref": "#/$defs/OverworldPatchTile"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_chunk",
+        "dest_chunk",
+        "tiles"
+      ],
+      "type": "object"
+    },
+    "ConveyorGroup": {
+      "additionalProperties": false,
+      "description": "One group of conveyor belt chunks sharing a direction toggle and 8-frame\nchunk-id table (`MapUpdate_VahFortConveyorBelts` `$11` /\n`MapUpdate_WpnPlntConveyorBelts` `$12`).",
+      "properties": {
+        "chunks": {
+          "description": "Foreground chunk coordinates `(chunk_x, chunk_y)` written in `Map_Layout_FG`.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "format": "uint16",
+                "maximum": 65535,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "format": "uint16",
+                "maximum": 65535,
+                "minimum": 0,
+                "type": "integer"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "frames_clear": {
+          "description": "8-entry chunk-id table indexed by `Main_Frame_Count & 7` when `temp_flag`\nis absent or clear.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 8,
+          "minItems": 8,
+          "type": "array"
+        },
+        "frames_set": {
+          "description": "8-entry chunk-id table indexed by `Main_Frame_Count & 7` when `temp_flag`\nis set.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 8,
+          "minItems": 8,
+          "type": "array"
+        },
+        "temp_flag": {
+          "description": "Optional temporary event flag (`$0B`/`$0C` or `$11`/`$12`) selecting\n`frames_set` over `frames_clear`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "chunks",
+        "frames_clear",
+        "frames_set"
+      ],
+      "type": "object"
+    },
+    "EffectGate": {
+      "additionalProperties": false,
+      "description": "One flag condition on an effect path.",
+      "properties": {
+        "bank": {
+          "description": "`event_flags` or `chest_flags` — the only banks retail gates on.",
+          "type": "string"
+        },
+        "flag": {
+          "description": "The flag id within the bank.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "required": {
+          "description": "`set` or `clear`.",
+          "type": "string"
+        },
+        "symbol": {
+          "default": null,
+          "description": "The disassembly's name, when it has one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "bank",
+        "flag",
+        "required"
+      ],
+      "type": "object"
+    },
+    "EffectPath": {
+      "additionalProperties": false,
+      "description": "One execution route through an effect routine.",
+      "properties": {
+        "aborts_remaining_entries": {
+          "default": false,
+          "description": "The dormant dispatcher abort: a routine returning non-zero skips the\nrest of the map's list. No retail routine sets it.",
+          "type": "boolean"
+        },
+        "deferred": {
+          "default": [],
+          "description": "Recognised-but-not-modelled instructions stepped over on this path.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deferred_effects": {
+          "default": [],
+          "description": "Decoded palette copies with their already-extracted NPC sheet variants.",
+          "items": {
+            "$ref": "#/$defs/PaletteEffect"
+          },
+          "type": "array"
+        },
+        "gates": {
+          "default": [],
+          "description": "Flag conditions that must all hold for this path to run.",
+          "items": {
+            "$ref": "#/$defs/EffectGate"
+          },
+          "type": "array"
+        },
+        "unconditional": {
+          "default": false,
+          "description": "True when the path has no gates — it runs on every load.",
+          "type": "boolean"
+        },
+        "writes": {
+          "default": [],
+          "description": "The writes this path performs.",
+          "items": {
+            "$ref": "#/$defs/EffectWrite"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "EffectWrite": {
+      "additionalProperties": false,
+      "description": "One write a path performs. Kind-specific fields are optional so one type\ncovers the union; the `kind` string is authoritative.",
+      "properties": {
+        "at": {
+          "default": null,
+          "description": "ROM address of the writing instruction.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "bank": {
+          "default": null,
+          "description": "The flag bank label, for `flag_clear` (the door the routine calls;\n\"chest_flags\"/\"temp_flags\" both name the $F140 temp door).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cell_x": {
+          "default": null,
+          "description": "Chunk-level coordinates, for `layout_write`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cell_y": {
+          "default": null,
+          "description": "Row, in collision cells, for `layout_write`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cells": {
+          "default": [],
+          "description": "Per-cell collision resolution: always exactly 4 cells in\n`(0,0) (1,0) (0,1) (1,1)` order, absolute coordinates.",
+          "items": {
+            "$ref": "#/$defs/ResolvedCell"
+          },
+          "type": "array"
+        },
+        "chunk_id": {
+          "default": null,
+          "description": "The chunk id written, for `layout_write`.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "collision_authoritative": {
+          "default": null,
+          "description": "Whether this write's plane is the one collision reads on this map\n(276 retail maps read BG, 83 FG). `false` means picture-only: the\npatch tile still draws, the cells never touch the grid.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "dialogue_id": {
+          "default": null,
+          "description": "The new dialogue id, for `object_dialogue`.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "flag": {
+          "default": null,
+          "description": "The flag id within the bank, for `flag_clear`.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "kind": {
+          "description": "`object_despawn` | `object_rewrite` | `object_dialogue` | `object_x` |\n`object_y` | `layout_write` | `layout_replace`.",
+          "type": "string"
+        },
+        "object_id": {
+          "default": null,
+          "description": "The new object id, for `object_rewrite`.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "object_index": {
+          "default": null,
+          "description": "Record object index, for the object kinds.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "patch_tile": {
+          "default": null,
+          "description": "Index into the map's [`PatchTiles`](crate::map::PatchTiles) atlas for\nthis write's chunk.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "pixels": {
+          "default": null,
+          "description": "The position word, for `object_x` and `object_y`.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "plane": {
+          "default": null,
+          "description": "Which plane the write targets.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "default": null,
+          "description": "The replacement layout's ROM source, for `layout_replace` — matches a\n[`LayoutVariant`](crate::LayoutVariant) plane source.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "InteractionAreaPatch": {
+      "additionalProperties": false,
+      "description": "One map interaction area.\n\nThe ROM stores an 8-pixel source coordinate and an `XYRangeJmpTbl` index.\nThe pack resolves both into the same 16-pixel collision-cell rectangle the\nruntime uses for landing checks, while retaining the raw bytes for audit.",
+      "properties": {
+        "event_index": {
+          "default": null,
+          "description": "`Interaction_GetEvent`'s resolved Event_Index, when this is type 2.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "flag": {
+          "description": "Handler-specific flag id.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "flag_type": {
+          "additionalProperties": false,
+          "description": "Which flag bank the interaction handler uses for its record flag.",
+          "properties": {
+            "id": {
+              "description": "Raw byte 6.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "default": null,
+              "description": "Extractor's name, when the byte is one of the retail selectors.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "index": {
+          "description": "Position in this map's interaction-area list.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "interaction_type": {
+          "description": "Index into the retail interaction-handler table.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "parameter": {
+          "description": "Handler-specific byte 9.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "range": {
+          "additionalProperties": false,
+          "description": "The `XYRangeJmpTbl` entry that produced [`InteractionArea::rect`].",
+          "properties": {
+            "id": {
+              "description": "Index into `XYRangeJmpTbl`, `0..15`.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "description": "The disassembly's name for it, such as `XYExact`.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "record_offset": {
+          "description": "ROM record offset.",
+          "type": "string"
+        },
+        "rect": {
+          "additionalProperties": false,
+          "description": "A half-open rectangle of collision cells: `x..x + width`.",
+          "properties": {
+            "height": {
+              "description": "Height in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "width": {
+              "description": "Width in cells. The packer never emits zero; it emits no rectangle.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "description": "Leftmost column, in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "y": {
+              "description": "Topmost row, in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "source": {
+          "additionalProperties": false,
+          "description": "The raw coordinate and its standing-cell resolution.",
+          "properties": {
+            "x_byte": {
+              "description": "Raw X word from the record, in 8-pixel units.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x_cell": {
+              "description": "Collision-grid column after dividing the raw X by two.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "y_byte": {
+              "description": "Raw Y word from the record, in 8-pixel units and one row above the\noccupied collision cell after resolution.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "y_cell": {
+              "description": "Collision-grid row after dividing raw Y by two and applying the\nstanding-cell shift.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "LayoutVariant": {
+      "additionalProperties": false,
+      "description": "A whole-layout replacement, decoded like a base layout.",
+      "properties": {
+        "collision": {
+          "$ref": "#/$defs/VariantCollision",
+          "description": "The variant's collision grid."
+        },
+        "planes": {
+          "default": [],
+          "description": "Per-plane provenance: which plane changed and its ROM source.",
+          "items": {
+            "$ref": "#/$defs/VariantPlane"
+          },
+          "type": "array"
+        },
+        "png": {
+          "description": "The variant render.",
+          "type": "string"
+        },
+        "png_over": {
+          "default": null,
+          "description": "The variant's priority overlay, when it has priority tiles.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "vehicle_battle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VehicleBattleLayout"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The variant's raw chunk grid, when its layout can feed vehicle battle\nbackground selection."
+        }
+      },
+      "required": [
+        "png",
+        "collision"
+      ],
+      "type": "object"
+    },
+    "MapEffect": {
+      "additionalProperties": false,
+      "description": "One `MapDataManager` jump-table entry as it applies to this map.",
+      "properties": {
+        "decoded": {
+          "description": "Whether the decoder fully decoded the routine. `false` entries carry\n`reason` instead of paths and a consumer must treat the map as\npossibly incompletely patched.",
+          "type": "boolean"
+        },
+        "entry": {
+          "description": "The jump-table entry index.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kinds": {
+          "default": [],
+          "description": "The write kinds this entry produces, for census-level checks.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "paths": {
+          "default": [],
+          "description": "Execution paths, each with the exact gate conditions that reach it.",
+          "items": {
+            "$ref": "#/$defs/EffectPath"
+          },
+          "type": "array"
+        },
+        "reason": {
+          "default": null,
+          "description": "Why decoding stopped, when `decoded` is false.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "entry",
+        "decoded"
+      ],
+      "type": "object"
+    },
+    "MapUpdatePatch": {
+      "additionalProperties": false,
+      "description": "One table entry, bound in the map's cartridge order.",
+      "properties": {
+        "address": {
+          "description": "Retail routine address.",
+          "type": "string"
+        },
+        "index": {
+          "description": "Byte index in the 64-entry jump table.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "program": {
+          "description": "Decoded operation and its extracted inputs.",
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "description": "Retail `moveq #0,d0; rts`.",
+              "properties": {
+                "kind": {
+                  "const": "noop",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Conditional palette table copies.",
+              "properties": {
+                "bypass": {
+                  "description": "Reunion can bypass the shutdown gates.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "cycles": {
+                  "description": "Independent clocks, evaluated in cartridge order.",
+                  "items": {
+                    "$ref": "#/$defs/PaletteCycle"
+                  },
+                  "type": "array"
+                },
+                "gates": {
+                  "description": "All gates must hold unless bypass is set.",
+                  "items": {
+                    "$ref": "#/$defs/UpdateGate"
+                  },
+                  "type": "array"
+                },
+                "kind": {
+                  "const": "palette",
+                  "type": "string"
+                },
+                "stopped": {
+                  "description": "Literal writes on the stopped branch, if any.",
+                  "items": {
+                    "$ref": "#/$defs/PaletteWrite"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "gates",
+                "cycles",
+                "stopped"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Camera-step damping: `step -= step ASR shift`.",
+              "properties": {
+                "foreground": {
+                  "description": "FG rather than BG.",
+                  "type": "boolean"
+                },
+                "kind": {
+                  "const": "camera",
+                  "type": "string"
+                },
+                "x_shift": {
+                  "description": "X arithmetic shift.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "y_shift": {
+                  "description": "Y arithmetic shift.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "foreground",
+                "x_shift",
+                "y_shift"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Zio tunnels' sparse horizontal-scroll writes and BG X ASR 2.",
+              "properties": {
+                "kind": {
+                  "const": "tunnels",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Sine-based scroll table writes.",
+              "properties": {
+                "kind": {
+                  "const": "scroll",
+                  "type": "string"
+                },
+                "mode": {
+                  "$ref": "#/$defs/ScrollMode",
+                  "description": "Signedness and destination."
+                },
+                "samples": {
+                  "description": "256 helper results, as unsigned bytes.",
+                  "items": {
+                    "format": "uint8",
+                    "maximum": 255,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "mode",
+                "samples"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Rykros countdown, flash sequence and RNG2 reload.",
+              "properties": {
+                "colors": {
+                  "description": "Four flash words from the cartridge table.",
+                  "items": {
+                    "format": "uint16",
+                    "maximum": 65535,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "kind": {
+                  "const": "crystals",
+                  "type": "string"
+                },
+                "rest": {
+                  "description": "Literal resting color.",
+                  "format": "uint16",
+                  "maximum": 65535,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "colors",
+                "rest"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Chest predicates feeding a base event, or the unused chest clear.",
+              "properties": {
+                "chests": {
+                  "description": "Required $F120 chest bits.",
+                  "items": {
+                    "format": "uint8",
+                    "maximum": 255,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "clear_chest": {
+                  "description": "Clear a chest rather than set an event.",
+                  "type": "boolean"
+                },
+                "flag": {
+                  "description": "Destination bit.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "kind": {
+                  "const": "flags",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "chests",
+                "flag",
+                "clear_chest"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "The Edge clears fourteen words, then rotates five extracted colors.",
+              "properties": {
+                "colors": {
+                  "description": "The five table words.",
+                  "items": {
+                    "format": "uint16",
+                    "maximum": 65535,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "kind": {
+                  "const": "edge",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "colors"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "The Edge's per-map palette blob reads.",
+              "properties": {
+                "frames": {
+                  "description": "Resolved backdrop and fourteen line-1 writes per phase.",
+                  "items": {
+                    "items": {
+                      "$ref": "#/$defs/PaletteWrite"
+                    },
+                    "type": "array"
+                  },
+                  "type": "array"
+                },
+                "kind": {
+                  "const": "edge_line",
+                  "type": "string"
+                },
+                "sliding": {
+                  "description": "Two-byte sliding window rather than 28-byte records.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "sliding",
+                "frames"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Ladea/Air Castle saved sound and secondary-map word writes.",
+              "properties": {
+                "kind": {
+                  "const": "music",
+                  "type": "string"
+                },
+                "secondary_map": {
+                  "description": "$EC2A word.",
+                  "format": "uint16",
+                  "maximum": 65535,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "sound": {
+                  "description": "$ECEC byte, not a sound-play command.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "secondary_map",
+                "sound"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Random_Battles_Flag from the leader's current Y pixel word.",
+              "properties": {
+                "kind": {
+                  "const": "encounters",
+                  "type": "string"
+                },
+                "y_max": {
+                  "description": "Disabled at and below this unsigned word.",
+                  "format": "uint16",
+                  "maximum": 65535,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "y_max"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Ping-pong tile DMA from RAM_Start staging frames (`MapUpdate_GaruberkTowerPart4`, `$22`).",
+              "properties": {
+                "frame_count": {
+                  "description": "Number of staged frames in the ping-pong sequence (`3`: `0..=2`).",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "frame_mask": {
+                  "description": "Execute when `Main_Frame_Count & frame_mask == 0`.",
+                  "format": "uint16",
+                  "maximum": 65535,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "gates": {
+                  "description": "Temp/event/chest gates that must all hold (`temp $15` and `temp $17` clear).",
+                  "items": {
+                    "$ref": "#/$defs/UpdateGate"
+                  },
+                  "type": "array"
+                },
+                "kind": {
+                  "const": "tile_dma_cycle",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "gates",
+                "frame_mask",
+                "frame_count"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Conveyor-belt foreground chunk animation (`MapUpdate_VahFortConveyorBelts` `$11`,\n`MapUpdate_WpnPlntConveyorBelts` `$12`).",
+              "properties": {
+                "groups": {
+                  "description": "Ordered groups of foreground chunks and their 8-frame tables.",
+                  "items": {
+                    "$ref": "#/$defs/ConveyorGroup"
+                  },
+                  "type": "array"
+                },
+                "kind": {
+                  "const": "conveyor_belts",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "groups"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Input the runtime does not represent: a known routine whose required\nnative buffer/subsystem is absent. The decoder reports it rather than\nguessing its effect.",
+              "properties": {
+                "kind": {
+                  "const": "unsupported",
+                  "type": "string"
+                },
+                "missing": {
+                  "description": "The absent retail buffer/subsystem.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "missing"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "routine": {
+          "description": "Disassembly symbol, for provenance.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "NpcPatch": {
+      "additionalProperties": false,
+      "description": "A field object: townsfolk, guards, the ones that just stand there.",
+      "properties": {
+        "art_tile": {
+          "description": "First VRAM tile of the object's art.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "camera_bypass": {
+          "default": false,
+          "description": "Whether the object's type sets render-flags bit 0, bypassing both\ncamera-plane subtractions in `FieldObj_CalcSpritePos`.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "dialogue_id": {
+          "description": "Index into this map's dialogue tree.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "facing": {
+          "additionalProperties": false,
+          "description": "Which way the object faces.",
+          "properties": {
+            "id": {
+              "description": "The raw byte: 0 down, 4 up, 8 right, `$C` left.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "description": "One of the four facings.",
+              "oneOf": [
+                {
+                  "const": "down",
+                  "description": "Facing down the screen; the raw byte is 0.",
+                  "type": "string"
+                },
+                {
+                  "const": "up",
+                  "description": "Raw byte 4.",
+                  "type": "string"
+                },
+                {
+                  "const": "right",
+                  "description": "Raw byte 8.",
+                  "type": "string"
+                },
+                {
+                  "const": "left",
+                  "description": "Raw byte `$C`.",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "index": {
+          "description": "Position in this map's object list.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "interactable": {
+          "default": true,
+          "description": "Whether the object's type sets render-flags bit 3 (`$2(a3)`), which\nthe cartridge tests before BOTH the talk probe and object collision.\nA `false` here is a monster you can see, not speak to, and walk\nstraight through. Defaults `true` for packs predating the field.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "object_id": {
+          "description": "Byte offset into `FieldObjectsJmpTbl`; the object's behaviour routine.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "record_offset": {
+          "description": "Where the record sits in the ROM.",
+          "type": "string"
+        },
+        "sprite": {
+          "additionalProperties": false,
+          "description": "An object's binding to a sprite sheet.",
+          "properties": {
+            "facing": {
+              "description": "A sprite facing, tolerating the cartridge's one out-of-set byte.",
+              "oneOf": [
+                {
+                  "const": "down",
+                  "description": "Facing down.",
+                  "type": "string"
+                },
+                {
+                  "const": "up",
+                  "description": "Facing up.",
+                  "type": "string"
+                },
+                {
+                  "const": "left",
+                  "description": "Facing left.",
+                  "type": "string"
+                },
+                {
+                  "const": "right",
+                  "description": "Facing right.",
+                  "type": "string"
+                },
+                {
+                  "const": "unknown",
+                  "description": "A facing byte outside {0, 4, 8, $C}; drawn as down.",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "idle_sequence": {
+              "description": "Sequence to play at rest.",
+              "type": "string"
+            },
+            "sheet": {
+              "description": "Sheet id inside the index file named by `sheets`.",
+              "type": "string"
+            },
+            "sheets": {
+              "description": "The index file, pack-root-relative (`sprites/npcs.json`).",
+              "type": "string"
+            },
+            "walk_sequence": {
+              "description": "Sequence to play while moving.",
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "sprite_reason": {
+          "default": null,
+          "description": "Why this object has no sprite (invisible trigger, vehicle-gated art,\n...) when `sprite` is `None`. Exactly one of the two is set.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "symbol": {
+          "default": null,
+          "description": "The routine's symbol, such as `NPCType2`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "x_cell": {
+          "description": "Column, in cells.\n\n`LoadMapObjects` places objects with `lsl.w #3`, so object coordinates\nare in 8-pixel units and 85 of the cartridge's 949 objects sit on a half\ncell. This is the floor -- the cell the object's collision reads from --\nand for those 85 it is lossy. [`Npc::x_pixels`] and [`Npc::y_pixels`]\nare the authoritative placement; prefer them for rendering, and use the\ncell for collision and lookup.\n\nChests and transitions are not like this: they store bytes already\nscaled by 16, so their cell is the stored byte with no division.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x_pixels": {
+          "description": "X in pixels, as the record stores it.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_cell": {
+          "description": "Row, in cells, with the standing-cell shift applied.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_pixels": {
+          "description": "Y in pixels, as the record stores it.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "OverworldLayoutPatch": {
+      "additionalProperties": false,
+      "description": "One raw paged-overworld hook, in page-loader order.",
+      "properties": {
+        "event_flag": {
+          "$ref": "#/$defs/OverworldPatchFlag",
+          "description": "Event flag tested by the hook."
+        },
+        "page": {
+          "description": "Source page index.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "routine": {
+          "description": "ROM routine address, retained for provenance.",
+          "type": "string"
+        },
+        "triggered_by_plane": {
+          "description": "Plane whose page copy invokes the hook (`fg` or `bg`).",
+          "type": "string"
+        },
+        "writes": {
+          "description": "Stores into the rolling layout window, resolved to world coordinates.",
+          "items": {
+            "$ref": "#/$defs/OverworldLayoutWrite"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "triggered_by_plane",
+        "page",
+        "routine",
+        "event_flag",
+        "writes"
+      ],
+      "type": "object"
+    },
+    "OverworldLayoutWrite": {
+      "additionalProperties": false,
+      "description": "Raw page-hook write; `chunk_ids` retain the cartridge's byte notation.",
+      "properties": {
+        "cell_x": {
+          "description": "First collision-cell column (`chunk_x * 2`).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cell_y": {
+          "description": "First collision-cell row (`chunk_y * 2`).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "chunk_ids": {
+          "description": "Consecutive raw chunk bytes, spelled as hex strings.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "chunk_x": {
+          "description": "First horizontal chunk coordinate.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "chunk_y": {
+          "description": "Chunk row.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "displacement": {
+          "description": "Displacement from the page hook's layout pointer.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "plane": {
+          "description": "Plane written (`fg` or `bg`).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plane",
+        "chunk_x",
+        "chunk_y",
+        "cell_x",
+        "cell_y",
+        "chunk_ids",
+        "displacement"
+      ],
+      "type": "object"
+    },
+    "OverworldPatch": {
+      "additionalProperties": false,
+      "description": "One flag's final composed chunks after all its page hooks run.",
+      "properties": {
+        "event_flag": {
+          "description": "Event bank bit index; active when set.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tiles": {
+          "description": "Distinct touched chunks in world coordinates.",
+          "items": {
+            "$ref": "#/$defs/OverworldPatchTile"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "event_flag",
+        "tiles"
+      ],
+      "type": "object"
+    },
+    "OverworldPatchFlag": {
+      "additionalProperties": false,
+      "description": "Source event-flag identity for a page hook.",
+      "properties": {
+        "id": {
+          "description": "Event bank bit index.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id_hex": {
+          "description": "Same id in hexadecimal, as the source decoder emits it.",
+          "type": "string"
+        },
+        "symbol": {
+          "description": "Disassembly symbol if known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "id_hex"
+      ],
+      "type": "object"
+    },
+    "OverworldPatchTile": {
+      "additionalProperties": false,
+      "description": "Both visual planes and the collision-authoritative chunk at one location.",
+      "properties": {
+        "bg_chunk_id": {
+          "description": "Final BG chunk byte.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "chunk_x": {
+          "description": "Horizontal world chunk coordinate.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "chunk_y": {
+          "description": "Vertical world chunk coordinate.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "collision": {
+          "description": "Row-major 2x2 collision nibble values from that chunk.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "collision_chunk_id": {
+          "description": "Final chunk id in the plane `GetChunkAndCollision` reads.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fg_chunk_id": {
+          "description": "Final FG chunk byte.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "patch_tile": {
+          "description": "Entry in `patch_tiles`, whose PNG holds the composed FG/BG picture.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "chunk_x",
+        "chunk_y",
+        "fg_chunk_id",
+        "bg_chunk_id",
+        "collision_chunk_id",
+        "collision",
+        "patch_tile"
+      ],
+      "type": "object"
+    },
+    "PaletteAffectedSprites": {
+      "additionalProperties": false,
+      "description": "The NPC assets affected by a palette copy. Map pixels use other CRAM lines.",
+      "properties": {
+        "npc_sheets": {
+          "description": "Replacements retain the object's movement and dialogue identity.",
+          "items": {
+            "$ref": "#/$defs/PaletteSpriteReplacement"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "npc_sheets"
+      ],
+      "type": "object"
+    },
+    "PaletteCycle": {
+      "additionalProperties": false,
+      "description": "One independently clocked set of palette writes.",
+      "properties": {
+        "frame_mask": {
+          "description": "Execute when clock & frame_mask == 0.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frames": {
+          "description": "Exact table reads, with source displacements already resolved.",
+          "items": {
+            "items": {
+              "$ref": "#/$defs/PaletteWrite"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "phase": {
+          "$ref": "#/$defs/PalettePhase",
+          "description": "How the table phase is selected."
+        },
+        "timer": {
+          "description": "Use preincremented $ECF2 as clock instead of Main_Frame_Count.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "frame_mask",
+        "timer",
+        "phase",
+        "frames"
+      ],
+      "type": "object"
+    },
+    "PaletteEffect": {
+      "additionalProperties": false,
+      "description": "A formerly deferred CRAM copy resolved by the asset extractor.",
+      "properties": {
+        "affects": {
+          "$ref": "#/$defs/PaletteAffectedSprites",
+          "description": "Sprite replacements produced with the copied palette."
+        },
+        "cram_line": {
+          "description": "The CRAM line the copy fills: `Palette_Table_Buffer + $20 * line`.\nThe extractors accept only whole-line copies.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "resolved_as": {
+          "description": "The extractor currently resolves `palette_write` here.",
+          "type": "string"
+        },
+        "words_hex": {
+          "description": "The sixteen words the copy writes, as `0xNNNN`.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "resolved_as",
+        "cram_line",
+        "words_hex",
+        "affects"
+      ],
+      "type": "object"
+    },
+    "PalettePhase": {
+      "description": "Phase selection for a palette table.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "`(Main_Frame_Count & mask) >> shift`.",
+          "properties": {
+            "kind": {
+              "const": "frame",
+              "type": "string"
+            },
+            "mask": {
+              "description": "Retail phase mask.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "shift": {
+              "description": "Shift including byte-offset to word-index conversion.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "mask",
+            "shift"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A wrapping byte counter, reset on reaching the extracted table length.",
+          "properties": {
+            "kind": {
+              "const": "counter",
+              "type": "string"
+            },
+            "slot": {
+              "description": "$ECF2 = 0, $ECF3 = 1.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PaletteSpriteReplacement": {
+      "additionalProperties": false,
+      "description": "One NPC's base sheet and the variant baked with the copied CRAM words.",
+      "properties": {
+        "from": {
+          "description": "Base sheet expected by the extraction record.",
+          "type": "string"
+        },
+        "npc_index": {
+          "description": "Index in the map's object list.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "to": {
+          "description": "Sheet to draw when the enclosing path's gates hold.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "npc_index",
+        "from",
+        "to"
+      ],
+      "type": "object"
+    },
+    "PaletteWrite": {
+      "additionalProperties": false,
+      "description": "One CRAM-shadow word write.",
+      "properties": {
+        "slot": {
+          "description": "CRAM slot, 0..63.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "word": {
+          "description": "Raw word, including hardware-ignored bits.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slot",
+        "word"
+      ],
+      "type": "object"
+    },
+    "PatchTile": {
+      "additionalProperties": false,
+      "description": "One atlas tile.",
+      "properties": {
+        "bg_chunk_id": {
+          "default": null,
+          "description": "BG member of a composed overworld tile.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "chunk_id": {
+          "description": "Raw chunk id for a one-plane `MapDataManager`/scene tile; absent for a\ncomposed overworld FG/BG tile, which is not a raw chunk.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "collision": {
+          "default": null,
+          "description": "Row-major 2x2 collision values for live scene writes. Older atlases\nonly carried map-load write cells and may omit this definition.",
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "fg_chunk_id": {
+          "default": null,
+          "description": "FG member of a composed overworld tile.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "index": {
+          "description": "Position in the atlas row; `x` is its pixel offset.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "priority_tiles": {
+          "default": 0,
+          "description": "How many of the tile's 8px cells carry the priority bit.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x": {
+          "description": "Pixel x of this tile inside the atlas PNG.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "x"
+      ],
+      "type": "object"
+    },
+    "ResolvedCell": {
+      "additionalProperties": false,
+      "description": "A resolved collision cell for a `layout_write`.",
+      "properties": {
+        "collision": {
+          "description": "The 4-bit collision type the written chunk imposes.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x": {
+          "description": "Column, in collision cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Row, in collision cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "collision"
+      ],
+      "type": "object"
+    },
+    "ScrollMode": {
+      "description": "Scroll helper's treatment of the sine byte.",
+      "oneOf": [
+        {
+          "const": "unsigned",
+          "description": "Logical shifts of the sine byte, Garuberk horizontal scroll.",
+          "type": "string"
+        },
+        {
+          "const": "signed",
+          "description": "Sign extension and ASR, The Edge horizontal scroll.",
+          "type": "string"
+        },
+        {
+          "const": "vertical",
+          "description": "Sign extension and ASR, the unused vertical scroll entry.",
+          "type": "string"
+        }
+      ]
+    },
+    "TreasurePatch": {
+      "additionalProperties": false,
+      "description": "A treasure chest.",
+      "properties": {
+        "chest_flag": {
+          "description": "The save flag that remembers this chest was opened.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "contents_type": {
+          "description": "Which of [`Treasure::item_id`] and [`Treasure::meseta`] is meaningful.",
+          "oneOf": [
+            {
+              "const": "item",
+              "description": "Byte 3 is an inventory item id.",
+              "type": "string"
+            },
+            {
+              "const": "meseta",
+              "description": "Byte 3 is a meseta count, in hundreds.",
+              "type": "string"
+            }
+          ]
+        },
+        "index": {
+          "description": "Position in this map's chest list.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "item_id": {
+          "default": null,
+          "description": "Set when `contents_type` is [`ContentsType::Item`].",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "item_symbol": {
+          "default": null,
+          "description": "The item's symbol, when it holds an item.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "meseta": {
+          "default": null,
+          "description": "Set when `contents_type` is [`ContentsType::Meseta`]. Already multiplied\nout: the ROM stores hundreds.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "object_symbol": {
+          "default": null,
+          "description": "The chest object's symbol.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "record_offset": {
+          "description": "Where the record sits in the ROM.",
+          "type": "string"
+        },
+        "sprite": {
+          "additionalProperties": false,
+          "description": "An object's binding to a sprite sheet.",
+          "properties": {
+            "facing": {
+              "description": "A sprite facing, tolerating the cartridge's one out-of-set byte.",
+              "oneOf": [
+                {
+                  "const": "down",
+                  "description": "Facing down.",
+                  "type": "string"
+                },
+                {
+                  "const": "up",
+                  "description": "Facing up.",
+                  "type": "string"
+                },
+                {
+                  "const": "left",
+                  "description": "Facing left.",
+                  "type": "string"
+                },
+                {
+                  "const": "right",
+                  "description": "Facing right.",
+                  "type": "string"
+                },
+                {
+                  "const": "unknown",
+                  "description": "A facing byte outside {0, 4, 8, $C}; drawn as down.",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "idle_sequence": {
+              "description": "Sequence to play at rest.",
+              "type": "string"
+            },
+            "sheet": {
+              "description": "Sheet id inside the index file named by `sheets`.",
+              "type": "string"
+            },
+            "sheets": {
+              "description": "The index file, pack-root-relative (`sprites/npcs.json`).",
+              "type": "string"
+            },
+            "walk_sequence": {
+              "description": "Sequence to play while moving.",
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "white_chest": {
+          "description": "Whether this is one of the white chests.",
+          "type": "boolean"
+        },
+        "x_cell": {
+          "description": "Column, in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x_pixels": {
+          "description": "X in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_cell": {
+          "description": "Row, in cells, with the standing-cell shift applied.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_pixels": {
+          "description": "Y in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "UpdateBank": {
+      "description": "The three flag-test doors used by these routines.",
+      "oneOf": [
+        {
+          "const": "event",
+          "description": "Base events, $F100.",
+          "type": "string"
+        },
+        {
+          "const": "chest",
+          "description": "Extended events/chests, $F120.",
+          "type": "string"
+        },
+        {
+          "const": "temp",
+          "description": "Temporary events, $F140.",
+          "type": "string"
+        }
+      ]
+    },
+    "UpdateGate": {
+      "additionalProperties": false,
+      "description": "A flag read by an update.",
+      "properties": {
+        "bank": {
+          "$ref": "#/$defs/UpdateBank",
+          "description": "Physical flag door, independent of fork labels."
+        },
+        "flag": {
+          "description": "Bit id in that bank.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "set": {
+          "description": "Required value.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "bank",
+        "flag",
+        "set"
+      ],
+      "type": "object"
+    },
+    "VariantCollision": {
+      "additionalProperties": false,
+      "description": "A variant's collision grid, rows of 4-bit types.",
+      "properties": {
+        "height_cells": {
+          "description": "Height in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "plane": {
+          "default": null,
+          "description": "The plane collision reads on this map.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rows": {
+          "description": "Row-major cell types.",
+          "items": {
+            "items": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "width_cells": {
+          "description": "Width in cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "width_cells",
+        "height_cells",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "VariantPlane": {
+      "additionalProperties": false,
+      "description": "One plane of a layout variant.",
+      "properties": {
+        "identical_to_base": {
+          "default": false,
+          "description": "True when the \"replacement\" is the map's own base blob (one plane of\neach retail pair is).",
+          "type": "boolean"
+        },
+        "plane": {
+          "description": "`fg` or `bg`.",
+          "type": "string"
+        },
+        "source": {
+          "default": null,
+          "description": "ROM offset of the replacement blob.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "plane"
+      ],
+      "type": "object"
+    },
+    "VehicleBattleLayout": {
+      "additionalProperties": false,
+      "description": "Raw chunk ids in the collision-authoritative layout plane.",
+      "properties": {
+        "height_chunks": {
+          "description": "Height in 32-pixel chunks.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "plane": {
+          "default": null,
+          "description": "`fg` or `bg`, matching the decoded map plane.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rows": {
+          "description": "Row-major raw chunk ids.",
+          "items": {
+            "items": {
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "width_chunks": {
+          "description": "Width in 32-pixel chunks.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "width_chunks",
+        "height_chunks",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "WarpPatch": {
+      "additionalProperties": false,
+      "description": "A map transition.\n\nThe ROM stores a source coordinate and an `XYRangeJmpTbl` index, not a\nrectangle; the packer transcribes the fifteen routines into [`Warp::rect`]\nand clips it to the map, because five of them are open-ended half-planes.",
+      "properties": {
+        "character_alignment": {
+          "description": "The record's `character_alignment` byte; not decoded yet.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "destination": {
+          "additionalProperties": false,
+          "description": "Where the player lands on the target map, in that map's cells.",
+          "properties": {
+            "x_cell": {
+              "description": "Column, in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "y_cell": {
+              "description": "Row, in cells, already carrying the standing-cell shift.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "facing": {
+          "additionalProperties": false,
+          "description": "Which way the player faces on arrival.",
+          "properties": {
+            "id": {
+              "description": "The raw byte: 0 down, 4 up, 8 right, `$C` left.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "description": "One of the four facings.",
+              "oneOf": [
+                {
+                  "const": "down",
+                  "description": "Facing down the screen; the raw byte is 0.",
+                  "type": "string"
+                },
+                {
+                  "const": "up",
+                  "description": "Raw byte 4.",
+                  "type": "string"
+                },
+                {
+                  "const": "right",
+                  "description": "Raw byte 8.",
+                  "type": "string"
+                },
+                {
+                  "const": "left",
+                  "description": "Raw byte `$C`.",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "index": {
+          "description": "Position in this map's warp list.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "range": {
+          "additionalProperties": false,
+          "description": "The `XYRangeJmpTbl` entry that produced [`Warp::rect`].",
+          "properties": {
+            "id": {
+              "description": "Index into `XYRangeJmpTbl`, `0..15`.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "description": "The disassembly's name for it, such as `XYExact`.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "record_offset": {
+          "description": "Where the record sits in the ROM, for tracing back.",
+          "type": "string"
+        },
+        "rect": {
+          "additionalProperties": false,
+          "description": "A half-open rectangle of collision cells: `x..x + width`.",
+          "properties": {
+            "height": {
+              "description": "Height in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "width": {
+              "description": "Width in cells. The packer never emits zero; it emits no rectangle.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "description": "Leftmost column, in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "y": {
+              "description": "Topmost row, in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "source": {
+          "additionalProperties": false,
+          "description": "The record's coordinate, raw and resolved.",
+          "properties": {
+            "x_byte": {
+              "description": "The raw X byte from the record.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x_cell": {
+              "description": "Column, in cells.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "y_byte": {
+              "description": "The raw Y byte from the record, one row above the cell it means.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "y_cell": {
+              "description": "Row, in cells, with the standing-cell shift applied.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "table": {
+          "description": "Which table the record came from.",
+          "enum": [
+            1,
+            2
+          ],
+          "type": "integer"
+        },
+        "target": {
+          "additionalProperties": false,
+          "description": "The map this transition leads to.",
+          "properties": {
+            "id": {
+              "description": "The referenced map's id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "symbol": {
+              "default": null,
+              "description": "Its `MapID_*` symbol, when it has one.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "trigger": {
+          "description": "The collision the player must be standing on for this table to be\nwalked: `any_walkable_tile` or `map_change_tile`.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/maps/<id>_<symbol>.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "art_cycle_images": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "description": "Original PNG (base, variant, or priority overlay) -> ordered per-frame\nPNGs for tile-DMA art cycles (`[frame0, frame1, ...]`, where frame 0 is\nthe key itself). Palette-index counterparts live in `map_update_images`.",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "chunk_def_copies": {
+      "description": "Resolved `Chunk_Table` 16-word chunk-definition copies applied live by\nscenes and on flagged map loads (e.g. Dezolis Eclipse Torch `$08 -> $4B`).",
+      "items": {
+        "$ref": "#/$defs/ChunkDefCopy"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "collision": {
+      "additionalProperties": false,
+      "description": "The collision grid and the plane it came from.",
+      "properties": {
+        "height_cells": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "plane": {
+          "description": "Which plane the collision was read from.\n\n`GetChunkAndCollision` reads `Map_Layout_BG` when the map record's\n`$FFFFEC24` byte is non-zero and `Map_Layout_FG` when it is zero.",
+          "oneOf": [
+            {
+              "const": "fg",
+              "description": "Foreground plane.",
+              "type": "string"
+            },
+            {
+              "const": "bg",
+              "description": "Background plane.",
+              "type": "string"
+            }
+          ]
+        },
+        "plane_byte": {
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rows": {
+          "description": "Collision rows: each row is either a hex-nibble string or an array of 4-bit collision codes (0..=15).",
+          "items": {
+            "oneOf": [
+              {
+                "pattern": "^[0-9a-fA-F]*$",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "maximum": 15,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "width_cells": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "dialogue_tree": {
+      "description": "Which of the 43 dialogue trees this map's objects speak from, `1..=43`.",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "dimensions": {
+      "additionalProperties": false,
+      "description": "Size, in cells, chunks and pixels.",
+      "properties": {
+        "cell_pixels": {
+          "description": "Always [`COLLISION_CELL_PIXELS`]; carried so the pack is readable on its\nown and so a drift in the packer is caught rather than assumed away.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "height_cells": {
+          "description": "Height in collision cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "height_chunks": {
+          "description": "Height in chunks.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "height_pixels": {
+          "description": "Height in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width_cells": {
+          "description": "Width in collision cells. This is the coordinate space of everything\nelse in the record.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width_chunks": {
+          "description": "Width in chunks; a chunk is 4x4 tiles, so 2x2 cells.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width_pixels": {
+          "description": "Width in pixels, for the renderer.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "events": {
+      "default": [],
+      "description": "`RunEventsJmpTbl` trigger indices in evaluation order (`[0]` is the\nretail idle case — no map carries an empty list).",
+      "items": {
+        "format": "uint16",
+        "maximum": 65535,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "flags": {
+      "additionalProperties": false,
+      "description": "The four per-map flags.",
+      "properties": {
+        "dungeon_teleport_index": {
+          "default": null,
+          "description": "Which dungeon-teleport destination this map belongs to.\n\n`None` when the stored byte has bit 7 set, which the extractor reads as\nan inherited index: map load skips the store. Nine retail maps do this: the\neight `ValleyMaze*` parts and `Passageway`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "poison": {
+          "description": "Non-zero on maps that drain HP as the party walks.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "random_battles": {
+          "description": "Non-zero where random encounters roll.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "town_teleport": {
+          "description": "Non-zero blocks town teleport. Zero still requires no dungeon exit.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "format_version": {
+      "description": "The pack format this record was written in. Repeated per map so a single\nfile is self-describing.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "id": {
+      "description": "Index into `FieldMapPtrs`.",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "interaction_areas": {
+      "description": "Areas checked by `Interaction_ChkMapAreas`, in record order.  Packs\nemitted before interaction extraction may omit this field.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/InteractionAreaPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^[0-9]+$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/InteractionAreaPatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "layout_patches": {
+      "description": "Original overworld page-hook records. They are kept separate from\n`MapDataManager` and from their render/collision resolution below.",
+      "items": {
+        "$ref": "#/$defs/OverworldLayoutPatch"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "layout_variants": {
+      "default": [],
+      "description": "Decoded whole-layout replacements referenced by `layout_replace`\nwrites, shipped as first-class variants with their own collision.",
+      "items": {
+        "$ref": "#/$defs/LayoutVariant"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "map_effects": {
+      "default": [],
+      "description": "`MapDataManager` entries for this map: flag-gated load-time patches\n(`docs/field/MAP_EFFECTS.md`). Absent on packs predating the extraction.",
+      "items": {
+        "$ref": "#/$defs/MapEffect"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "map_update_images": {
+      "additionalProperties": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "description": "Original PNG -> additive palette-index PNG (including variants/atlases).",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "map_update_palette": {
+      "default": null,
+      "description": "Initial 64-word CRAM shadow, including the fixed party line.",
+      "items": {
+        "format": "uint16",
+        "maximum": 65535,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "map_updates": {
+      "description": "Ordered per-frame programs. None is a legacy pack, not an empty list.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/MapUpdatePatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^[0-9]+$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/MapUpdatePatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "music": {
+      "additionalProperties": false,
+      "description": "What plays on arrival.",
+      "properties": {
+        "changes_music": {
+          "description": "False when the id is 0 and the current track keeps playing.",
+          "type": "boolean"
+        },
+        "id": {
+          "description": "The music id as the map record stores it.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "symbol": {
+          "default": null,
+          "description": "The track's symbol, such as `MotabiaTown`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "npcs": {
+      "description": "`LoadMapObjects` entries.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/NpcPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^[0-9]+$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/NpcPatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "overworld_patches": {
+      "description": "Flag-selected, composed page-hook results for this full-map build.\nRetail also replays hooks when a page streams mid-map; this record does\nnot claim to model a flag changing while the same map remains loaded.",
+      "items": {
+        "$ref": "#/$defs/OverworldPatch"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "patch_tiles": {
+      "additionalProperties": false,
+      "description": "A map's patch-tile atlas: raw chunks and composed overworld plane pairs.",
+      "properties": {
+        "count": {
+          "description": "How many tiles the atlas holds.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "png": {
+          "description": "The atlas PNG, one row of tiles.",
+          "type": "string"
+        },
+        "png_over": {
+          "default": null,
+          "description": "The above-sprites overlay atlas. An overworld has one even if its\ncomposed results contain no priority pixels, to erase stale base ones.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tile_pixels": {
+          "description": "Tile edge length in pixels (32: a chunk is 2x2 collision cells).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tiles": {
+          "description": "Raw tiles first by chunk id, then composed FG/BG pairs by ids.",
+          "items": {
+            "$ref": "#/$defs/PatchTile"
+          },
+          "type": "array"
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "png": {
+      "description": "The composed render, relative to the pack directory.",
+      "type": "string"
+    },
+    "png_over": {
+      "default": null,
+      "description": "The priority-tile overlay render (tiles the VDP draws above sprites),\nor `None` for the 22 maps with zero priority tiles.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scroll": {
+      "additionalProperties": false,
+      "default": {
+        "bg_scroll_mode": 1,
+        "bg_scroll_word": "0x0001",
+        "bg_step_counters": null,
+        "fg_scroll_mode": 1,
+        "fg_scroll_word": "0x0001",
+        "fg_step_counters": null,
+        "mode": 1,
+        "padding_byte": "0x00"
+      },
+      "description": "The map-load camera bytes and optional initial 16.16 step counters.",
+      "properties": {
+        "bg_scroll_mode": {
+          "description": "Background driver gate, `$EC26`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "bg_scroll_word": {
+          "default": "",
+          "description": "Original background word, retained for extraction provenance.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "bg_step_counters": {
+          "additionalProperties": false,
+          "description": "The two longwords that `loc_51AB2` can seed as camera step counters.\n\nThe pack keeps the ROM's eight-digit hexadecimal spelling because these\nare 16.16 signed longwords, not pixel counts. Runtime code parses them at\nthe camera boundary and rejects no information by narrowing them to words.",
+          "properties": {
+            "x": {
+              "description": "`Camera_X_Step_Counter_*`, as an eight-digit hexadecimal string.",
+              "type": "string"
+            },
+            "y": {
+              "description": "`Camera_Y_Step_Counter_*`, as an eight-digit hexadecimal string.",
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "fg_scroll_mode": {
+          "description": "Foreground driver gate, `$EC25`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fg_scroll_word": {
+          "default": "",
+          "description": "Original foreground word, retained for extraction provenance.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fg_step_counters": {
+          "additionalProperties": false,
+          "description": "The two longwords that `loc_51AB2` can seed as camera step counters.\n\nThe pack keeps the ROM's eight-digit hexadecimal spelling because these\nare 16.16 signed longwords, not pixel counts. Runtime code parses them at\nthe camera boundary and rejects no information by narrowing them to words.",
+          "properties": {
+            "x": {
+              "description": "`Camera_X_Step_Counter_*`, as an eight-digit hexadecimal string.",
+              "type": "string"
+            },
+            "y": {
+              "description": "`Camera_Y_Step_Counter_*`, as an eight-digit hexadecimal string.",
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "mode": {
+          "description": "Global sprite-plane selector, `$EC24` (`0` foreground, nonzero background).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "padding_byte": {
+          "default": "",
+          "description": "The skipped byte between `$EC24` and the foreground word.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "symbol": {
+      "default": null,
+      "description": "The `MapID_*` symbol.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "treasure_chests": {
+      "description": "`LoadTreasureChests` entries.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/TreasurePatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^[0-9]+$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/TreasurePatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "vehicle_battle": {
+      "additionalProperties": false,
+      "description": "Raw chunk ids in the collision-authoritative layout plane.",
+      "properties": {
+        "height_chunks": {
+          "description": "Height in 32-pixel chunks.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "plane": {
+          "default": null,
+          "description": "`fg` or `bg`, matching the decoded map plane.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rows": {
+          "description": "Row-major raw chunk ids.",
+          "items": {
+            "items": {
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "width_chunks": {
+          "description": "Width in 32-pixel chunks.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "warps": {
+      "description": "Map transitions from both tables, in record order.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/WarpPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `index`.",
+          "propertyNames": {
+            "pattern": "^[0-9]+$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `index`.",
+          "items": {
+            "$ref": "#/$defs/WarpPatch",
+            "required": [
+              "index"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    }
+  },
+  "title": "PSIV Mod Patch Schema (maps/<id>_<symbol>.json)",
+  "type": "object"
+}

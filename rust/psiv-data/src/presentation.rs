@@ -15,6 +15,7 @@ pub mod credits;
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::error::DataError;
@@ -48,7 +49,7 @@ pub struct ScenePalettes {
     panels: BTreeMap<u16, Vec<PanelPalette>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 pub(crate) struct File {
     #[serde(default)]
     palettes: Vec<PaletteRecord>,
@@ -56,14 +57,14 @@ pub(crate) struct File {
     panels: Vec<PanelRecord>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 struct PaletteRecord {
     rom_addr: String,
     words: usize,
     raw_hex: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 struct PanelRecord {
     id: u16,
     art_tile_a: u16,

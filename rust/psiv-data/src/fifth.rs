@@ -4,6 +4,7 @@
 
 use std::path::Path;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{DataError, RomHash};
@@ -12,7 +13,7 @@ use crate::{DataError, RomHash};
 pub const FIFTH_ROWS: usize = 5;
 
 /// Where the pack keeps the table's JSON.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct FifthFile {
     /// Relative JSON path.
     pub path: String,
@@ -21,7 +22,7 @@ pub struct FifthFile {
 }
 
 /// One row of `loc_72182`, without its art byte.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct FifthRowRecord {
     /// Where the friend stands: X in pixels.
     pub x: u16,
@@ -35,7 +36,7 @@ pub struct FifthRowRecord {
     pub picked_flag: u8,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 pub(crate) struct FifthJson {
     format_version: u32,
     kind: String,

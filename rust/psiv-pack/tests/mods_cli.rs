@@ -1,4 +1,4 @@
-//! CLI tests for `psiv-pack mod <init|diff|check>` (#118).
+//! CLI tests for `psiv-pack mod <init|diff|check|schema>` (#118, #790).
 
 use std::fs;
 use std::path::PathBuf;
@@ -260,6 +260,68 @@ fn modding_guide_examples_pass_psiv_pack_mod_check() {
     assert!(stderr.contains("battle/enemies.json"), "{stderr}");
     assert!(stderr.contains("70000"), "{stderr}");
     assert!(stderr.contains("u16"), "{stderr}");
+
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn mod_schema_generates_and_checks_sync_without_rom() {
+    let binary = env!("CARGO_BIN_EXE_psiv-pack");
+    let published = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/schemas");
+
+    // 1. `--check` passes against the committed `docs/schemas/` directory.
+    let check_docs = Command::new(binary)
+        .args(["mod", "schema"])
+        .arg(&published)
+        .arg("--check")
+        .output()
+        .unwrap();
+    assert!(
+        check_docs.status.success(),
+        "psiv-pack mod schema docs/schemas --check failed: {}",
+        String::from_utf8_lossy(&check_docs.stderr)
+    );
+
+    // 2. Generating into a fresh directory is deterministic and passes `--check`.
+    let scratch = std::env::temp_dir().join(format!("psiv-pack-mod-schema-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&scratch);
+    let generated = Command::new(binary)
+        .args(["mod", "schema"])
+        .arg(&scratch)
+        .output()
+        .unwrap();
+    assert!(
+        generated.status.success(),
+        "psiv-pack mod schema failed: {}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+    assert!(scratch.join("mod.schema.json").is_file());
+    assert!(scratch.join("patches/battle/enemies.schema.json").is_file());
+    assert!(scratch.join("patches/dialogue/trees.schema.json").is_file());
+
+    let check_fresh = Command::new(binary)
+        .args(["mod", "schema"])
+        .arg(&scratch)
+        .arg("--check")
+        .output()
+        .unwrap();
+    assert!(
+        check_fresh.status.success(),
+        "fresh schema --check failed: {}",
+        String::from_utf8_lossy(&check_fresh.stderr)
+    );
+
+    // 3. Negative control: drifting a schema causes `--check` to exit 2.
+    fs::write(scratch.join("mod.schema.json"), "{}\n").unwrap();
+    let drifted = Command::new(binary)
+        .args(["mod", "schema"])
+        .arg(&scratch)
+        .arg("--check")
+        .output()
+        .unwrap();
+    assert_eq!(drifted.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&drifted.stderr);
+    assert!(stderr.contains("mod.schema.json"), "{stderr}");
 
     let _ = fs::remove_dir_all(&scratch);
 }

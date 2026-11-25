@@ -4,6 +4,7 @@
 
 use std::path::Path;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{DataError, RomHash, ShipWindow};
@@ -12,7 +13,7 @@ use crate::{DataError, RomHash, ShipWindow};
 pub const GUILD_JOBS: usize = 8;
 
 /// Where the pack keeps the board's JSON.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GuildFile {
     /// Relative JSON path.
     pub path: String,
@@ -23,7 +24,7 @@ pub struct GuildFile {
 /// One 16-colour palette line, as RGB.
 pub type GuildLine = Vec<[u8; 3]>;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 pub(crate) struct GuildJson {
     format_version: u32,
     kind: String,

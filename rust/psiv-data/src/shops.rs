@@ -11,6 +11,7 @@
 
 use std::path::Path;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::DataError;
@@ -19,7 +20,7 @@ use crate::DataError;
 pub const SHOPS_FILE: &str = "shops.json";
 
 /// A shopkeeper portrait the counters point at by ROM art address.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ShopPortrait {
     /// The ROM address of the portrait's art, as the counters spell it.
     pub art: String,
@@ -28,7 +29,7 @@ pub struct ShopPortrait {
 }
 
 /// One row of the cartridge's counter table.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ShopCounter {
     /// The row's index in `ShopCounters`.
     pub id: usize,
@@ -73,7 +74,7 @@ impl ShopCounter {
 }
 
 /// A counter's selector group.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ShopGroup {
     /// `0` inn, `1` shop, `2` a shop with its own dialogue.
     pub id: u8,
@@ -82,7 +83,7 @@ pub struct ShopGroup {
 }
 
 /// A shop's greeting word: which noun names its trade.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ShopGreeting {
     /// The greeting word's index: the shop's index in its group
     /// (`$FFFFECD1`).
@@ -97,7 +98,7 @@ pub struct ShopGreeting {
 }
 
 /// One item a shop sells.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ShopItem {
     /// The `InventoryData` index.
     pub item_id: u8,
@@ -110,7 +111,7 @@ pub struct ShopItem {
 }
 
 /// One `ShopInventories` list.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ShopInventory {
     /// The list's index.
     pub index: usize,
@@ -119,7 +120,7 @@ pub struct ShopInventory {
 }
 
 /// One inn's rate word.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct InnRecord {
     /// The rate's index; also the inn selector (`Inn_Index`).
     pub index: usize,
@@ -131,7 +132,7 @@ pub struct InnRecord {
 }
 
 /// The decoded `shops.json`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ShopData {
     /// The shopkeeper portraits, by art address.
     #[serde(default)]
@@ -149,7 +150,7 @@ pub struct ShopData {
 
 /// The lines a shop or inn window says as the party leaves, decoded through
 /// the dialogue charset (`$FC` a line break).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ShopLines {
     /// The shopkeeper's farewell when Cancel leaves the BUY/SELL menu,
     /// `loc_682A4`'s four lines by text variant (`$FFFFE3EE`).

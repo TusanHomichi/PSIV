@@ -4,14 +4,24 @@
 //! and control codes -- plus the pages the cartridge's text loop would show.
 //! The control-code census is closed: see [`Ctrl`].
 
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
+use std::borrow::Cow;
 
 use super::{PixelRect, hex_byte};
 
+fn hex_byte_schema(_generator: &mut SchemaGenerator) -> Schema {
+    json_schema!({
+        "type": "string",
+        "pattern": "^0[xX][0-9a-fA-F]{1,2}$",
+        "description": "0x-prefixed hexadecimal control-code byte (e.g. \"0xF4\")."
+    })
+}
+
 /// Type-0 area's world-indexed table and the first world's high-entry branch.
 /// Decoded from `Interaction_DisplayDialogue` ($058844), not map geography.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct WorldInteractionTrees {
     /// One tree per destination-menu world byte, in index order.
     pub world_trees: Vec<u8>,
@@ -20,7 +30,7 @@ pub struct WorldInteractionTrees {
 }
 
 /// The `cmpi.b` / `bcs` branch before the world table lookup.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FirstWorldOverride {
     /// Inclusive unsigned entry cutoff read from the cartridge instruction.
@@ -30,7 +40,7 @@ pub struct FirstWorldOverride {
 }
 
 /// One `(event_flag, entry)` row of `TalkOption_DialogueIDs` (`$05DF52`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TalkOptionEntry {
     /// Event flag tested in priority order; first set flag wins.
@@ -40,7 +50,7 @@ pub struct TalkOptionEntry {
 }
 
 /// Camp `TALK` / `MUMBL` selection table (`Win_TalkDialogue`, `$05DEBC`).
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct TalkOptions {
     /// Tree holding entries `< tree_high_from` (`DialogueTree31`).
     pub tree_low: u8,
@@ -88,7 +98,7 @@ impl TalkOptions {
 // ---------------------------------------------------------------------------
 
 /// `dialogue/trees.json`.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct TreeFile {
     /// Pack format; checked against [`DIALOGUE_FORMAT_VERSION`].
     pub format_version: u32,
@@ -119,7 +129,7 @@ pub struct TreeFile {
 }
 
 /// The uncompressed system-message block.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct SystemMessages {
     /// The disassembly label the block came from.
     #[serde(default)]
@@ -133,7 +143,7 @@ pub struct SystemMessages {
 }
 
 /// One Kosinski tree.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct DialogueTree {
     /// 1-based tree number, the value a map record's `dialogue_tree` holds.
     pub tree: u8,
@@ -170,7 +180,7 @@ impl DialogueTree {
 
 /// One entry: what an NPC says, from the byte after the previous `$FF` to the
 /// next one.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct DialogueEntry {
     /// Entry id within its tree.
     pub id: u16,
@@ -187,7 +197,7 @@ pub struct DialogueEntry {
 }
 
 /// One windowful of text.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Page {
     /// One or two lines, already broken exactly as the cartridge breaks them.
@@ -197,7 +207,7 @@ pub struct Page {
 }
 
 /// Why a page ended -- which is also what the player has to do about it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PageEnd {
     /// Both lines filled with text still to come: the arrow appears and the
@@ -214,7 +224,7 @@ pub enum PageEnd {
 }
 
 /// The window as the text loop sees it (`trees.json`'s `window` block).
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct TreeWindow {
     /// 32.
     pub chars_per_line: u32,
@@ -231,7 +241,7 @@ pub struct TreeWindow {
 }
 
 /// The scroll-arrow sprite's screen position and emitted art.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 pub struct ScrollArrow {
     /// Screen x, in Genesis pixels.
     pub screen_x: i32,
@@ -284,6 +294,29 @@ impl<'de> Deserialize<'de> for Segment {
     }
 }
 
+impl JsonSchema for Segment {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Segment")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        json_schema!({
+            "description": "One dialogue entry piece: either a text run (`{\"text\": \"...\"}`) or a tagged control code.",
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "text": { "type": "string" }
+                    },
+                    "required": ["text"],
+                    "additionalProperties": false
+                },
+                generator.subschema_for::<Ctrl>()
+            ]
+        })
+    }
+}
+
 /// Every control code the retail trees contain, as
 /// `TextCtrlCodesJmpTbl` dispatches them.
 ///
@@ -292,13 +325,14 @@ impl<'de> Deserialize<'de> for Segment {
 /// on them and never emits a segment for one. A name outside this list means
 /// the pack was written by a decoder this build does not understand, and the
 /// load fails rather than guessing.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 #[serde(tag = "ctrl", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Ctrl {
     /// `$F2`: `TextActionsOffs` sub-dispatch.
     Action {
         /// Raw code byte, `0xF2`.
         #[serde(deserialize_with = "hex_byte")]
+        #[schemars(schema_with = "hex_byte_schema")]
         code: u8,
         /// The bytes that followed it.
         operands: Vec<u8>,
@@ -321,6 +355,7 @@ pub enum Ctrl {
     KeepNpcFacing {
         /// Raw code byte, `0xF3`.
         #[serde(deserialize_with = "hex_byte")]
+        #[schemars(schema_with = "hex_byte_schema")]
         code: u8,
         /// Always empty.
         operands: Vec<u8>,
@@ -329,6 +364,7 @@ pub enum Ctrl {
     Portrait {
         /// Raw code byte, `0xF4`.
         #[serde(deserialize_with = "hex_byte")]
+        #[schemars(schema_with = "hex_byte_schema")]
         code: u8,
         /// One byte, or two in a talk tree.
         operands: Vec<u8>,
@@ -343,6 +379,7 @@ pub enum Ctrl {
     YesNo {
         /// Raw code byte, `0xF5`.
         #[serde(deserialize_with = "hex_byte")]
+        #[schemars(schema_with = "hex_byte_schema")]
         code: u8,
         /// Relative entry counts, starting after both operands.
         operands: Vec<u8>,
@@ -356,6 +393,7 @@ pub enum Ctrl {
     Event {
         /// Raw code byte, `0xF6`.
         #[serde(deserialize_with = "hex_byte")]
+        #[schemars(schema_with = "hex_byte_schema")]
         code: u8,
         /// The event id as a word.
         operands: Vec<u8>,
@@ -366,6 +404,7 @@ pub enum Ctrl {
     Close {
         /// Raw code byte, `0xF7`.
         #[serde(deserialize_with = "hex_byte")]
+        #[schemars(schema_with = "hex_byte_schema")]
         code: u8,
         /// Always empty.
         operands: Vec<u8>,
@@ -374,6 +413,7 @@ pub enum Ctrl {
     Delay {
         /// Raw code byte, `0xF9`.
         #[serde(deserialize_with = "hex_byte")]
+        #[schemars(schema_with = "hex_byte_schema")]
         code: u8,
         /// One byte.
         operands: Vec<u8>,
@@ -384,6 +424,7 @@ pub enum Ctrl {
     FlagCheck {
         /// Raw code byte, `0xFA`.
         #[serde(deserialize_with = "hex_byte")]
+        #[schemars(schema_with = "hex_byte_schema")]
         code: u8,
         /// Flag then target entry.
         operands: Vec<u8>,
@@ -398,6 +439,7 @@ pub enum Ctrl {
     Newline {
         /// Raw code byte, `0xFC`.
         #[serde(deserialize_with = "hex_byte")]
+        #[schemars(schema_with = "hex_byte_schema")]
         code: u8,
         /// Always empty.
         operands: Vec<u8>,
@@ -406,6 +448,7 @@ pub enum Ctrl {
     Wait {
         /// Raw code byte, `0xFD`.
         #[serde(deserialize_with = "hex_byte")]
+        #[schemars(schema_with = "hex_byte_schema")]
         code: u8,
         /// Always empty.
         operands: Vec<u8>,
@@ -483,7 +526,7 @@ impl Ctrl {
 }
 
 /// What a `$F2` action does, by `TextActionsOffs` index.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ActionKind {
     /// 0: load cutscene panel `panel`.
@@ -514,7 +557,7 @@ pub enum ActionKind {
 }
 
 /// What a `$FA` check reads. Retail data only ever checks event flags.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum FlagScope {
     /// The event flag array.

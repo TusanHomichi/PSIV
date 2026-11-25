@@ -1,0 +1,553 @@
+{
+  "$defs": {
+    "CharacterPatch": {
+      "additionalProperties": false,
+      "description": "One starting character.",
+      "properties": {
+        "age": {
+          "default": 0,
+          "description": "STATUS's original age table; zero means undisclosed.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "character_id": {
+          "description": "Index into `Character_Stats`, and the key into `levels.json`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "display_name": {
+          "default": null,
+          "description": "The cartridge's own name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "equipment": {
+          "additionalProperties": false,
+          "description": "What the character starts wearing.",
+          "properties": {
+            "body": {
+              "additionalProperties": false,
+              "description": "One filled equipment slot.",
+              "properties": {
+                "display_name": {
+                  "default": null,
+                  "description": "The cartridge's own name.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "item_id": {
+                  "description": "Index into `InventoryData`.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "symbol": {
+                  "description": "The disassembly's identifier, so a loadout reads without a lookup.",
+                  "type": "string"
+                },
+                "type": {
+                  "description": "The item's type byte, repeated here for the same reason.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "head": {
+              "additionalProperties": false,
+              "description": "One filled equipment slot.",
+              "properties": {
+                "display_name": {
+                  "default": null,
+                  "description": "The cartridge's own name.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "item_id": {
+                  "description": "Index into `InventoryData`.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "symbol": {
+                  "description": "The disassembly's identifier, so a loadout reads without a lookup.",
+                  "type": "string"
+                },
+                "type": {
+                  "description": "The item's type byte, repeated here for the same reason.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "left_hand": {
+              "additionalProperties": false,
+              "description": "One filled equipment slot.",
+              "properties": {
+                "display_name": {
+                  "default": null,
+                  "description": "The cartridge's own name.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "item_id": {
+                  "description": "Index into `InventoryData`.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "symbol": {
+                  "description": "The disassembly's identifier, so a loadout reads without a lookup.",
+                  "type": "string"
+                },
+                "type": {
+                  "description": "The item's type byte, repeated here for the same reason.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "right_hand": {
+              "additionalProperties": false,
+              "description": "One filled equipment slot.",
+              "properties": {
+                "display_name": {
+                  "default": null,
+                  "description": "The cartridge's own name.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "item_id": {
+                  "description": "Index into `InventoryData`.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "symbol": {
+                  "description": "The disassembly's identifier, so a loadout reads without a lookup.",
+                  "type": "string"
+                },
+                "type": {
+                  "description": "The item's type byte, repeated here for the same reason.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "experience": {
+          "description": "Starting experience. Eight of the eleven join with some already.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hp": {
+          "description": "Current HP.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "initialized": {
+          "additionalProperties": false,
+          "description": "What `InitializeCharStats` leaves in RAM — the conformance vector.",
+          "properties": {
+            "atk_pow": {
+              "description": "`atk_pow` — base strength plus every item's strength and attack bonus.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "dfs_pow": {
+              "description": "`dfs_pow` — base agility plus every item's agility and defence bonus.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "element_props": {
+              "additionalProperties": {
+                "additionalProperties": false,
+                "description": "One element resistance.",
+                "properties": {
+                  "value": {
+                    "description": "The raw byte, 0..=4.",
+                    "format": "uint8",
+                    "maximum": 255,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              },
+              "description": "The finished element properties, after armour grants and the fallback\nto the record's own bytes.",
+              "type": "object"
+            },
+            "magic_dfs": {
+              "description": "`magic_dfs` — base mental plus every item's mental and magic-defence\nbonus.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "stats": {
+              "additionalProperties": {
+                "additionalProperties": false,
+                "description": "One stat before and after equipment.",
+                "properties": {
+                  "base": {
+                    "description": "What the record holds.",
+                    "format": "uint8",
+                    "maximum": 255,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "mod": {
+                    "description": "What `UpdateCharModStats` computed.",
+                    "format": "uint8",
+                    "maximum": 255,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              },
+              "description": "Each base stat with its equipment-modified value.",
+              "type": "object"
+            },
+            "weapon_elements": {
+              "additionalProperties": false,
+              "description": "`$50` and `$51`: what element each hand's weapon swings with.",
+              "properties": {
+                "left_hand": {
+                  "additionalProperties": false,
+                  "description": "`$51`.",
+                  "properties": {
+                    "id": {
+                      "description": "The raw id.",
+                      "format": "uint16",
+                      "maximum": 65535,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "name": {
+                      "default": null,
+                      "description": "What it is called, when it is called anything.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
+                "right_hand": {
+                  "additionalProperties": false,
+                  "description": "`$50`.",
+                  "properties": {
+                    "id": {
+                      "description": "The raw id.",
+                      "format": "uint16",
+                      "maximum": 65535,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "name": {
+                      "default": null,
+                      "description": "What it is called, when it is called anything.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "level": {
+          "description": "Starting level.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_hp": {
+          "description": "Maximum HP — the record mirrors one value into both.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_tp": {
+          "description": "Maximum TP.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "profession": {
+          "additionalProperties": false,
+          "description": "`ProfessionID_*`.",
+          "properties": {
+            "id": {
+              "description": "The raw id.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "default": null,
+              "description": "What it is called, when it is called anything.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "properties": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "description": "One element resistance.",
+            "properties": {
+              "value": {
+                "description": "The raw byte, 0..=4.",
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "description": "Innate element resistances, keyed by slot name. These land in the *low*\nhalves of the property words; [`Initialized::element_props`] is what the\ndamage pipeline reads.",
+          "type": "object"
+        },
+        "skills": {
+          "additionalProperties": false,
+          "default": {
+            "slots": [],
+            "uses": []
+          },
+          "description": "The eight skill ids and their initial use counts copied into\n`$62..$79` by `InitializeCharStats`.",
+          "properties": {
+            "slots": {
+              "default": [],
+              "description": "Skill ids, in retail slot order. Zero means an empty slot.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "uses": {
+              "default": [],
+              "description": "Initial uses for the corresponding skill slots.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "stats": {
+          "additionalProperties": false,
+          "description": "The four base stats, before equipment.",
+          "properties": {
+            "agility": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "dexterity": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "mental": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "strength": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "status_portrait": {
+          "additionalProperties": false,
+          "description": "Pack path for the composed 80x80 STATUS plane map, including its border.",
+          "properties": {
+            "png": {
+              "description": "Path relative to the runtime pack.",
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "symbol": {
+          "description": "The disassembly's identifier.",
+          "type": "string"
+        },
+        "techniques": {
+          "additionalProperties": false,
+          "default": {
+            "slots": []
+          },
+          "description": "The sixteen technique ids copied into `$52..$61` by\n`InitializeCharStats`.",
+          "properties": {
+            "slots": {
+              "default": [],
+              "description": "Technique ids, in retail slot order. Zero means an empty slot.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "tp": {
+          "description": "Current TP.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sparse JSON patch schema for `patches/battle/characters.json`, generated from `psiv-data` Rust types with strict unknown-field rejection (`additionalProperties: false`).",
+  "properties": {
+    "characters": {
+      "description": "The records, in `Character_Stats` order.",
+      "oneOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/CharacterPatch"
+          },
+          "description": "Sparse ID-keyed patch map keyed by `character_id`.",
+          "propertyNames": {
+            "pattern": "^[0-9]+$"
+          },
+          "type": "object"
+        },
+        {
+          "description": "Array of partial record patches, each carrying `character_id`.",
+          "items": {
+            "$ref": "#/$defs/CharacterPatch",
+            "required": [
+              "character_id"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "count": {
+      "description": "How many records the file declares.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "format_version": {
+      "description": "The pack format that wrote this.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "title": "PSIV Mod Patch Schema (battle/characters.json)",
+  "type": "object"
+}
