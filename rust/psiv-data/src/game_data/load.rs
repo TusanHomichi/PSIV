@@ -244,10 +244,15 @@ impl GameData {
 /// and MileHouse2 (`0x022`, NPCs 2/3) carry `dialogue_id = 0x6E (110)`, pointing
 /// at the trailing `$FF` slot of 110-entry `DialogueTree4`. Mod-added or
 /// mod-edited NPCs are checked strictly without this exemption in `PackOverlay`.
-fn is_retail_silent_mile_npc(map_id: crate::MapId, npc_index: u32, dialogue_id: u16) -> bool {
+fn is_retail_silent_mile_npc(
+    map_id: crate::MapId,
+    dialogue_tree: u8,
+    npc_index: u32,
+    dialogue_id: u16,
+) -> bool {
     matches!(
-        (map_id.0, npc_index, dialogue_id),
-        (0x020 | 0x022, 2 | 3, 110)
+        (map_id.0, dialogue_tree, npc_index, dialogue_id),
+        (0x020 | 0x022, 4, 2 | 3, 110)
     )
 }
 
@@ -268,7 +273,12 @@ fn validate_npc_dialogue_refs(data: &GameData) -> Result<(), DataError> {
         };
         for (pos, npc) in record.npcs.iter().enumerate() {
             if tree.entry(npc.dialogue_id).is_none()
-                && !is_retail_silent_mile_npc(*map_id, npc.index, npc.dialogue_id)
+                && !is_retail_silent_mile_npc(
+                    *map_id,
+                    record.dialogue_tree,
+                    npc.index,
+                    npc.dialogue_id,
+                )
             {
                 return Err(DataError::validation(
                     *map_id,

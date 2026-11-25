@@ -592,6 +592,96 @@ fn additive_negative_controls_fail_closed_naming_mod_file_and_record_id() {
         .expect_err("inserting before base records must fail diff");
     assert!(front_err.contains("appended"), "{front_err}");
 
+    // 15. Non-dense dialogue entry IDs in `$add` (gap or out-of-order) fail immediately in both
+    //     apply_json_patch and diff_json.
+    let mut base_trees = json!({
+        "trees": [{
+            "tree": 1,
+            "entry_count": 1,
+            "entries": [{
+                "id": 0,
+                "text": "Hi",
+                "segments": [{"text": "Hi"}],
+                "pages": [{"lines": ["Hi"], "end": "end"}]
+            }]
+        }]
+    });
+    let gap_patch = json!({
+        "trees": {
+            "1": {
+                "entries": {
+                    "$add": [{"id": 5, "lines": ["Skipped ID"]}]
+                }
+            }
+        }
+    });
+    let gap_err = apply_json_patch(&mut base_trees, &gap_patch, "dialogue/trees.json")
+        .expect_err("non-dense dialogue entry id must fail patch apply");
+    assert!(gap_err.contains("dense"), "{gap_err}");
+    assert!(gap_err.contains("expected id=1"), "{gap_err}");
+
+    let edited_gap_trees = json!({
+        "trees": [{
+            "tree": 1,
+            "entry_count": 2,
+            "entries": [
+                {
+                    "id": 0,
+                    "text": "Hi",
+                    "segments": [{"text": "Hi"}],
+                    "pages": [{"lines": ["Hi"], "end": "end"}]
+                },
+                {
+                    "id": 5,
+                    "text": "Gap",
+                    "segments": [{"text": "Gap"}],
+                    "pages": [{"lines": ["Gap"], "end": "end"}]
+                }
+            ]
+        }]
+    });
+    let diff_gap_err = diff_json(&base_trees, &edited_gap_trees, "dialogue/trees.json")
+        .expect_err("non-dense dialogue entry id must fail diff");
+    assert!(diff_gap_err.contains("dense"), "{diff_gap_err}");
+
+    // 16. MileHouse silent-NPC exemption (0x020/0x022, NPCs 2/3, dialogue_id 110) only applies
+    //     when the map uses DialogueTree4; repointing dialogue_tree away from 4 must fail closed.
+    let mile_base = scratch.join("mile-base");
+    write_synthetic_pack(&mile_base);
+    let mut mile_manifest: Value =
+        serde_json::from_str(&fs::read_to_string(mile_base.join("manifest.json")).unwrap())
+            .unwrap();
+    let mut mile_entry = mile_manifest["maps"][0].clone();
+    mile_entry["id"] = json!(0x020);
+    mile_entry["id_hex"] = json!("0x020");
+    mile_entry["name"] = json!("MileHouse1");
+    mile_entry["json"] = json!("maps/020_MileHouse1.json");
+    mile_manifest["maps"]
+        .as_array_mut()
+        .unwrap()
+        .push(mile_entry);
+    fs::write(
+        mile_base.join("manifest.json"),
+        serde_json::to_string_pretty(&mile_manifest).unwrap(),
+    )
+    .unwrap();
+    let mut mile_map: Value =
+        serde_json::from_str(&fs::read_to_string(mile_base.join("maps/010_Piata.json")).unwrap())
+            .unwrap();
+    mile_map["id"] = json!(0x020);
+    mile_map["id_hex"] = json!("0x020");
+    mile_map["name"] = json!("MileHouse1");
+    mile_map["dialogue_tree"] = json!(1);
+    mile_map["npcs"] = json!([sample_npc(2, 110)]);
+    fs::write(
+        mile_base.join("maps/020_MileHouse1.json"),
+        serde_json::to_string_pretty(&mile_map).unwrap(),
+    )
+    .unwrap();
+    let mile_err = PackOverlay::load_validated(&mile_base, &[])
+        .expect_err("MileHouse1 with dialogue_tree != 4 must reject dangling dialogue_id 110");
+    assert!(mile_err.detail.contains("dialogue_id 110"), "{mile_err}");
+
     let _ = fs::remove_dir_all(&scratch);
 }
 
