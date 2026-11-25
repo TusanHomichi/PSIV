@@ -79,11 +79,11 @@ impl JobBoardScreen {
     /// Loads the shared window art and keeps the pack's board.
     pub(crate) fn configure(
         &mut self,
-        pack_dir: &str,
+        assets: &crate::pack_assets::PackAssets,
         set: &DialogueSet,
         guild: Option<GuildBoard>,
     ) {
-        self.chrome = CampChrome::build(pack_dir, set);
+        self.chrome = CampChrome::build(assets, set);
         self.guild = guild;
     }
 

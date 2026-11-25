@@ -117,12 +117,22 @@ impl EndingCreditsAssets {
     /// Refuses old, absent or malformed contracts with an actionable rebuild
     /// error. `sha256` is the enclosing manifest's verified ROM identity.
     pub fn load(pack_dir: &Path, sha256: &str) -> Result<Self, DataError> {
-        let path = pack_dir.join(CREDITS_FILE);
+        Self::load_overlay(&crate::mods::PackOverlay::base(pack_dir), sha256)
+    }
+
+    /// Reads and validates `presentation/credits.json` through a [`crate::PackOverlay`].
+    pub fn load_overlay(
+        overlay: &crate::mods::PackOverlay,
+        sha256: &str,
+    ) -> Result<Self, DataError> {
+        let path = overlay.logical_path(CREDITS_FILE);
         let fail = |message: String| DataError::Presentation {
             path: path.clone(),
             message: format!("{message}; rebuild the pack with psiv-pack"),
         };
-        let bytes = std::fs::read(&path).map_err(|e| fail(e.to_string()))?;
+        let bytes = overlay
+            .read_asset_bytes(CREDITS_FILE)
+            .map_err(|e| fail(e.to_string()))?;
         let value: Self = serde_json::from_slice(&bytes).map_err(|e| fail(e.to_string()))?;
         value.validate(sha256).map_err(fail)?;
         Ok(value)

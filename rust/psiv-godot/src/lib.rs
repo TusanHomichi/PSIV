@@ -32,6 +32,7 @@ mod job_board;
 mod menu_font;
 mod mod_ui;
 mod named_caches;
+mod pack_assets;
 mod pack_setup;
 mod pack_setup_style;
 mod resident_memory;
@@ -172,7 +173,7 @@ struct Field {
     /// nothing here can reach the runtime's mutators — the session's read-only
     /// view is the whole surface a shell gets.
     session: Option<Session>,
-    pack_dir: String,
+    pack_assets: pack_assets::PackAssets,
     /// Read-only native tape boundary: title frames are excluded.
     tape_frames: u64,
     tape_last_pad: Option<u8>,
@@ -325,7 +326,7 @@ impl INode2D for Field {
         Field {
             base,
             session: None,
-            pack_dir: String::new(),
+            pack_assets: pack_assets::PackAssets::default(),
             tape_frames: 0,
             tape_last_pad: None,
             tape_save_writes: [0; 3],
@@ -402,33 +403,33 @@ impl INode2D for Field {
         let install = install::Install::current();
         let (selected, overridden) = install::pack_directory(&install);
         let paths = install::PackPaths::of(selected);
-        self.pack_dir = paths.read.to_string_lossy().into_owned();
+        let base_pack = paths.read;
         if overridden {
-            godot_print!("runtime pack override: {}", self.pack_dir);
+            godot_print!("runtime pack override: {}", base_pack.display());
         }
-        let pack = std::path::PathBuf::from(&self.pack_dir);
-        let Some((pack, mod_boot)) = self.apply_mods_or_show_error(&install, pack) else {
+        let Some(mut mod_boot) = self.apply_mods_or_show_error(&install, &base_pack) else {
             return;
         };
-        let active_mods = mod_boot
-            .applied
-            .map(|applied| applied.active)
-            .unwrap_or_default();
-        let data = match GameData::load(&pack) {
-            Ok(data) => data,
-            Err(e) => {
-                let problem = install::pack_load_problem(&pack, &e);
-                if let Some(problem) = &problem {
-                    godot_error!(
-                        "runtime pack failed to load from {}: {problem}",
-                        self.pack_dir
-                    );
+        let active_mods = mod_boot.overlay.active_mods().to_vec();
+        let validated = mod_boot.validated.take();
+        let (data, validated_battle, validated_command_art) = match validated {
+            Some(v) => (v.game_data, v.battle_files, v.command_ui_art),
+            None => match GameData::load_overlay(self.pack_assets.overlay()) {
+                Ok(data) => (data, None, None),
+                Err(e) => {
+                    let problem = install::pack_load_problem(&base_pack, &e);
+                    if let Some(problem) = &problem {
+                        godot_error!(
+                            "runtime pack failed to load from {}: {problem}",
+                            self.pack_assets.display_root()
+                        );
+                    }
+                    let setup =
+                        pack_setup::PackSetup::create(install, paths.rebuild, overridden, problem);
+                    self.base_mut().add_child(&setup);
+                    return;
                 }
-                let setup =
-                    pack_setup::PackSetup::create(install, paths.rebuild, overridden, problem);
-                self.base_mut().add_child(&setup);
-                return;
-            }
+            },
         };
 
         // Where the pack's own first control is — Chaz alone in
@@ -526,7 +527,7 @@ impl INode2D for Field {
             let name = psiv_core::profile(index).map_or("UNKNOWN", |profile| profile.name);
             godot_print!("debug: {name} mounted (Vehicle_Index={index})");
         }
-        self.configure_battles(&mut session);
+        self.configure_battles(&mut session, validated_battle, validated_command_art);
 
         let mut map_sprite = Sprite2D::new_alloc();
         map_sprite.set_centered(false);
@@ -561,71 +562,49 @@ impl INode2D for Field {
         // the session owns its flow (`Session::power_on` put it at the front
         // door above); this builds the nodes. All explicit save/debug
         // selectors keep their fast paths and never pay the front-door delay.
+        let set = session.runtime().dialogue_pack().clone();
         if starts_at_title {
-            let pack_dir = self.pack_dir.clone();
-            self.title = title::TitleScreen::build(&pack_dir, self.base_mut());
+            let assets = self.pack_assets.clone();
+            self.title = title::TitleScreen::build(&assets, &set, self.base_mut());
         }
 
         let mut window = DialogueWindow::new_alloc();
-        // The pack loads once, through `psiv-data`, and rides in the data the
-        // runtime is built from: the dialogue rules (the trees, the window
-        // geometry the open animation counts in) are the runtime's, the art is
-        // the node's. Every runtime has the pack, so there is nothing to load
-        // or check here.
-        let set = session.runtime().dialogue_pack();
-        self.presentation.configure_dialogue_trees(set);
-        window.bind_mut().configure(&self.pack_dir, set);
+        self.presentation.configure_dialogue_trees(&set);
+        window.bind_mut().configure(&self.pack_assets, &set);
         window.set_z_index(30);
         self.base_mut().add_child(&window);
         self.dialogue = Some(window);
 
         let mut shop = ShopWindow::new_alloc();
-        shop.bind_mut().configure(&self.pack_dir);
+        shop.bind_mut().configure(&self.pack_assets, &set);
         self.base_mut().add_child(&shop);
         self.shop = Some(shop);
 
         let mut destination = DestinationScreen::new_alloc();
-        match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
-            Ok(set) => destination.bind_mut().configure(
-                &self.pack_dir,
-                &set,
-                session.runtime().data().ship_menu().cloned(),
-            ),
-            Err(e) => {
-                godot_error!("destination menu pack failed to load: {e}");
-            }
-        }
+        destination.bind_mut().configure(
+            &self.pack_assets,
+            &set,
+            session.runtime().data().ship_menu().cloned(),
+        );
         self.base_mut().add_child(&destination);
         self.destination = Some(destination);
 
         let mut world_map = WorldMapScreen::new_alloc();
-        if let Ok(set) = psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
-            world_map.bind_mut().configure(&self.pack_dir, &set);
-        }
+        world_map.bind_mut().configure(&self.pack_assets, &set);
         self.base_mut().add_child(&world_map);
         self.world_map = Some(world_map);
 
         let mut job_board = JobBoardScreen::new_alloc();
-        match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
-            Ok(set) => job_board.bind_mut().configure(
-                &self.pack_dir,
-                &set,
-                session.runtime().data().guild().cloned(),
-            ),
-            Err(e) => {
-                godot_error!("job board pack failed to load: {e}");
-            }
-        }
+        job_board.bind_mut().configure(
+            &self.pack_assets,
+            &set,
+            session.runtime().data().guild().cloned(),
+        );
         self.base_mut().add_child(&job_board);
         self.job_board = Some(job_board);
 
         let mut camp = CampMenu::new_alloc();
-        match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
-            Ok(set) => camp.bind_mut().configure(&self.pack_dir, set),
-            Err(e) => {
-                godot_error!("camp menu pack failed to load: {e}");
-            }
-        }
+        camp.bind_mut().configure(&self.pack_assets, &set);
         self.base_mut().add_child(&camp);
         self.camp_menu = Some(camp);
 
@@ -633,18 +612,11 @@ impl INode2D for Field {
         // separate from DialogueWindow: Panel_Create writes the VDP planes
         // directly and only exposes a new stack on DmaPlanes.
         let mut cutscene_layer = CutsceneLayer::new_alloc();
-        match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
-            Ok(set) => {
-                cutscene_layer.bind_mut().configure(&self.pack_dir, &set);
-                if let Some(assets) = session.runtime().data().ending_credits() {
-                    cutscene_layer
-                        .bind_mut()
-                        .configure_credits(assets, &self.pack_dir, &set.font);
-                }
-            }
-            Err(e) => {
-                godot_error!("scene presentation pack failed to load: {e}");
-            }
+        cutscene_layer.bind_mut().configure(&self.pack_assets, &set);
+        if let Some(assets) = session.runtime().data().ending_credits() {
+            cutscene_layer
+                .bind_mut()
+                .configure_credits(assets, &self.pack_assets, &set.font);
         }
         cutscene_layer
             .bind_mut()
@@ -767,9 +739,14 @@ impl Field {
 
     /// Presents one title frame.
     fn present_title(&mut self, frame: TitleFrame) {
-        if self.title.is_none() {
-            let pack_dir = self.pack_dir.clone();
-            self.title = title::TitleScreen::build(&pack_dir, self.base_mut());
+        if self.title.is_none()
+            && let Some(set) = self
+                .session
+                .as_ref()
+                .map(|s| s.runtime().dialogue_pack().clone())
+        {
+            let assets = self.pack_assets.clone();
+            self.title = title::TitleScreen::build(&assets, &set, self.base_mut());
         }
         if let Some(sound_id) = frame.sound_request
             && let Some(audio) = self.audio.as_mut()
@@ -986,7 +963,7 @@ impl Field {
             let view = self
                 .runtime()
                 .and_then(|runtime| runtime.data().party_sheet(leader as usize))
-                .and_then(|sheet| SheetView::build(&self.pack_dir, sheet, Some(&self.cram)));
+                .and_then(|sheet| SheetView::build(&self.pack_assets, sheet, Some(&self.cram)));
             self.party_view = view;
             if self.party_view.is_some() {
                 godot_print!("party leader is now sheet {leader}");

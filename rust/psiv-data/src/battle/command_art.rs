@@ -52,10 +52,13 @@ impl CommandUiArt {
     /// mismatch, a missing required VRAM tile, an invalid palette word, or a
     /// row that is not eight hex digits.
     pub fn load(pack_dir: &Path) -> Result<CommandUiArt, DataError> {
-        let path = pack_dir.join(COMMAND_UI_ART_PATH);
-        let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-        let art: CommandUiArt =
-            serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+        Self::load_overlay(&crate::mods::PackOverlay::base(pack_dir))
+    }
+
+    /// Reads and validates `battle/art/command_ui.json` through a [`crate::PackOverlay`].
+    pub fn load_overlay(overlay: &crate::mods::PackOverlay) -> Result<CommandUiArt, DataError> {
+        let path = overlay.logical_path(COMMAND_UI_ART_PATH);
+        let art: CommandUiArt = overlay.read_json_data(COMMAND_UI_ART_PATH)?;
         if art.format_version != PACK_FORMAT_VERSION {
             return Err(DataError::FormatVersion {
                 found: art.format_version,

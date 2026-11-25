@@ -293,4 +293,4 @@ fn check_version(found: u32) -> Result<(), DataError> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

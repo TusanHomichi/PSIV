@@ -5,7 +5,6 @@
 //! the field-menu work.
 
 use std::collections::BTreeMap;
-use std::path::Path;
 
 use godot::classes::{Image, ImageTexture};
 use godot::prelude::*;
@@ -13,6 +12,7 @@ use godot::prelude::*;
 use psiv_data::{DialogueSet, Role};
 
 use super::layout::{CELL, CellRect};
+use crate::pack_assets::PackAssets;
 
 const WINDOW_BASE_TILE: u16 = 0x680;
 /// Retail's HP/TP separator is loaded from the window charset, not the
@@ -34,8 +34,8 @@ pub(crate) struct CampChrome {
 }
 
 impl CampChrome {
-    pub(crate) fn build(pack_dir: &str, set: &DialogueSet) -> Option<CampChrome> {
-        let strip = load_image(pack_dir, &set.window.png)?;
+    pub(crate) fn build(assets: &PackAssets, set: &DialogueSet) -> Option<CampChrome> {
+        let strip = assets.load_image(&set.window.png)?;
         let mut tiles = BTreeMap::new();
         for role in Role::ALL {
             let tile = set.window.role(role)?;
@@ -52,14 +52,7 @@ impl CampChrome {
             }
             tiles.insert(role.as_str(), ImageTexture::create_from_image(&cell)?);
         }
-        let menu_path = format!("{pack_dir}/dialogue/menu_font.png");
-        let menu_image =
-            Image::load_from_file(&GString::from(menu_path.as_str())).or_else(|| {
-                let path = Path::new(pack_dir)
-                    .parent()?
-                    .join("generated/gfx/ArtNem_Font.png");
-                Image::load_from_file(&GString::from(path.to_string_lossy().as_ref()))
-            })?;
+        let menu_image = assets.load_menu_font_image()?;
         Some(CampChrome {
             window_words: retail_window_words(&strip)?,
             font: ImageTexture::create_from_image(&menu_image)?,
@@ -243,9 +236,4 @@ fn retail_window_words(strip: &Gd<Image>) -> Option<BTreeMap<(u16, bool, bool), 
         }
     }
     Some(words)
-}
-
-fn load_image(pack_dir: &str, name: &str) -> Option<Gd<Image>> {
-    let path = format!("{pack_dir}/{name}");
-    Image::load_from_file(&GString::from(path.as_str()))
 }

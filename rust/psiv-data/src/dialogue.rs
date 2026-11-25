@@ -29,7 +29,7 @@
 use std::fmt;
 use std::path::Path;
 
-use serde::de::{DeserializeOwned, Error as _};
+use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
 
 use crate::error::DataError;
@@ -66,9 +66,6 @@ pub const CHARS_PER_LINE: usize = 32;
 /// second line waits for input instead of writing a third.
 pub const LINES_PER_WINDOW: usize = 2;
 
-/// The subdirectory of the pack this module reads.
-const DIALOGUE_DIR: &str = "dialogue";
-
 // ---------------------------------------------------------------------------
 // The set
 // ---------------------------------------------------------------------------
@@ -100,14 +97,18 @@ impl DialogueSet {
     /// portrait id, uncovered character, incomplete window role set or
     /// internally inconsistent count stops the load.
     pub fn load(pack_dir: &Path) -> Result<DialogueSet, DataError> {
-        let dir = pack_dir.join(DIALOGUE_DIR);
+        Self::load_overlay(&crate::mods::PackOverlay::base(pack_dir))
+    }
+
+    /// Reads and validates the four `dialogue/` files through a [`crate::PackOverlay`].
+    pub fn load_overlay(overlay: &crate::mods::PackOverlay) -> Result<DialogueSet, DataError> {
         let set = DialogueSet {
-            trees: read_json(&dir.join("trees.json"))?,
-            font: read_json(&dir.join("font.json"))?,
-            window: read_json(&dir.join("window.json"))?,
-            portraits: read_json(&dir.join("portraits.json"))?,
+            trees: overlay.read_json_data("dialogue/trees.json")?,
+            font: overlay.read_json_data("dialogue/font.json")?,
+            window: overlay.read_json_data("dialogue/window.json")?,
+            portraits: overlay.read_json_data("dialogue/portraits.json")?,
         };
-        set.validate(pack_dir)?;
+        set.validate(overlay)?;
         Ok(set)
     }
 
@@ -162,11 +163,11 @@ impl DialogueSet {
     }
 
     /// Every rule that spans two files or two records. Called by
-    /// [`DialogueSet::load`]; separate so the tests can drive it on fixtures.
-    fn validate(&self, pack_dir: &Path) -> Result<(), DataError> {
-        let trees_path = pack_dir.join(DIALOGUE_DIR).join("trees.json");
-        let window_path = pack_dir.join(DIALOGUE_DIR).join("window.json");
-        let portraits_path = pack_dir.join(DIALOGUE_DIR).join("portraits.json");
+    /// [`DialogueSet::load_overlay`]; separate so the tests can drive it on fixtures.
+    fn validate(&self, overlay: &crate::mods::PackOverlay) -> Result<(), DataError> {
+        let trees_path = overlay.logical_path("dialogue/trees.json");
+        let window_path = overlay.logical_path("dialogue/window.json");
+        let portraits_path = overlay.logical_path("dialogue/portraits.json");
 
         for found in [
             self.trees.format_version,
@@ -204,7 +205,7 @@ impl DialogueSet {
                 }
             }
         }
-        self.validate_portrait_files(pack_dir, &portraits_path)?;
+        self.validate_portrait_files(overlay, &portraits_path)?;
         Ok(())
     }
 
@@ -482,7 +483,11 @@ impl DialogueSet {
     /// Every portrait the table names has its PNG on disk. The renderer loads
     /// them by the path the pack declares, so a missing file is a load-time
     /// defect, not a blank window three hours into a playthrough.
-    fn validate_portrait_files(&self, pack_dir: &Path, path: &Path) -> Result<(), DataError> {
+    fn validate_portrait_files(
+        &self,
+        overlay: &crate::mods::PackOverlay,
+        path: &Path,
+    ) -> Result<(), DataError> {
         if self.portraits.portraits.len() != self.portraits.count as usize {
             return Err(defect(
                 path,
@@ -504,8 +509,7 @@ impl DialogueSet {
                     ),
                 ));
             }
-            let png = pack_dir.join(&portrait.png);
-            if !png.is_file() {
+            if !overlay.is_file(&portrait.png) {
                 return Err(defect(
                     path,
                     format!(
@@ -540,11 +544,6 @@ fn check_entry_ref(
 // ---------------------------------------------------------------------------
 // Plumbing
 // ---------------------------------------------------------------------------
-
-fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, DataError> {
-    let text = std::fs::read_to_string(path).map_err(|e| DataError::io(path, e))?;
-    serde_json::from_str(&text).map_err(|e| DataError::json(path, e))
-}
 
 /// A dialogue defect, reported against the file that holds it.
 ///

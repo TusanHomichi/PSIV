@@ -88,16 +88,24 @@ impl Field {
     /// Battle art is loaded by the node; battle data is loaded once here and
     /// retained for formation names and positions when a battle starts, and the
     /// session keeps it for every runtime its front door builds afterwards.
-    pub(crate) fn configure_battles(&mut self, session: &mut Session) {
+    pub(crate) fn configure_battles(
+        &mut self,
+        session: &mut Session,
+        validated_battle: Option<BattleFiles>,
+        validated_command_art: Option<CommandUiArt>,
+    ) {
         // `Field::ready` calls this before the title is shown. An older pack
         // can contain battle records but no command art; letting the node
         // default to empty tiles would make its menus silently incomplete.
-        let command_art = match CommandUiArt::load(std::path::Path::new(&self.pack_dir)) {
+        let command_art = match validated_command_art
+            .map(Ok)
+            .unwrap_or_else(|| CommandUiArt::load_overlay(self.pack_assets.overlay()))
+        {
             Ok(art) => art,
             Err(error) => {
                 godot_error!(
                     "runtime pack at {} has missing or invalid battle command art: {error}. Rebuild this local pack with `psiv-pack <rom> <pack-dir>` (docs/DEVELOPMENT.md, \"Prepare the local pack\").",
-                    self.pack_dir
+                    self.pack_assets.display_root()
                 );
                 let mut tree = self
                     .base()
@@ -107,7 +115,10 @@ impl Field {
                 return;
             }
         };
-        match BattleFiles::load(std::path::Path::new(&self.pack_dir)) {
+        match validated_battle
+            .map(Ok)
+            .unwrap_or_else(|| BattleFiles::load_overlay(self.pack_assets.overlay()))
+        {
             Ok(files) => match session.enable_battles(&files) {
                 Ok(()) => self.battle_files = Some(files),
                 Err(error) => {
@@ -115,13 +126,19 @@ impl Field {
                 }
             },
             Err(error) => {
-                godot_error!("battle pack failed to load from {}: {error}", self.pack_dir);
+                godot_error!(
+                    "battle pack failed to load from {}: {error}",
+                    self.pack_assets.display_root()
+                );
             }
         }
 
+        let dialogue = session.runtime().dialogue_pack();
         let mut screen = BattleScreen::new_alloc();
         screen.set_z_index(100);
-        screen.bind_mut().configure(&self.pack_dir, command_art);
+        screen
+            .bind_mut()
+            .configure(&self.pack_assets, dialogue, command_art);
         self.base_mut().add_child(&screen);
         self.battle_screen = Some(screen);
     }

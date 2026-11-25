@@ -106,6 +106,7 @@ pub use map::{
     ConveyorGroup, MapUpdate, PaletteCycle, PalettePhase, PaletteWrite, ScrollMode, UpdateBank,
     UpdateGate, UpdateProgram,
 };
+pub use mods::{PackOverlay, ValidatedPack};
 pub use new_game::{
     Event as HandoffEvent, File as GameStartFile, FlagList, Flags as NewGameFlags,
     Handoff as TitleHandoff, Init as NewGameInit, NewGame, Settings as NewGameSettings,

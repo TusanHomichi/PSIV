@@ -43,9 +43,10 @@ mods/
    - **Source checkout:** `mods/` at the repository root.
 
 Every enabled mod in `mods/` is sorted by `(order, id)` (lower `order` loads
-first; later mods override earlier ones) and layered over the base pack into a
-hidden staging directory inside `mods/` without ever modifying `runtime-pack/`
-or `saves/`. Rebuilding the base pack from your ROM never touches `mods/`.
+first; later mods override earlier ones) and resolved directly in memory over
+the base pack without creating a staging mirror or ever modifying
+`runtime-pack/` or `saves/`. Rebuilding the base pack from your ROM never
+touches `mods/`.
 
 > **Automatic save isolation:** Modded runs never touch your vanilla
 > `saves/slot_1..3.sram`. Whenever one or more mods are active (and

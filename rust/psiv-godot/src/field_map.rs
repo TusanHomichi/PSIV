@@ -8,6 +8,7 @@ use godot::classes::image::Format;
 use godot::classes::{Image, ImageTexture, Material, Shader, ShaderMaterial, Sprite2D};
 use godot::prelude::*;
 
+use super::pack_assets::PackAssets;
 use super::view::{NpcNode, SheetView, camp_receipt_frame, camp_receipt_sheet, npc_pixel_position};
 use super::{Field, Session};
 
@@ -94,21 +95,20 @@ impl Field {
         match runtime.map_png().map(str::to_owned) {
             Some(name) => {
                 let source = map_image_source(palette.is_some(), palette_images, &name);
-                let (loaded, indexed) = load_map_image(&self.pack_dir, source, &name);
-                let path = format!("{}/{name}", self.pack_dir);
+                let (loaded, indexed) = load_map_image(&self.pack_assets, source, &name);
                 match loaded {
                     Some(mut image) => {
                         if let Some(tiles) = &atlas {
-                            let atlas_path = format!("{}/{}", self.pack_dir, tiles.png);
                             // Match the map's colour representation: when a mod
                             // supplies a baked RGB/RGBA map PNG on a live-palette
                             // map, load the baked patch atlas so open doors blit
                             // cleanly instead of colliding with `_indices.png`.
                             let source = map_image_source(indexed, palette_images, &tiles.png);
-                            match load_map_image(&self.pack_dir, source, &tiles.png) {
+                            match load_map_image(&self.pack_assets, source, &tiles.png) {
                                 (Some(_), atlas_indexed) if atlas_indexed != indexed => {
                                     godot_error!(
-                                        "patch atlas {atlas_path} does not match the map's colours"
+                                        "patch atlas {} does not match the map's colours",
+                                        tiles.png
                                     );
                                 }
                                 (Some(atlas_img), _) => {
@@ -119,7 +119,7 @@ impl Field {
                                     );
                                 }
                                 (None, _) => {
-                                    godot_error!("could not load patch atlas {atlas_path}");
+                                    godot_error!("could not load patch atlas {}", tiles.png);
                                 }
                             }
                         }
@@ -135,7 +135,7 @@ impl Field {
                             self.presentation.set_vram_blanked(false);
                             if let Some(frames) = art_cycles.get(&name).filter(|f| f.len() > 1) {
                                 self.map_art_frames = build_art_cycle_textures(
-                                    &self.pack_dir,
+                                    &self.pack_assets,
                                     palette_images,
                                     &name,
                                     &texture,
@@ -149,7 +149,7 @@ impl Field {
                         }
                     }
                     None => {
-                        godot_error!("could not load map image {path}");
+                        godot_error!("could not load map image {name}");
                     }
                 }
             }
@@ -164,8 +164,7 @@ impl Field {
             match over {
                 Some(name) => {
                     let source = map_image_source(palette.is_some(), palette_images, &name);
-                    let (loaded, indexed) = load_map_image(&self.pack_dir, source, &name);
-                    let path = format!("{}/{name}", self.pack_dir);
+                    let (loaded, indexed) = load_map_image(&self.pack_assets, source, &name);
                     match loaded {
                         Some(mut image) => {
                             // The overlay atlas mirrors the base one: same
@@ -173,18 +172,17 @@ impl Field {
                             if let Some(tiles) = &atlas
                                 && let Some(over_png) = &tiles.png_over
                             {
-                                let atlas_path = format!("{}/{over_png}", self.pack_dir);
                                 let source = map_image_source(indexed, palette_images, over_png);
                                 let (atlas_img, atlas_indexed) =
-                                    load_map_image(&self.pack_dir, source, over_png);
+                                    load_map_image(&self.pack_assets, source, over_png);
                                 if atlas_img.is_some() && atlas_indexed != indexed {
                                     godot_error!(
-                                        "overlay atlas {atlas_path} does not match the map's colours"
+                                        "overlay atlas {over_png} does not match the map's colours"
                                     );
                                 } else if let Some(atlas_img) = atlas_img {
                                     blit_patch_tiles(&mut image, &atlas_img, tiles, &blits, false);
                                 } else {
-                                    godot_error!("could not load overlay atlas {atlas_path}");
+                                    godot_error!("could not load overlay atlas {over_png}");
                                 }
                             }
                             match ImageTexture::create_from_image(&image) {
@@ -199,7 +197,7 @@ impl Field {
                                         art_cycles.get(&name).filter(|f| f.len() > 1)
                                     {
                                         self.overlay_art_frames = build_art_cycle_textures(
-                                            &self.pack_dir,
+                                            &self.pack_assets,
                                             palette_images,
                                             &name,
                                             &texture,
@@ -212,12 +210,12 @@ impl Field {
                                     }
                                 }
                                 None => {
-                                    godot_error!("could not texture overlay {path}");
+                                    godot_error!("could not texture overlay {name}");
                                 }
                             }
                         }
                         None => {
-                            godot_error!("could not load overlay {path}");
+                            godot_error!("could not load overlay {name}");
                         }
                     }
                 }
@@ -227,7 +225,7 @@ impl Field {
 
         if let Some(tiles) = &belt_atlas {
             let source = map_image_source(palette.is_some(), palette_images, &tiles.png);
-            let (loaded, indexed) = load_map_image(&self.pack_dir, source, &tiles.png);
+            let (loaded, indexed) = load_map_image(&self.pack_assets, source, &tiles.png);
             if let Some(image) = loaded
                 && let Some(texture) = ImageTexture::create_from_image(&image)
             {
@@ -317,7 +315,8 @@ impl Field {
                 .collect();
             for sheet_id in missing {
                 if let Some(sheet) = runtime.data().sheet(&sheet_id) {
-                    if let Some(view) = SheetView::build(&self.pack_dir, sheet, Some(&self.cram)) {
+                    if let Some(view) = SheetView::build(&self.pack_assets, sheet, Some(&self.cram))
+                    {
                         self.sheet_views.insert(sheet_id, view);
                     } else {
                         godot_error!("sheet {sheet_id} png failed to load");
@@ -486,7 +485,7 @@ fn blit_patch_tiles(
 
 #[allow(clippy::too_many_arguments)]
 fn build_art_cycle_textures(
-    pack_dir: &str,
+    assets: &PackAssets,
     palette_images: Option<&std::collections::BTreeMap<String, String>>,
     base_name: &str,
     base_texture: &Gd<ImageTexture>,
@@ -503,7 +502,7 @@ fn build_art_cycle_textures(
             tiles.png.as_str()
         };
         let source = map_image_source(base_indexed, palette_images, atlas_name);
-        let (img, indexed) = load_map_image(pack_dir, source, atlas_name);
+        let (img, indexed) = load_map_image(assets, source, atlas_name);
         (indexed == base_indexed).then_some(img).flatten()
     });
     frame_names
@@ -513,20 +512,20 @@ fn build_art_cycle_textures(
                 return base_texture.clone();
             }
             let source = map_image_source(base_indexed, palette_images, frame_name);
-            let (loaded, frame_indexed) = load_map_image(pack_dir, source, frame_name);
+            let (loaded, frame_indexed) = load_map_image(assets, source, frame_name);
             if frame_indexed != base_indexed {
                 godot_error!("art-cycle frame {frame_name} does not match the map's colours");
                 return base_texture.clone();
             }
             let Some(mut image) = loaded else {
-                godot_error!("could not load art-cycle frame {pack_dir}/{frame_name}");
+                godot_error!("could not load art-cycle frame {frame_name}");
                 return base_texture.clone();
             };
             if let (Some(tiles), Some(atlas_img)) = (atlas, atlas_img.as_ref()) {
                 blit_patch_tiles(&mut image, atlas_img, tiles, blits, false);
             }
             ImageTexture::create_from_image(&image).unwrap_or_else(|| {
-                godot_error!("could not texture art-cycle frame {pack_dir}/{frame_name}");
+                godot_error!("could not texture art-cycle frame {frame_name}");
                 base_texture.clone()
             })
         })
@@ -580,21 +579,17 @@ fn map_image_source<'a>(
 /// indices for the map shader. A picture that is not an indexed PNG falls
 /// back to its baked colours.
 fn load_map_image(
-    pack_dir: &str,
+    assets: &PackAssets,
     source: MapImageSource<'_>,
     name: &str,
 ) -> (Option<Gd<Image>>, bool) {
-    let path = format!("{pack_dir}/{name}");
     match source {
-        MapImageSource::PackIndex(indexed) => {
-            let path = format!("{pack_dir}/{indexed}");
-            (Image::load_from_file(&GString::from(path.as_str())), true)
-        }
-        MapImageSource::Rewrite => match crate::cram_art::load_index_image(&path) {
+        MapImageSource::PackIndex(indexed) => (assets.load_image(indexed), true),
+        MapImageSource::Rewrite => match crate::cram_art::load_index_image(assets, name) {
             Some(image) => (Some(image), true),
-            None => (Image::load_from_file(&GString::from(path.as_str())), false),
+            None => (assets.load_image(name), false),
         },
-        MapImageSource::Baked => (Image::load_from_file(&GString::from(path.as_str())), false),
+        MapImageSource::Baked => (assets.load_image(name), false),
     }
 }
 
@@ -695,7 +690,7 @@ mod tests {
     }
 
     /// Replacing `assets/maps/010_Piata.png` without `_indices.png` causes
-    /// `apply_mods` to drop the `map_update_images` redirect for that PNG so
+    /// `PackOverlay` to drop the `map_update_images` redirect for that PNG so
     /// the renderer routes through `Rewrite` (live CRAM if indexed, baked if
     /// RGB/RGBA) instead of loading the base `_indices.png`; patch atlases then
     /// follow the map's actual `indexed` state (`false` -> `Baked`).
@@ -723,7 +718,7 @@ mod tests {
             MapImageSource::PackIndex("maps/010_Piata_indices.png")
         );
 
-        // After `apply_mods` drops the stale redirect for a replaced `.png`:
+        // After `PackOverlay` drops the stale redirect for a replaced `.png`:
         images.remove("maps/010_Piata.png");
         assert_eq!(
             map_image_source(true, Some(&images), "maps/010_Piata.png"),

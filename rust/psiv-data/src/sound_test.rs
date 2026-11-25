@@ -56,10 +56,13 @@ pub struct SoundTestFile {
 impl SoundTestFile {
     /// Reads and validates `title/sound_test.json` under `pack_dir`.
     pub fn load(pack_dir: &Path) -> Result<SoundTestFile, DataError> {
-        let path = pack_dir.join(SOUND_TEST_FILE);
-        let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-        let file: SoundTestFile =
-            serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+        Self::load_overlay(&crate::mods::PackOverlay::base(pack_dir))
+    }
+
+    /// Reads and validates `title/sound_test.json` through a [`crate::PackOverlay`].
+    pub fn load_overlay(overlay: &crate::mods::PackOverlay) -> Result<SoundTestFile, DataError> {
+        let path = overlay.logical_path(SOUND_TEST_FILE);
+        let file: SoundTestFile = overlay.read_json_data(SOUND_TEST_FILE)?;
         if file.format_version != SOUND_TEST_VERSION {
             return Err(DataError::FormatVersion {
                 found: file.format_version,

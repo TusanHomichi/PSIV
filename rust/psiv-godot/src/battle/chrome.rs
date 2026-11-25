@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
-use std::path::Path;
 
 use godot::classes::{Image, ImageTexture, image::Format};
 use godot::prelude::*;
 
 use psiv_data::{DamageDigitArt, DialogueSet, Role};
+
+use crate::pack_assets::PackAssets;
 
 const WINDOW_BASE_TILE: u16 = 0x680;
 const FONT_BASE_TILE: u16 = 0x7c0;
@@ -56,11 +57,11 @@ impl BattleChrome {
     /// `line_ink` is CRAM index 15 of lines 0 to 3 as RGB: the ink the font
     /// and the HP/TP labels take on each line.
     pub(super) fn build(
-        pack_dir: &str,
+        assets: &PackAssets,
         set: &DialogueSet,
         line_ink: [Color; 4],
     ) -> Option<BattleChrome> {
-        let mut strip = load_image(pack_dir, &set.window.png)?;
+        let mut strip = assets.load_image(&set.window.png)?;
         // The window tile art is shared with dialogue, but retail's battle
         // palette line sets colour index 14 (the window fill) to CRAM $0600
         // — pure blue, no green — where the field dialogue line uses $0620.
@@ -92,14 +93,7 @@ impl BattleChrome {
         // Battle/menu text is the retail 8x8 ArtNem_Font, not the 8x16
         // dialogue font. The pack asset is preferred; the generated copy is
         // a development fallback until older packs are regenerated.
-        let menu_path = format!("{pack_dir}/dialogue/menu_font.png");
-        let mut menu_image =
-            Image::load_from_file(&GString::from(menu_path.as_str())).or_else(|| {
-                let path = Path::new(pack_dir)
-                    .parent()?
-                    .join("generated/gfx/ArtNem_Font.png");
-                Image::load_from_file(&GString::from(path.to_string_lossy().as_ref()))
-            })?;
+        let mut menu_image = assets.load_menu_font_image()?;
         // Same $0620 → $0600 battle-palette remap as the window strip: the
         // font sheet bakes the dialogue fill behind its glyphs.
         remap_color(
@@ -122,7 +116,7 @@ impl BattleChrome {
         }
         let fonts: [Gd<ImageTexture>; 4] = fonts.try_into().ok()?;
         let window_words: [BTreeMap<_, _>; 4] = window_words.try_into().ok()?;
-        let damage_words = match DamageDigitArt::load(Path::new(pack_dir)) {
+        let damage_words = match DamageDigitArt::load_overlay(assets.overlay()) {
             Ok(art) => retail_damage_words(&art)?,
             Err(error) => {
                 godot_error!("battle: damage-number art failed to load: {error}");
@@ -631,11 +625,6 @@ fn retail_damage_words(
         }
     }
     Some(words)
-}
-
-fn load_image(pack_dir: &str, name: &str) -> Option<Gd<Image>> {
-    let path = format!("{pack_dir}/{name}");
-    Image::load_from_file(&GString::from(path.as_str()))
 }
 
 /// A deep copy of an image: [`Gd::clone`] only shares it.

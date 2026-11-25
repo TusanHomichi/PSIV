@@ -13,14 +13,13 @@ mod chrome;
 mod draw;
 mod layout;
 
-use std::path::Path;
-
-use godot::classes::{INode2D, Image, ImageTexture, Node2D};
+use godot::classes::{INode2D, ImageTexture, Node2D};
 use godot::prelude::*;
 
 use psiv_data::DialogueSet;
 use psiv_runtime::ShopView;
 
+use crate::pack_assets::PackAssets;
 use chrome::ShopChrome;
 
 /// A modal shop/inn window owned by the field shell.
@@ -28,7 +27,7 @@ use chrome::ShopChrome;
 #[class(base=Node2D)]
 pub(crate) struct ShopWindow {
     base: Base<Node2D>,
-    pack_dir: String,
+    pack_assets: PackAssets,
     chrome: Option<ShopChrome>,
     /// The session's window, as of the last frame; `None` while closed.
     view: Option<ShopView>,
@@ -42,7 +41,7 @@ impl INode2D for ShopWindow {
     fn init(base: Base<Node2D>) -> Self {
         ShopWindow {
             base,
-            pack_dir: String::new(),
+            pack_assets: PackAssets::default(),
             chrome: None,
             view: None,
             portrait: None,
@@ -72,18 +71,14 @@ impl INode2D for ShopWindow {
 
 impl ShopWindow {
     /// Loads the shared window art.
-    pub(crate) fn configure(&mut self, pack_dir: &str) {
-        self.pack_dir = pack_dir.to_owned();
-        match DialogueSet::load(Path::new(pack_dir)) {
-            Ok(set) => {
-                self.chrome = ShopChrome::build(pack_dir, &set);
-                if self.chrome.is_none() {
-                    godot_error!("shop: window/font art failed to load from {pack_dir}");
-                }
-            }
-            Err(error) => {
-                godot_error!("shop: dialogue art failed to load: {error}");
-            }
+    pub(crate) fn configure(&mut self, assets: &PackAssets, set: &DialogueSet) {
+        self.pack_assets = assets.clone();
+        self.chrome = ShopChrome::build(assets, set);
+        if self.chrome.is_none() {
+            godot_error!(
+                "shop: window/font art failed to load from {}",
+                assets.display_root()
+            );
         }
     }
 
@@ -136,9 +131,7 @@ impl ShopWindow {
     }
 
     fn load_portrait(&self, relative: &str) -> Option<Gd<ImageTexture>> {
-        let path = Path::new(&self.pack_dir).join(relative);
-        Image::load_from_file(&GString::from(path.to_string_lossy().as_ref()))
-            .and_then(|image| ImageTexture::create_from_image(&image))
+        self.pack_assets.load_texture(relative)
     }
 }
 

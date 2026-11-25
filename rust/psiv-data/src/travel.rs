@@ -1,7 +1,7 @@
 //! ROM-derived town destinations, dungeon exits, place-entry selectors and the
 //! teleport windows' strings.
 
-use std::{collections::BTreeSet, path::Path};
+use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
@@ -127,14 +127,13 @@ impl TravelData {
     pub fn world_map(&self, world: u8) -> Option<&WorldMapAsset> {
         self.world_maps.iter().find(|entry| entry.world == world)
     }
-    pub(crate) fn load(
-        directory: &Path,
+    pub(crate) fn load_overlay(
+        overlay: &crate::mods::PackOverlay,
         file: &TravelFile,
         rom: &RomHash,
     ) -> Result<Self, DataError> {
-        let path = directory.join(&file.path);
-        let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-        let data: Self = serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+        let path = overlay.logical_path(&file.path);
+        let data: Self = overlay.read_json_data(&file.path)?;
         data.validate(rom)
             .map_err(|message| DataError::ManifestMismatch {
                 path,

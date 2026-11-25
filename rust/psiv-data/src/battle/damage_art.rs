@@ -40,10 +40,13 @@ impl DamageDigitArt {
     /// mismatch, a missing or repeated VRAM tile, or a row that is not eight
     /// hex digits.
     pub fn load(pack_dir: &Path) -> Result<DamageDigitArt, DataError> {
-        let path = pack_dir.join(DAMAGE_DIGIT_ART_PATH);
-        let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-        let art: DamageDigitArt =
-            serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+        Self::load_overlay(&crate::mods::PackOverlay::base(pack_dir))
+    }
+
+    /// Reads and validates `battle/art/damage_digits.json` through a [`crate::PackOverlay`].
+    pub fn load_overlay(overlay: &crate::mods::PackOverlay) -> Result<DamageDigitArt, DataError> {
+        let path = overlay.logical_path(DAMAGE_DIGIT_ART_PATH);
+        let art: DamageDigitArt = overlay.read_json_data(DAMAGE_DIGIT_ART_PATH)?;
         if art.format_version != PACK_FORMAT_VERSION {
             return Err(DataError::FormatVersion {
                 found: art.format_version,

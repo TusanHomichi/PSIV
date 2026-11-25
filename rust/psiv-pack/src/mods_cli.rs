@@ -1,8 +1,8 @@
 //! `psiv-pack mod <init|diff|check>` subcommands (#118).
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use psiv_data::mods::{ModManifest, apply_mods, diff_packs, init_mod_dir, load_mod};
+use psiv_data::mods::{ModManifest, PackOverlay, diff_packs, init_mod_dir, load_mod};
 use psiv_pack::PackError;
 
 pub const MOD_USAGE: &str = "\
@@ -128,22 +128,12 @@ fn run_check(args: &[String]) -> Result<(), PackError> {
         let loaded = load_mod(Path::new(mod_arg)).map_err(|e| PackError(e.to_string()))?;
         mods.push(loaded);
     }
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let staging: PathBuf = std::env::temp_dir().join(format!(
-        "psiv-pack-mod-check-{}-{stamp}",
-        std::process::id()
-    ));
-    let result = apply_mods(base, &mods, &staging);
-    let _ = std::fs::remove_dir_all(&staging);
-    let applied = result.map_err(|e| PackError(e.to_string()))?;
+    let overlay = PackOverlay::load(base, &mods).map_err(|e| PackError(e.to_string()))?;
     println!(
         "ok: {} mod(s), {} patched file(s), {} replaced asset(s)",
-        applied.active.len(),
-        applied.patched_files.len(),
-        applied.replaced_assets.len()
+        overlay.active_mods().len(),
+        overlay.patched_files().len(),
+        overlay.replaced_assets().len()
     );
     Ok(())
 }

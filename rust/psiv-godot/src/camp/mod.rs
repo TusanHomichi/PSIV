@@ -15,7 +15,7 @@ mod loot;
 mod order;
 mod status;
 
-use godot::classes::{INode2D, Image, ImageTexture, Node2D};
+use godot::classes::{INode2D, ImageTexture, Node2D};
 use godot::prelude::*;
 use std::collections::BTreeMap;
 
@@ -85,26 +85,27 @@ impl INode2D for CampMenu {
 
 impl CampMenu {
     /// Loads shared window/font assets and the original STATUS portrait maps.
-    pub(crate) fn configure(&mut self, pack_dir: &str, set: psiv_data::DialogueSet) {
-        self.chrome = CampChrome::build(pack_dir, &set);
+    pub(crate) fn configure(
+        &mut self,
+        assets: &crate::pack_assets::PackAssets,
+        set: &psiv_data::DialogueSet,
+    ) {
+        self.chrome = CampChrome::build(assets, set);
         if self.chrome.is_none() {
             godot_error!("camp menu chrome failed to load");
         }
         self.portraits.clear();
-        if let Ok(bytes) = std::fs::read(format!("{pack_dir}/battle/characters.json"))
-            && let Ok(characters) = serde_json::from_slice::<psiv_data::CharactersFile>(&bytes)
+        if let Ok(characters) =
+            assets.read_json::<psiv_data::CharactersFile>("battle/characters.json")
         {
             for character in characters.characters {
                 let Some(portrait) = character.status_portrait else {
                     continue;
                 };
-                let path = format!("{pack_dir}/{}", portrait.png);
-                if let Some(texture) = Image::load_from_file(&GString::from(path.as_str()))
-                    .and_then(|image| ImageTexture::create_from_image(&image))
-                {
+                if let Some(texture) = assets.load_texture(&portrait.png) {
                     self.portraits.insert(character.character_id, texture);
                 } else {
-                    godot_warn!("camp status portrait failed to load: {path}");
+                    godot_warn!("camp status portrait failed to load: {}", portrait.png);
                 }
             }
         } else {

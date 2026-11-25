@@ -1,4 +1,5 @@
 use super::*;
+use crate::GameData;
 use patch::{FilePattern, KEYED_ARRAYS, array_key_field};
 use serde_json::json;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -783,12 +784,8 @@ fn real_pack_strict_fields_and_treasure_chests_round_trip() {
         r#"{"enemies":{"10":{"HP":99}}}"#,
     )
     .unwrap();
-    let err = apply_mods(
-        &base,
-        &[load_mod(&bad_typo).unwrap()],
-        &scratch.join("bad-typo-out"),
-    )
-    .expect_err("typo field HP must be refused");
+    let err = PackOverlay::load(&base, &[load_mod(&bad_typo).unwrap()])
+        .expect_err("typo field HP must be refused");
     assert_eq!(err.mod_id, "bad-typo");
     assert!(err.file.contains("battle/enemies.json"), "{err}");
     assert!(
@@ -802,12 +799,8 @@ fn real_pack_strict_fields_and_treasure_chests_round_trip() {
         r#"{"enemies":{"10":{"HP":null}}}"#,
     )
     .unwrap();
-    let null_err = apply_mods(
-        &base,
-        &[load_mod(&bad_typo).unwrap()],
-        &scratch.join("bad-typo-null-out"),
-    )
-    .expect_err("null-valued typo field HP must be refused");
+    let null_err = PackOverlay::load(&base, &[load_mod(&bad_typo).unwrap()])
+        .expect_err("null-valued typo field HP must be refused");
     assert_eq!(null_err.mod_id, "bad-typo");
     assert!(null_err.file.contains("battle/enemies.json"), "{null_err}");
     assert!(null_err.detail.contains("HP"), "{null_err}");
@@ -825,12 +818,8 @@ fn real_pack_strict_fields_and_treasure_chests_round_trip() {
         r#"{"treasures":{"0":{"meseta":500}}}"#,
     )
     .unwrap();
-    let err = apply_mods(
-        &base,
-        &[load_mod(&bad_map_key).unwrap()],
-        &scratch.join("bad-map-key-out"),
-    )
-    .expect_err("unknown map key treasures must be refused");
+    let err = PackOverlay::load(&base, &[load_mod(&bad_map_key).unwrap()])
+        .expect_err("unknown map key treasures must be refused");
     assert_eq!(err.mod_id, "bad-map-key");
     assert!(err.file.contains("maps/010_Piata.json"), "{err}");
     assert!(err.detail.contains("treasures"), "{err}");
@@ -873,23 +862,20 @@ fn real_pack_strict_fields_and_treasure_chests_round_trip() {
         .unwrap(),
     )
     .unwrap();
-    let chest_applied = apply_mods(
-        &base,
-        &[load_mod(&chest_mod).unwrap()],
-        &scratch.join("chest-out"),
-    )
-    .unwrap();
-    let chest_game = GameData::load(&chest_applied.effective_pack).unwrap();
+    let chest_overlay = PackOverlay::load(&base, &[load_mod(&chest_mod).unwrap()]).unwrap();
+    let chest_game = GameData::load_overlay(&chest_overlay).unwrap();
     let patched_chest = &chest_game.map(chest_map_id).unwrap().treasure_chests[0];
     assert_eq!(patched_chest.white_chest, toggled_white);
     assert_eq!(patched_chest.contents_type, crate::ContentsType::Meseta);
     assert_eq!(patched_chest.item_id, None);
     assert_eq!(patched_chest.meseta, Some(777));
 
+    let chest_edited = scratch.join("chest-edited");
+    super::tests::materialize_overlay_for_diff_test(&chest_overlay, &chest_edited);
     let chest_exported = scratch.join("chest-exported");
     let chest_summary = diff_packs(
         &base,
-        &chest_applied.effective_pack,
+        &chest_edited,
         &chest_exported,
         &ModManifest::new("chest-exported", "Chest Exported", "1.0.0"),
     )
@@ -905,13 +891,8 @@ fn real_pack_strict_fields_and_treasure_chests_round_trip() {
             .is_some(),
         "diff_packs must emit sparse index-keyed treasure_chests patch: {exported_patch_json}"
     );
-    let chest_reapplied = apply_mods(
-        &base,
-        &[load_mod(&chest_exported).unwrap()],
-        &scratch.join("chest-reapplied"),
-    )
-    .unwrap();
-    let chest_reapplied_game = GameData::load(&chest_reapplied.effective_pack).unwrap();
+    let chest_reapplied = PackOverlay::load(&base, &[load_mod(&chest_exported).unwrap()]).unwrap();
+    let chest_reapplied_game = GameData::load_overlay(&chest_reapplied).unwrap();
     let re_chest = &chest_reapplied_game
         .map(chest_map_id)
         .unwrap()
@@ -961,12 +942,8 @@ fn real_pack_strict_fields_and_treasure_chests_round_trip() {
             .unwrap(),
         )
         .unwrap();
-        let err = apply_mods(
-            &base,
-            &[load_mod(&bad_sprite_mod).unwrap()],
-            &scratch.join("bad-sprite-out"),
-        )
-        .expect_err("unknown field in null-replacing SpriteRef must be refused");
+        let err = PackOverlay::load(&base, &[load_mod(&bad_sprite_mod).unwrap()])
+            .expect_err("unknown field in null-replacing SpriteRef must be refused");
         assert_eq!(err.mod_id, "bad-sprite");
         assert!(err.file.contains(&map_rel), "{err}");
         assert!(err.detail.contains("typo_field"), "{err}");

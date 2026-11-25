@@ -37,6 +37,7 @@ use psiv_data::DialogueSet;
 use psiv_data::color::IndexLayout;
 
 use crate::cram_art::{IndexedArt, SharedCram};
+use crate::pack_assets::PackAssets;
 
 use manifest::SceneAssets;
 use temporary_sprite_asset::TemporarySpriteAsset;
@@ -53,6 +54,7 @@ const SCREEN: Vector2 = crate::retail_surface::SURFACE;
 #[class(base=Node2D)]
 pub(crate) struct CutsceneLayer {
     base: Base<Node2D>,
+    pack_assets: PackAssets,
     textures: BTreeMap<u16, Gd<ImageTexture>>,
     /// Each panel's PNG and layer lines, and its indices once first drawn
     /// (`None`: the load failed, so the baked texture draws).
@@ -94,6 +96,7 @@ impl INode2D for CutsceneLayer {
     fn init(base: Base<Node2D>) -> Self {
         Self {
             base,
+            pack_assets: PackAssets::default(),
             textures: BTreeMap::new(),
             indexed_panels: BTreeMap::new(),
             panel_art: BTreeMap::new(),
@@ -137,8 +140,9 @@ impl INode2D for CutsceneLayer {
 
 impl CutsceneLayer {
     /// Loads the pack's scene art into the tables this layer draws from.
-    pub(crate) fn configure(&mut self, pack_dir: &str, set: &DialogueSet) {
-        let assets = SceneAssets::load(pack_dir, set);
+    pub(crate) fn configure(&mut self, pack_assets: &PackAssets, set: &DialogueSet) {
+        self.pack_assets = pack_assets.clone();
+        let assets = SceneAssets::load(pack_assets, set);
         if let Some(screen_y) = assets.opening_screen_y {
             self.opening_screen_y = screen_y;
         }
@@ -158,7 +162,7 @@ impl CutsceneLayer {
         self.pictures.extend(assets.pictures);
 
         let mut text = TextPlaneLayer::new_alloc();
-        text.bind_mut().configure(pack_dir, set.clone());
+        text.bind_mut().configure(pack_assets, set.clone());
         self.base_mut().add_child(&text);
         self.text_layer = Some(text);
     }

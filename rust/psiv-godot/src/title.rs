@@ -19,6 +19,7 @@ use psiv_data::{DialogueSet, Role};
 use psiv_runtime::{TitlePhase, TitleView, TitleWindow};
 
 use super::Field;
+use crate::pack_assets::PackAssets;
 
 const SCREEN_WIDTH: f32 = 320.0;
 const SCREEN_HEIGHT: f32 = 224.0;
@@ -102,23 +103,20 @@ pub(crate) struct TitleScreen {
 }
 
 impl TitleScreen {
-    pub(crate) fn build(pack_dir: &str, mut parent: BaseMut<'_, Field>) -> Option<TitleScreen> {
+    pub(crate) fn build(
+        assets: &PackAssets,
+        dialogue: &DialogueSet,
+        mut parent: BaseMut<'_, Field>,
+    ) -> Option<TitleScreen> {
         let mut screen = TitleScreen {
             visuals: Vec::new(),
-            replay_frames: load_replay_frames(pack_dir),
+            replay_frames: load_replay_frames(assets),
         };
 
-        let dialogue = match DialogueSet::load(std::path::Path::new(pack_dir)) {
-            Ok(set) => set,
-            Err(error) => {
-                godot_error!("title: could not load dialogue pack: {error}");
-                return None;
-            }
-        };
         screen.add_black(&mut parent);
         screen.add_image(
             &mut parent,
-            pack_dir,
+            assets,
             "title/background.png",
             Surface::Background,
             true,
@@ -126,7 +124,7 @@ impl TitleScreen {
         )?;
         screen.add_image(
             &mut parent,
-            pack_dir,
+            assets,
             "title/titlebarbgtoppart.png",
             Surface::BackgroundTransfer,
             false,
@@ -134,7 +132,7 @@ impl TitleScreen {
         )?;
         screen.add_image(
             &mut parent,
-            pack_dir,
+            assets,
             "title/sega_logo.png",
             Surface::SegaLogo,
             false,
@@ -142,7 +140,7 @@ impl TitleScreen {
         )?;
         screen.add_image(
             &mut parent,
-            pack_dir,
+            assets,
             "title/title_logo.png",
             Surface::TitleLogo,
             false,
@@ -150,7 +148,7 @@ impl TitleScreen {
         )?;
         screen.add_image(
             &mut parent,
-            pack_dir,
+            assets,
             "title/subtitle.png",
             Surface::Subtitle,
             false,
@@ -158,7 +156,7 @@ impl TitleScreen {
         )?;
         screen.add_image(
             &mut parent,
-            pack_dir,
+            assets,
             "title/press_start.png",
             Surface::PressStart,
             false,
@@ -166,14 +164,14 @@ impl TitleScreen {
         )?;
         screen.add_image(
             &mut parent,
-            pack_dir,
+            assets,
             "title/copyright.png",
             Surface::Copyright,
             false,
             91,
         )?;
 
-        if !screen.add_menu_art(&mut parent, pack_dir, &dialogue) {
+        if !screen.add_menu_art(&mut parent, assets, dialogue) {
             screen.hide();
             return None;
         }
@@ -206,19 +204,18 @@ impl TitleScreen {
     fn add_image(
         &mut self,
         parent: &mut BaseMut<'_, Field>,
-        pack_dir: &str,
+        assets: &PackAssets,
         relative: &str,
         surface: Surface,
         centered: bool,
         z: i32,
     ) -> Option<()> {
-        let path = format!("{pack_dir}/{relative}");
-        let image = Image::load_from_file(&GString::from(path.as_str())).or_else(|| {
-            godot_error!("title: could not load image {path}");
+        let image = assets.load_image(relative).or_else(|| {
+            godot_error!("title: could not load image {relative}");
             None
         })?;
         let texture = ImageTexture::create_from_image(&image).or_else(|| {
-            godot_error!("title: could not texture image {path}");
+            godot_error!("title: could not texture image {relative}");
             None
         })?;
         let press_cycle = if matches!(surface, Surface::PressStart) {
@@ -252,10 +249,8 @@ impl TitleScreen {
                 .and_then(|name| name.to_str())
                 .unwrap_or_default();
             for frame in &self.replay_frames {
-                let path = format!("{pack_dir}/title/replay/frame_{frame}/{file}");
-                if let Some(image) = Image::load_from_file(&GString::from(path.as_str()))
-                    && let Some(texture) = ImageTexture::create_from_image(&image)
-                {
+                let rel = format!("title/replay/frame_{frame}/{file}");
+                if let Some(texture) = assets.load_texture(&rel) {
                     replay.insert(*frame, texture);
                 }
             }
@@ -273,12 +268,11 @@ impl TitleScreen {
     fn add_menu_art(
         &mut self,
         parent: &mut BaseMut<'_, Field>,
-        pack_dir: &str,
+        assets: &PackAssets,
         set: &DialogueSet,
     ) -> bool {
-        let window_path = format!("{pack_dir}/{}", set.window.png);
-        let Some(window) = Image::load_from_file(&GString::from(window_path.as_str())) else {
-            godot_error!("title: could not load window art {window_path}");
+        let Some(window) = assets.load_image(&set.window.png) else {
+            godot_error!("title: could not load window art {}", set.window.png);
             return false;
         };
         let mut roles = HashMap::new();
@@ -307,13 +301,12 @@ impl TitleScreen {
         self.add_frame(parent, &roles, MenuKind::Slots, (13, 10, 14, 7));
         self.add_frame(parent, &roles, MenuKind::EraseConfirm, (11, 10, 18, 6));
 
-        let font_path = format!("{pack_dir}/dialogue/menu_font.png");
-        let Some(font) = Image::load_from_file(&GString::from(font_path.as_str())) else {
-            godot_error!("title: could not load menu font {font_path}");
+        let Some(font) = assets.load_image("dialogue/menu_font.png") else {
+            godot_error!("title: could not load menu font dialogue/menu_font.png");
             return false;
         };
         let Some(font_texture) = ImageTexture::create_from_image(&font) else {
-            godot_error!("title: could not texture menu font {font_path}");
+            godot_error!("title: could not texture menu font dialogue/menu_font.png");
             return false;
         };
         self.add_text(
@@ -382,14 +375,14 @@ impl TitleScreen {
             (23, 14),
             1,
         );
-        self.add_sound_test_art(parent, pack_dir, &roles, &font_texture);
+        self.add_sound_test_art(parent, assets, &roles, &font_texture);
         true
     }
 
     fn add_sound_test_art(
         &mut self,
         parent: &mut BaseMut<'_, Field>,
-        pack_dir: &str,
+        assets: &PackAssets,
         roles: &HashMap<&'static str, Gd<ImageTexture>>,
         font_texture: &Gd<ImageTexture>,
     ) {
@@ -412,7 +405,7 @@ impl TitleScreen {
             usize::MAX,
         );
         self.add_frame(parent, roles, MenuKind::SoundTest, (1, 9, 38, 6));
-        let Ok(sound_test) = psiv_data::SoundTestFile::load(Path::new(pack_dir)) else {
+        let Ok(sound_test) = psiv_data::SoundTestFile::load_overlay(assets.overlay()) else {
             return;
         };
         for track in &sound_test.tracks {
@@ -751,14 +744,14 @@ fn screen_cell(x: i32, y: i32) -> Vector2 {
     )
 }
 
-fn load_replay_frames(pack_dir: &str) -> Vec<u32> {
-    let path = format!("{pack_dir}/title/palette_cycle.json");
-    let Ok(raw) = std::fs::read_to_string(&path) else {
-        godot_warn!("title: CRAM replay manifest missing: {path}");
+fn load_replay_frames(assets: &PackAssets) -> Vec<u32> {
+    let rel = "title/palette_cycle.json";
+    let Ok(raw) = assets.read_text(rel) else {
+        godot_warn!("title: CRAM replay manifest missing: {rel}");
         return Vec::new();
     };
     let Ok(manifest) = serde_json::from_str::<TitleReplayManifest>(&raw) else {
-        godot_error!("title: CRAM replay manifest is invalid: {path}");
+        godot_error!("title: CRAM replay manifest is invalid: {rel}");
         return Vec::new();
     };
     let mut frames: Vec<u32> = manifest

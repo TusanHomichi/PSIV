@@ -7,68 +7,86 @@
 //! earlier mod's `_indices.png`), keeping the base redirect would hide the
 //! mod's art behind the unmodded `_indices.png`.
 //!
-//! Removing that stale redirect in the overlay lets `field_map.rs`'s existing
-//! `MapImageSource::Rewrite` path inspect the mod's PNG: indexed PNGs use live
-//! CRAM colours, and ordinary RGB/RGBA PNGs fall back cleanly to baked colours.
+//! Removing that stale redirect in memory inside [`PackOverlay`] lets
+//! `field_map.rs`'s existing `MapImageSource::Rewrite` path inspect the mod's
+//! PNG: indexed PNGs use live CRAM colours, and ordinary RGB/RGBA PNGs fall
+//! back cleanly to baked colours.
 
-use super::ModError;
+use super::{ModError, PackOverlay};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::Path;
 
-/// Removes `map_update_images` entries in `out_dir/maps/*.json` whose source
-/// image was replaced by a mod at a strictly newer layer than its mapped index
-/// image (including when no mod replaced the index image at all).
+/// Whether a `map_update_images` redirect `image_key -> index_path` is stale
+/// under `asset_layers` (the `.png` was replaced by a mod at a strictly newer
+/// layer than its mapped `_indices.png`, including when `_indices.png` was not
+/// replaced by any mod).
+pub(super) fn redirect_is_stale(
+    asset_layers: &BTreeMap<String, usize>,
+    image_key: &str,
+    index_path: &str,
+) -> bool {
+    let Some(png_layer) = asset_layers.get(image_key) else {
+        return false;
+    };
+    let index_layer = asset_layers.get(index_path);
+    index_layer.is_none_or(|idx_layer| idx_layer < png_layer)
+}
+
+/// Removes stale `map_update_images` entries in memory for `maps/*.json` inside
+/// `overlay` whenever the source image was replaced by a mod at a strictly
+/// newer layer than its mapped index image (or without replacing the index
+/// image at all). Never writes to disk.
 pub(super) fn reconcile_replaced_map_update_images(
-    out_dir: &Path,
-    asset_layer: &BTreeMap<String, usize>,
+    overlay: &mut PackOverlay,
 ) -> Result<(), ModError> {
-    if asset_layer.is_empty() {
-        return Ok(());
-    }
-    let maps_dir = out_dir.join("maps");
-    if !maps_dir.is_dir() {
+    if overlay.asset_layers().is_empty() {
         return Ok(());
     }
 
-    let mut map_files = Vec::new();
-    let entries = fs::read_dir(&maps_dir).map_err(|error| {
-        ModError::new(
-            "overlay",
-            "maps",
-            format!("could not read overlay maps directory: {error}"),
-        )
-    })?;
-    for entry in entries {
-        let entry = entry.map_err(|error| {
+    let mut map_rels = BTreeSet::new();
+    let maps_dir = overlay.base_pack().join("maps");
+    if maps_dir.is_dir() {
+        let entries = fs::read_dir(&maps_dir).map_err(|error| {
             ModError::new(
                 "overlay",
                 "maps",
-                format!("could not read overlay maps entry: {error}"),
+                format!("could not read base maps directory: {error}"),
             )
         })?;
-        let path = entry.path();
-        if path.extension().and_then(|ext| ext.to_str()) == Some("json") && path.is_file() {
-            map_files.push(path);
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                ModError::new(
+                    "overlay",
+                    "maps",
+                    format!("could not read base maps entry: {error}"),
+                )
+            })?;
+            let path = entry.path();
+            if path.extension().and_then(|ext| ext.to_str()) == Some("json")
+                && path.is_file()
+                && let Some(name) = path.file_name().and_then(|n| n.to_str())
+            {
+                map_rels.insert(format!("maps/{name}"));
+            }
         }
     }
-    map_files.sort();
+    for key in overlay.override_keys() {
+        if key.starts_with("maps/") && key.ends_with(".json") {
+            map_rels.insert(key.to_owned());
+        }
+    }
 
-    for path in map_files {
-        let rel = path
-            .strip_prefix(out_dir)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .replace('\\', "/");
-        let text = fs::read_to_string(&path).map_err(|error| {
+    let asset_layers = overlay.asset_layers().clone();
+    for rel in map_rels {
+        let text = overlay.read_text(&rel).map_err(|error| {
             ModError::new("overlay", &rel, format!("could not read map JSON: {error}"))
         })?;
         if !text.contains("\"map_update_images\"") {
             continue;
         }
-        // Leave malformed JSON untouched so `GameData::load` attributes the
-        // parse failure to the mod that introduced it.
+        // Leave malformed JSON untouched so `GameData::load_overlay` attributes
+        // the parse failure to the mod that introduced it.
         let Ok(mut json) = serde_json::from_str::<Value>(&text) else {
             continue;
         };
@@ -81,13 +99,11 @@ pub(super) fn reconcile_replaced_map_update_images(
         let to_remove: Vec<String> = images
             .iter()
             .filter_map(|(image_key, index_val)| {
-                let png_layer = asset_layer.get(image_key)?;
-                let index_layer = index_val
-                    .as_str()
-                    .and_then(|idx_path| asset_layer.get(idx_path));
-                index_layer
-                    .is_none_or(|idx_layer| idx_layer < png_layer)
-                    .then(|| image_key.clone())
+                let stale = match index_val.as_str() {
+                    Some(idx_path) => redirect_is_stale(&asset_layers, image_key, idx_path),
+                    None => asset_layers.contains_key(image_key),
+                };
+                stale.then(|| image_key.clone())
             })
             .collect();
         if to_remove.is_empty() {
@@ -96,16 +112,6 @@ pub(super) fn reconcile_replaced_map_update_images(
         for key in to_remove {
             images.remove(&key);
         }
-        // Unlink first so the base pack or a mod's raw asset is never mutated.
-        if path.symlink_metadata().is_ok() {
-            fs::remove_file(&path).map_err(|error| {
-                ModError::new(
-                    "overlay",
-                    &rel,
-                    format!("could not replace map JSON link: {error}"),
-                )
-            })?;
-        }
         let rendered = serde_json::to_string(&json).map_err(|error| {
             ModError::new(
                 "overlay",
@@ -113,13 +119,7 @@ pub(super) fn reconcile_replaced_map_update_images(
                 format!("could not serialize map JSON: {error}"),
             )
         })?;
-        fs::write(&path, rendered).map_err(|error| {
-            ModError::new(
-                "overlay",
-                &rel,
-                format!("could not write reconciled map JSON: {error}"),
-            )
-        })?;
+        overlay.insert_memory_override(rel, rendered);
     }
 
     Ok(())
@@ -157,7 +157,7 @@ pub(super) fn strip_reconciled_map_update_removals(
                 return true;
             }
             // Keep the explicit deletion only if the index counterpart was also
-            // replaced (in which case `apply_mods` would not drop the mapping).
+            // replaced (in which case `PackOverlay` would not drop the mapping).
             base_images
                 .get(image_key)
                 .and_then(Value::as_str)

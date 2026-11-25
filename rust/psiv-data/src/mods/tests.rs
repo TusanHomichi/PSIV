@@ -1,4 +1,5 @@
 use super::*;
+use crate::{BattleFiles, GameData};
 use serde_json::json;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -148,7 +149,7 @@ fn discover_mods_orders_by_order_then_id_and_skips_disabled() {
     init_mod_dir(&dir.join("zeta"), &a).unwrap();
     init_mod_dir(&dir.join("alpha"), &b).unwrap();
     init_mod_dir(&dir.join("off"), &c).unwrap();
-    fs::create_dir_all(dir.join("_active_pack")).unwrap();
+    fs::create_dir_all(dir.join("_internal")).unwrap();
 
     let found = discover_mods(&dir).unwrap();
     let ids: Vec<&str> = found.iter().map(|m| m.manifest.id.as_str()).collect();
@@ -220,17 +221,16 @@ fn apply_mods_layers_table_patch_dialogue_and_asset_and_rejects_bad_schema() {
     fs::write(&asset_dst, &custom_bytes).unwrap();
 
     let mods = discover_mods(&scratch.join("mods")).unwrap();
-    let overlay_dir = scratch.join("effective");
-    let applied = apply_mods(&base, &mods, &overlay_dir).unwrap();
-    assert_eq!(applied.active.len(), 1);
+    let overlay = PackOverlay::load(&base, &mods).unwrap();
+    assert_eq!(overlay.active_mods().len(), 1);
     assert_eq!(
-        applied.patched_files,
-        vec!["battle/enemies.json", "dialogue/trees.json"]
+        overlay.patched_files(),
+        &["battle/enemies.json", "dialogue/trees.json"]
     );
-    assert_eq!(applied.replaced_assets, vec!["maps/010_Piata.png"]);
+    assert_eq!(overlay.replaced_assets(), &["maps/010_Piata.png"]);
 
     // Loaded BattleFiles and GameData reflect the edits; base pack is untouched.
-    let battle = BattleFiles::load(&applied.effective_pack).unwrap();
+    let battle = BattleFiles::load_overlay(&overlay).unwrap();
     let zoran = battle.enemies.enemies.iter().find(|e| e.id == 10).unwrap();
     assert_eq!(zoran.hp, 99);
     let base_battle = BattleFiles::load(&base).unwrap();
@@ -242,7 +242,7 @@ fn apply_mods_layers_table_patch_dialogue_and_asset_and_rejects_bad_schema() {
         .unwrap();
     assert_eq!(base_zoran.hp, 25, "base pack must never be mutated");
 
-    let game = GameData::load(&applied.effective_pack).unwrap();
+    let game = GameData::load_overlay(&overlay).unwrap();
     let dialogue = game.dialogue().unwrap();
     let line = &dialogue
         .trees
@@ -255,7 +255,7 @@ fn apply_mods_layers_table_patch_dialogue_and_asset_and_rejects_bad_schema() {
         .text;
     assert!(line.contains("Glad to see you in one piece!"), "{line}");
     assert_eq!(
-        fs::read(applied.effective_pack.join(sample_asset_rel)).unwrap(),
+        overlay.read_asset_bytes("maps/010_Piata.png").unwrap(),
         custom_bytes
     );
 
@@ -268,12 +268,8 @@ fn apply_mods_layers_table_patch_dialogue_and_asset_and_rejects_bad_schema() {
         r#"{"enemies":{"10":{"hp":70000}}}"#,
     )
     .unwrap();
-    let err = apply_mods(
-        &base,
-        &[load_mod(&bad_mod).unwrap()],
-        &scratch.join("bad-out"),
-    )
-    .expect_err("HP 70000 must be refused");
+    let err = PackOverlay::load(&base, &[load_mod(&bad_mod).unwrap()])
+        .expect_err("HP 70000 must be refused");
     assert_eq!(err.mod_id, "bad-hp");
     assert_eq!(err.file, "battle/enemies.json");
     assert!(err.detail.contains("70000"), "{err}");
@@ -287,21 +283,19 @@ fn apply_mods_layers_table_patch_dialogue_and_asset_and_rejects_bad_schema() {
         r#"{"enemies":{"9999":{"hp":10}}}"#,
     )
     .unwrap();
-    let err = apply_mods(
-        &base,
-        &[load_mod(&bad_id).unwrap()],
-        &scratch.join("bad-id-out"),
-    )
-    .expect_err("unknown enemy id must be refused");
+    let err = PackOverlay::load(&base, &[load_mod(&bad_id).unwrap()])
+        .expect_err("unknown enemy id must be refused");
     assert_eq!(err.mod_id, "bad-id");
     assert!(err.file.contains("battle/enemies.json"), "{err}");
     assert!(err.detail.contains("9999"), "{err}");
 
-    // Round-trip: diffing the effective pack back against base reproduces the edits.
+    // Round-trip: diffing an edited copy carrying the overlay's edits reproduces the mod.
+    let edited_copy = scratch.join("edited-copy");
+    materialize_overlay_for_diff_test(&overlay, &edited_copy);
     let exported = scratch.join("exported-mod");
     let summary = diff_packs(
         &base,
-        &applied.effective_pack,
+        &edited_copy,
         &exported,
         &ModManifest::new("exported", "Exported", "1.0.0"),
     )
@@ -311,13 +305,8 @@ fn apply_mods_layers_table_patch_dialogue_and_asset_and_rejects_bad_schema() {
         vec!["battle/enemies.json", "dialogue/trees.json"]
     );
     assert_eq!(summary.assets, vec!["maps/010_Piata.png"]);
-    let reapplied = apply_mods(
-        &base,
-        &[load_mod(&exported).unwrap()],
-        &scratch.join("reapplied"),
-    )
-    .unwrap();
-    let re_battle = BattleFiles::load(&reapplied.effective_pack).unwrap();
+    let reapplied = PackOverlay::load(&base, &[load_mod(&exported).unwrap()]).unwrap();
+    let re_battle = BattleFiles::load_overlay(&reapplied).unwrap();
     assert_eq!(
         re_battle
             .enemies
@@ -483,38 +472,40 @@ fn diff_packs_clears_stale_patches_and_assets_on_reexport() {
     let _ = fs::remove_dir_all(&scratch);
 }
 
+/// Test-only helper that copies/links `overlay.base_pack()` and writes the
+/// overlay's in-memory overrides so `diff_packs` round-trip tests can exercise
+/// the edit-a-copy CLI workflow.
+pub(super) fn materialize_overlay_for_diff_test(overlay: &PackOverlay, out_dir: &Path) {
+    let base = overlay.base_pack();
+    let files = collect_relative_files(base, "test", "base-pack").unwrap();
+    for rel in files {
+        let rel_str = normalize_rel(&rel, "test", "base-pack").unwrap();
+        let dst = out_dir.join(&rel);
+        fs::create_dir_all(dst.parent().unwrap()).unwrap();
+        if overlay.patched_files().contains(&rel_str)
+            || overlay.replaced_assets().contains(&rel_str)
+            || overlay.resolve_asset(&rel_str).is_none()
+        {
+            fs::write(&dst, overlay.read_asset_bytes(&rel_str).unwrap()).unwrap();
+        } else {
+            let src = base.join(&rel);
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(src.canonicalize().unwrap_or(src), &dst).unwrap();
+            #[cfg(not(unix))]
+            fs::copy(&src, &dst).unwrap();
+        }
+    }
+}
+
 #[test]
 fn overlapping_output_paths_are_rejected_without_touching_sources() {
     let scratch = temp_dir("overlap-guard");
     let base = scratch.join("base-pack");
-    let mod_dir = scratch.join("mods/alpha");
     fs::create_dir_all(&base).unwrap();
     fs::write(base.join("manifest.json"), "{}\n").unwrap();
     fs::write(base.join("sentinel.txt"), "keep-me").unwrap();
 
     let manifest = ModManifest::new("alpha", "Alpha", "1.0.0");
-    init_mod_dir(&mod_dir, &manifest).unwrap();
-    let loaded = [load_mod(&mod_dir).unwrap()];
-
-    // Equal, descendant, ancestor, and mod-root overlaps must all be refused.
-    for bad_out in [
-        base.clone(),
-        base.join("nested-overlay"),
-        scratch.clone(),
-        mod_dir.clone(),
-        mod_dir.join("sub"),
-    ] {
-        let err = apply_mods(&base, &loaded, &bad_out)
-            .expect_err("overlapping output dir must be rejected");
-        assert!(err.detail.contains("overlaps"), "{err}");
-    }
-    assert_eq!(
-        fs::read_to_string(base.join("sentinel.txt")).unwrap(),
-        "keep-me",
-        "base pack must remain completely untouched"
-    );
-
-    // diff_packs must also reject overlapping base/edited pack outputs.
     let edited = scratch.join("edited-pack");
     fs::create_dir_all(&edited).unwrap();
     fs::write(edited.join("manifest.json"), "{}\n").unwrap();
@@ -528,6 +519,11 @@ fn overlapping_output_paths_are_rejected_without_touching_sources() {
             .expect_err("diff_packs must reject overlapping output");
         assert!(err.detail.contains("overlaps"), "{err}");
     }
+    assert_eq!(
+        fs::read_to_string(base.join("sentinel.txt")).unwrap(),
+        "keep-me",
+        "base pack must remain completely untouched"
+    );
 
     let _ = fs::remove_dir_all(&scratch);
 }
@@ -546,7 +542,7 @@ fn symlinks_inside_mod_folders_are_rejected_without_recursing() {
     std::os::unix::fs::symlink(&mod_dir, mod_dir.join("patches/self-loop")).unwrap();
 
     let loaded = [load_mod(&mod_dir).unwrap()];
-    let err = apply_mods(&base, &loaded, &scratch.join("out"))
+    let err = PackOverlay::load(&base, &loaded)
         .expect_err("cyclic symlink in mod patches must be rejected");
     assert_eq!(err.mod_id, "loop-mod");
     assert!(err.detail.contains("symlinks"), "{err}");
@@ -567,29 +563,41 @@ fn reconcile_map_update_images_respects_png_and_indices_precedence() {
         }
     });
 
-    // Helper: write a fresh overlay maps/010_Piata.json symlinked to a read-only
-    // base copy, run reconciliation with `layers`, and return the resulting map JSON.
+    // Helper: build an in-memory PackOverlay over a base copy with synthetic
+    // mod layers supplying `layers`, and return the reconciled map JSON.
     let run_case = |label: &str, layers: &[(&str, usize)]| -> serde_json::Value {
         let case_dir = scratch.join(label);
-        let base_dir = case_dir.join("base/maps");
-        let out_dir = case_dir.join("out/maps");
-        fs::create_dir_all(&base_dir).unwrap();
-        fs::create_dir_all(&out_dir).unwrap();
-        let base_file = base_dir.join("010_Piata.json");
+        let base_dir = case_dir.join("base");
+        fs::create_dir_all(base_dir.join("maps")).unwrap();
+        let base_file = base_dir.join("maps/010_Piata.json");
         fs::write(&base_file, serde_json::to_string(&base_map).unwrap()).unwrap();
-        let out_file = out_dir.join("010_Piata.json");
-        link_or_copy(&base_file, &out_file).unwrap();
 
-        let asset_layer: BTreeMap<String, usize> =
-            layers.iter().map(|(k, v)| ((*k).to_owned(), *v)).collect();
-        map_art::reconcile_replaced_map_update_images(&case_dir.join("out"), &asset_layer).unwrap();
+        let mod_count = layers.iter().map(|(_, idx)| idx + 1).max().unwrap_or(0);
+        let mut mods = Vec::new();
+        for idx in 0..mod_count {
+            let mod_id = format!("layer-{idx}");
+            let mod_dir = case_dir.join("mods").join(&mod_id);
+            let mut manifest = ModManifest::new(&mod_id, &mod_id, "1.0.0");
+            manifest.order = idx as i32;
+            init_mod_dir(&mod_dir, &manifest).unwrap();
+            for (rel, layer_idx) in layers {
+                if *layer_idx == idx {
+                    let dst = mod_dir.join("assets").join(rel);
+                    fs::create_dir_all(dst.parent().unwrap()).unwrap();
+                    fs::write(&dst, format!("layer-{idx}-{rel}")).unwrap();
+                }
+            }
+            mods.push(load_mod(&mod_dir).unwrap());
+        }
 
-        // Base map JSON must never be mutated through the link.
+        let overlay = PackOverlay::build_in_memory(&base_dir, &mods).unwrap();
+
+        // Base map JSON on disk must never be mutated.
         let base_after: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(&base_file).unwrap()).unwrap();
         assert_eq!(base_after, base_map, "base map JSON must stay untouched");
 
-        serde_json::from_str(&fs::read_to_string(&out_file).unwrap()).unwrap()
+        serde_json::from_str(&overlay.read_text("maps/010_Piata.json").unwrap()).unwrap()
     };
 
     // 1. Replacing `.png` alone drops its redirect so the renderer uses the mod PNG,
@@ -702,13 +710,8 @@ fn apply_mods_reconciles_live_palette_map_png_replacement_on_real_pack() {
     fs::create_dir_all(png_mod.join("assets/maps")).unwrap();
     fs::write(png_mod.join("assets/maps/010_Piata.png"), &custom_png).unwrap();
 
-    let applied_png = apply_mods(
-        &base,
-        &[load_mod(&png_mod).unwrap()],
-        &scratch.join("effective-png"),
-    )
-    .unwrap();
-    let effective_data = GameData::load(&applied_png.effective_pack).unwrap();
+    let applied_png = PackOverlay::load(&base, &[load_mod(&png_mod).unwrap()]).unwrap();
+    let effective_data = GameData::load_overlay(&applied_png).unwrap();
     let piata = effective_data.map(crate::MapId(0x010)).unwrap();
     assert!(
         !piata.map_update_images.contains_key("maps/010_Piata.png"),
@@ -739,13 +742,8 @@ fn apply_mods_reconciles_live_palette_map_png_replacement_on_real_pack() {
     )
     .unwrap();
 
-    let applied_idx = apply_mods(
-        &base,
-        &[load_mod(&idx_mod).unwrap()],
-        &scratch.join("effective-idx"),
-    )
-    .unwrap();
-    let effective_idx = GameData::load(&applied_idx.effective_pack).unwrap();
+    let applied_idx = PackOverlay::load(&base, &[load_mod(&idx_mod).unwrap()]).unwrap();
+    let effective_idx = GameData::load_overlay(&applied_idx).unwrap();
     let piata_idx = effective_idx.map(crate::MapId(0x010)).unwrap();
     assert_eq!(
         piata_idx
@@ -755,12 +753,9 @@ fn apply_mods_reconciles_live_palette_map_png_replacement_on_real_pack() {
         Some("maps/010_Piata_indices.png")
     );
     assert_eq!(
-        fs::read(
-            applied_idx
-                .effective_pack
-                .join("maps/010_Piata_indices.png")
-        )
-        .unwrap(),
+        applied_idx
+            .read_asset_bytes("maps/010_Piata_indices.png")
+            .unwrap(),
         custom_idx
     );
 

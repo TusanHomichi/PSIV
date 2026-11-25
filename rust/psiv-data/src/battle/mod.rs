@@ -33,6 +33,7 @@
 
 use crate::error::DataError;
 use crate::manifest::PACK_FORMAT_VERSION;
+use crate::mods::PackOverlay;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -69,16 +70,25 @@ impl BattleFiles {
     /// [`DataError`] for an unreadable or malformed file, a format-version
     /// mismatch, or any of the cross-checks in [`BattleFiles::validate`].
     pub fn load(pack_dir: &Path) -> Result<BattleFiles, DataError> {
+        Self::load_overlay(&PackOverlay::base(pack_dir))
+    }
+
+    /// Reads and validates every `battle/` file through a [`PackOverlay`].
+    ///
+    /// # Errors
+    /// [`DataError`] for an unreadable or malformed file, a format-version
+    /// mismatch, or any of the cross-checks in [`BattleFiles::validate`].
+    pub fn load_overlay(overlay: &PackOverlay) -> Result<BattleFiles, DataError> {
         let files = BattleFiles {
-            enemies: read(pack_dir, "enemies.json")?,
-            formations: read(pack_dir, "formations.json")?,
-            levels: read(pack_dir, "levels.json")?,
-            abilities: read(pack_dir, "abilities.json")?,
-            characters: read(pack_dir, "characters.json")?,
-            equipment: read(pack_dir, "equipment.json")?,
-            enemy_animations: read(pack_dir, "enemy_animations.json")?,
+            enemies: read(overlay, "enemies.json")?,
+            formations: read(overlay, "formations.json")?,
+            levels: read(overlay, "levels.json")?,
+            abilities: read(overlay, "abilities.json")?,
+            characters: read(overlay, "characters.json")?,
+            equipment: read(overlay, "equipment.json")?,
+            enemy_animations: read(overlay, "enemy_animations.json")?,
         };
-        files.validate(pack_dir)?;
+        files.validate(overlay.base_pack())?;
         Ok(files)
     }
 
@@ -336,12 +346,11 @@ impl BattleFiles {
 }
 
 fn read<T: for<'de> Deserialize<'de> + Versioned>(
-    pack_dir: &Path,
+    overlay: &PackOverlay,
     name: &str,
 ) -> Result<T, DataError> {
-    let path = pack_dir.join(BATTLE_DIRECTORY).join(name);
-    let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-    let value: T = serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+    let rel = format!("{BATTLE_DIRECTORY}/{name}");
+    let value: T = overlay.read_json_data(&rel)?;
     if value.format_version() != PACK_FORMAT_VERSION {
         return Err(DataError::FormatVersion {
             found: value.format_version(),

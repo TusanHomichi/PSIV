@@ -19,10 +19,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use godot::classes::image::Format;
-use godot::classes::{FileAccess, Image, ImageTexture};
+use godot::classes::{Image, ImageTexture};
 use godot::prelude::*;
 
 use psiv_data::color::{IndexLayout, index_png, is_baked_png, recolor};
+
+use crate::pack_assets::PackAssets;
 
 /// The palette the field draws with this frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,23 +51,26 @@ impl Default for CramState {
 /// One [`CramState`] the field and the scene layer read.
 pub(crate) type SharedCram = Rc<RefCell<CramState>>;
 
-/// `path`, an indexed PNG, decoded with each pixel's palette index in red
-/// and its transparency in alpha ([`index_png`]). Returns `None` quietly for
-/// valid non-indexed (RGB/RGBA/grayscale) PNGs so mod art falls back cleanly
-/// to baked colours, and logs an error for missing, truncated, or unreadable files.
-pub(crate) fn load_index_image(path: &str) -> Option<Gd<Image>> {
-    let bytes = FileAccess::get_file_as_bytes(path);
-    if bytes.is_empty() {
-        godot_error!("indexed art {path} could not be read");
-        return None;
-    }
+/// `rel_path`, an indexed PNG resolved through `assets`, decoded with each
+/// pixel's palette index in red and its transparency in alpha ([`index_png`]).
+/// Returns `None` quietly for valid non-indexed (RGB/RGBA/grayscale) PNGs so
+/// mod art falls back cleanly to baked colours, and logs an error for missing,
+/// truncated, or unreadable files.
+pub(crate) fn load_index_image(assets: &PackAssets, rel_path: &str) -> Option<Gd<Image>> {
+    let bytes = match assets.read_bytes(rel_path) {
+        Ok(bytes) if !bytes.is_empty() => bytes,
+        _ => {
+            godot_error!("indexed art {rel_path} could not be read");
+            return None;
+        }
+    };
     if is_baked_png(bytes.as_slice()) {
         return None;
     }
     let indexed = match index_png(bytes.as_slice()) {
         Ok(indexed) => indexed,
         Err(error) => {
-            godot_error!("indexed art {path}: {error}");
+            godot_error!("indexed art {rel_path}: {error}");
             return None;
         }
     };
@@ -73,7 +78,7 @@ pub(crate) fn load_index_image(path: &str) -> Option<Gd<Image>> {
     if image.load_png_from_buffer(&PackedByteArray::from(indexed.as_slice()))
         != godot::global::Error::OK
     {
-        godot_error!("indexed art {path} does not decode");
+        godot_error!("indexed art {rel_path} does not decode");
         return None;
     }
     Some(image)
@@ -130,10 +135,11 @@ pub(crate) struct IndexedArt {
 }
 
 impl IndexedArt {
-    /// Reads `path`, an indexed PNG, as palette indices laid out by
-    /// `layout`. `None` (reported) for a file that is missing or not indexed.
-    pub(crate) fn load(path: &str, layout: IndexLayout) -> Option<Self> {
-        let mut image = load_index_image(path)?;
+    /// Reads `rel_path` through `assets`, an indexed PNG, as palette indices
+    /// laid out by `layout`. `None` (reported) for a file that is missing or
+    /// not indexed.
+    pub(crate) fn load(assets: &PackAssets, rel_path: &str, layout: IndexLayout) -> Option<Self> {
+        let mut image = load_index_image(assets, rel_path)?;
         image.convert(Format::RGBA8);
         let data = image.get_data();
         let pixels = data.as_slice();

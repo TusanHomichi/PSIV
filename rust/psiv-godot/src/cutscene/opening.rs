@@ -57,7 +57,7 @@ impl CutsceneLayer {
             let art = self
                 .opening_background_path
                 .as_deref()
-                .and_then(|path| IndexedArt::load(path, IndexLayout::Plane));
+                .and_then(|rel| IndexedArt::load(&self.pack_assets, rel, IndexLayout::Plane));
             self.opening_art = Some(art);
         }
         self.opening_art.as_mut()?.as_mut()?.texture(&cram)

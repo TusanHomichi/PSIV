@@ -29,6 +29,7 @@ use super::BattleSetup;
 use super::art::BattleArt;
 use super::attack::EnemySprite;
 use super::chrome::BattleChrome;
+use crate::pack_assets::PackAssets;
 
 /// Plane cells are 8x8 pixels, per `docs/battle/BATTLE_GEOMETRY.md` §1.
 pub(super) const BATTLE_CELL_PIXELS: i32 = 8;
@@ -163,7 +164,7 @@ pub(super) struct PartySprite {
 #[class(base=Node2D)]
 pub(crate) struct BattleScreen {
     base: Base<Node2D>,
-    pack_dir: String,
+    pack_assets: PackAssets,
     art: Option<BattleArt>,
     chrome: Option<BattleChrome>,
     /// The command icon and cursor art, built as the planes ask for it.
@@ -188,7 +189,7 @@ impl INode2D for BattleScreen {
     fn init(base: Base<Node2D>) -> Self {
         BattleScreen {
             base,
-            pack_dir: String::new(),
+            pack_assets: PackAssets::default(),
             art: None,
             chrome: None,
             tiles: super::tiles::CommandTiles::default(),
@@ -228,30 +229,31 @@ impl INode2D for BattleScreen {
 
 impl BattleScreen {
     /// Loads the battle art and the dialogue chrome/font conventions.
-    pub(crate) fn configure(&mut self, pack_dir: &str, command_art: psiv_data::CommandUiArt) {
-        self.pack_dir = pack_dir.to_owned();
+    pub(crate) fn configure(
+        &mut self,
+        assets: &PackAssets,
+        set: &DialogueSet,
+        command_art: psiv_data::CommandUiArt,
+    ) {
+        self.pack_assets = assets.clone();
         self.tiles = super::tiles::CommandTiles::new(command_art);
-        self.art = match BattleArt::load(pack_dir) {
+        self.art = match BattleArt::load(assets) {
             Ok(art) => Some(art),
             Err(error) => {
-                godot_error!("battle art failed to load from {pack_dir}: {error}");
+                godot_error!(
+                    "battle art failed to load from {}: {error}",
+                    assets.display_root()
+                );
                 None
             }
         };
-        match DialogueSet::load(std::path::Path::new(pack_dir)) {
-            Ok(set) => {
-                let ink = self
-                    .art
-                    .as_ref()
-                    .map_or([Color::BLACK; 4], |art| art.line_ink());
-                self.chrome = BattleChrome::build(pack_dir, &set, ink);
-                if self.chrome.is_none() {
-                    godot_error!("battle: dialogue chrome/font art failed to load");
-                }
-            }
-            Err(error) => {
-                godot_error!("battle: dialogue pack failed to load: {error}");
-            }
+        let ink = self
+            .art
+            .as_ref()
+            .map_or([Color::BLACK; 4], |art| art.line_ink());
+        self.chrome = BattleChrome::build(assets, set, ink);
+        if self.chrome.is_none() {
+            godot_error!("battle: dialogue chrome/font art failed to load");
         }
     }
 

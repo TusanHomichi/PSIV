@@ -5,7 +5,6 @@
 //! `(marker_x, marker_y)`, and a small top-left planet label box.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 use godot::classes::{INode2D, Image, ImageTexture, Node2D};
 use godot::prelude::*;
@@ -15,13 +14,14 @@ use psiv_runtime::WorldMapView;
 
 use crate::Field;
 use crate::camp::chrome::{CampChrome, Quad};
+use crate::pack_assets::PackAssets;
 use crate::window_layer::WindowLayer;
 
 #[derive(GodotClass)]
 #[class(base=Node2D)]
 pub(crate) struct WorldMapScreen {
     base: Base<Node2D>,
-    pack_dir: PathBuf,
+    pack_assets: PackAssets,
     chrome: Option<CampChrome>,
     windows: Option<Gd<WindowLayer>>,
     textures: HashMap<String, Gd<ImageTexture>>,
@@ -33,7 +33,7 @@ impl INode2D for WorldMapScreen {
     fn init(base: Base<Node2D>) -> Self {
         Self {
             base,
-            pack_dir: PathBuf::new(),
+            pack_assets: PackAssets::default(),
             chrome: None,
             windows: None,
             textures: HashMap::new(),
@@ -111,9 +111,9 @@ impl INode2D for WorldMapScreen {
 }
 
 impl WorldMapScreen {
-    pub(crate) fn configure(&mut self, pack_dir: &str, set: &DialogueSet) {
-        self.pack_dir = PathBuf::from(pack_dir);
-        self.chrome = CampChrome::build(pack_dir, set);
+    pub(crate) fn configure(&mut self, assets: &PackAssets, set: &DialogueSet) {
+        self.pack_assets = assets.clone();
+        self.chrome = CampChrome::build(assets, set);
     }
 
     pub(crate) fn sync(&mut self, view: Option<WorldMapView>) {
@@ -145,8 +145,7 @@ impl WorldMapScreen {
         if let Some(cached) = self.textures.get(rel) {
             return Some(cached.clone());
         }
-        let path = self.pack_dir.join(rel);
-        let bytes = std::fs::read(&path).ok()?;
+        let bytes = self.pack_assets.read_bytes(rel).ok()?;
         let mut image = Image::new_gd();
         if image.load_png_from_buffer(&PackedByteArray::from(bytes.as_slice()))
             != godot::global::Error::OK

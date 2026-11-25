@@ -4,7 +4,7 @@
 //! here comes from the pack (art tables, formation positions, party sheets);
 //! nothing is decided.
 
-use godot::classes::{Image, ImageTexture, Sprite2D};
+use godot::classes::{ImageTexture, Sprite2D};
 use godot::prelude::*;
 
 use psiv_core::battle::FighterId;
@@ -54,7 +54,7 @@ impl BattleScreen {
             let Some(frames) = self
                 .art
                 .as_ref()
-                .and_then(|art| art.fusion_frames(&self.pack_dir))
+                .and_then(|art| art.fusion_frames(&self.pack_assets))
             else {
                 godot_error!("battle art: the Fusion frames did not load");
                 return;
@@ -115,14 +115,13 @@ impl BattleScreen {
         // frame shows its left 320 pixels and leaves the bottom UI strip clear.
         node.set_position(Vector2::ZERO);
         if let Some(path) = selected {
-            let full = format!("{}/{}", self.pack_dir, path);
-            match Image::load_from_file(&GString::from(full.as_str())) {
+            match self.pack_assets.load_image(path) {
                 Some(image) => {
                     if image.get_width() != BATTLE_BACKGROUND_WIDTH
                         || image.get_height() != BATTLE_BACKGROUND_HEIGHT
                     {
                         godot_error!(
-                            "battle background {full} is {}x{}, expected {}x{}",
+                            "battle background {path} is {}x{}, expected {}x{}",
                             image.get_width(),
                             image.get_height(),
                             BATTLE_BACKGROUND_WIDTH,
@@ -132,12 +131,12 @@ impl BattleScreen {
                     match ImageTexture::create_from_image(&image) {
                         Some(texture) => node.set_texture(&texture),
                         None => {
-                            godot_error!("battle background texture creation failed: {full}");
+                            godot_error!("battle background texture creation failed: {path}");
                         }
                     }
                 }
                 None => {
-                    godot_error!("battle background image failed to load: {full}");
+                    godot_error!("battle background image failed to load: {path}");
                 }
             }
         }
@@ -173,7 +172,7 @@ impl BattleScreen {
             node.set_position(Vector2::new(x as f32, y as f32));
             let mut animation = self.art.as_ref().and_then(|art| {
                 art.enemy_animation(
-                    &self.pack_dir,
+                    &self.pack_assets,
                     enemy.enemy_id,
                     enemy.position,
                     animation_phase_ticks,
@@ -186,7 +185,7 @@ impl BattleScreen {
             } else {
                 self.enemy_textures.get(&key).cloned().or_else(|| {
                     let texture = self.art.as_ref().and_then(|art| {
-                        art.enemy_texture(&self.pack_dir, enemy.enemy_id, enemy.position)
+                        art.enemy_texture(&self.pack_assets, enemy.enemy_id, enemy.position)
                     });
                     if let Some(texture) = texture.as_ref() {
                         self.enemy_textures.insert(key, texture.clone());
@@ -227,8 +226,8 @@ impl BattleScreen {
         };
         let (width, height) = art.enemy_size(enemy_id).unwrap_or((0, 0));
         let (x, y) = enemy_sprite_origin(position, width, height);
-        let texture = art.enemy_texture(&self.pack_dir, enemy_id, position);
-        let animation = art.enemy_animation(&self.pack_dir, enemy_id, position, 0);
+        let texture = art.enemy_texture(&self.pack_assets, enemy_id, position);
+        let animation = art.enemy_animation(&self.pack_assets, enemy_id, position, 0);
         let shown = animation.as_ref().map(EnemyAnimation::texture).or(texture);
         let Some(enemy) = self
             .enemy_nodes
@@ -265,12 +264,12 @@ impl BattleScreen {
                 .as_deref()
                 .zip(setup.vehicle_frame)
                 .and_then(|(path, (width, height))| {
-                    vehicle_texture(&self.pack_dir, path, width, height)
+                    vehicle_texture(&self.pack_assets, path, width, height)
                 })
                 .or_else(|| {
-                    self.art
-                        .as_ref()
-                        .and_then(|art| art.character_texture(&self.pack_dir, member.character, 0))
+                    self.art.as_ref().and_then(|art| {
+                        art.character_texture(&self.pack_assets, member.character, 0)
+                    })
                 });
             let Some(idle) = idle else {
                 godot_error!(
@@ -285,7 +284,7 @@ impl BattleScreen {
             } else {
                 self.art
                     .as_ref()
-                    .and_then(|art| art.character_texture(&self.pack_dir, member.character, 1))
+                    .and_then(|art| art.character_texture(&self.pack_assets, member.character, 1))
             };
             let mut node = Sprite2D::new_alloc();
             node.set_centered(false);

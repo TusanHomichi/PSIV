@@ -84,12 +84,19 @@ impl BattleBackgrounds {
     /// pack); [`DataError::FormatVersion`] for another pack format; I/O and
     /// JSON errors name the file.
     pub fn load(pack_dir: &Path) -> Result<Option<BattleBackgrounds>, DataError> {
-        let path = pack_dir.join(BATTLE_BACKGROUNDS_PATH);
-        if !path.is_file() {
+        Self::load_overlay(&crate::mods::PackOverlay::base(pack_dir))
+    }
+
+    /// Reads `battle/art/backgrounds.json` through a [`crate::PackOverlay`];
+    /// `Ok(None)` when the pack has no battle art at all.
+    pub fn load_overlay(
+        overlay: &crate::mods::PackOverlay,
+    ) -> Result<Option<BattleBackgrounds>, DataError> {
+        if !overlay.is_file(BATTLE_BACKGROUNDS_PATH) {
             return Ok(None);
         }
-        let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
-        let file: File = serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+        let path = overlay.logical_path(BATTLE_BACKGROUNDS_PATH);
+        let file: File = overlay.read_json_data(BATTLE_BACKGROUNDS_PATH)?;
         if file.format_version != PACK_FORMAT_VERSION {
             return Err(DataError::FormatVersion {
                 found: file.format_version,

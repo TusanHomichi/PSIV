@@ -2,7 +2,7 @@
 
 use super::text_plane::TextPlane;
 use crate::cram_art::{CramState, IndexedArt, SharedCram};
-use godot::classes::{INode2D, Image, ImageTexture, Node2D};
+use godot::classes::{INode2D, ImageTexture, Node2D};
 use godot::prelude::*;
 use psiv_core::SceneOp;
 use psiv_data::color::IndexLayout;
@@ -145,12 +145,10 @@ impl TextPlaneLayer {
         self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
     }
-    pub(super) fn configure(&mut self, pack_dir: &str, set: DialogueSet) {
-        let path = format!("{pack_dir}/{}", set.font.png);
-        self.font = Image::load_from_file(&GString::from(path.as_str()))
-            .and_then(|image| ImageTexture::create_from_image(&image));
+    pub(super) fn configure(&mut self, assets: &crate::pack_assets::PackAssets, set: DialogueSet) {
+        self.font = assets.load_texture(&set.font.png);
         self.live_fonts = (0..4)
-            .map(|line| IndexedArt::load(&path, IndexLayout::Line(line)))
+            .map(|line| IndexedArt::load(assets, &set.font.png, IndexLayout::Line(line)))
             .collect();
         self.set = Some(set);
         self.base_mut().set_visible(false);
