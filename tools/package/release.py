@@ -62,11 +62,16 @@ pack, no ROM, nothing from `oracle/`), or whose programs lost their
 executable bit.
 
     python3 tools/package/release.py smoke ARCHIVE --platform P [--symbols DIR] \\
-        [--failure-dir DIR] [--no-keep-on-failure]
+        [--failure-dir DIR] [--no-keep-on-failure] [--display headless|xvfb] \\
+        [--rendering-driver opengl3|opengl3_es]
 
 unpacks the archive and starts the game in it as a player's first run does,
-headless, on the platform it is for, with a scratch save directory. With no
-pack it must show the setup screen. Given a file that is not the ROM on its
+headless by default (or under `xvfb-run` with software GL on Linux when
+`--display xvfb` is passed), on the platform it is for, with a scratch save
+directory. On Linux, `smoke` also applies `tools/package/linux_runtime.py` so
+exported binaries run under `nix-ld` inherit the flake's matching Mesa GLX/EGL
+runtime environment (a no-op on standard FHS Linux). With no pack it must show
+the setup screen. Given a file that is not the ROM on its
 command line, it must run the `psiv-pack` beside it and show the builder's
 refusal. Each run must also exit 0 and log no `ERROR:` line: a missing pack
 and a file that is not the ROM are what a first run expects, not errors. On
@@ -100,6 +105,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
+from tools.package.linux_runtime import (  # noqa: E402
+    apply_linux_runtime_env,
+    diagnostic_runtime_env,
+)
 from tools.package.notices import FILES as NOTICE_FILES  # noqa: E402
 from tools.package.notices import NoticeError, write_notices  # noqa: E402
 from tools.package.symbols import (  # noqa: E402
@@ -159,6 +168,9 @@ NOT_THE_ROM_NAME = "not the game (portabilité).md"
 #: Frames a smoke run lasts, at `--max-fps 60`, and its time limit in seconds.
 SMOKE_FRAMES = {"setup": "120", "refusal": "300"}
 SMOKE_TIMEOUT = 180
+SMOKE_DISPLAYS = ("headless", "xvfb")
+SMOKE_RENDERING_DRIVERS = ("opengl3", "opengl3_es")
+XVFB_SERVER_ARGS = "-screen 0 640x480x24 -nolisten tcp"
 
 #: Bytes read at a time from a download.
 CHUNK = 1 << 20
@@ -659,15 +671,21 @@ def unpack(archive: Path, into: Path) -> None:
             handle.extractall(into)
 
 
-def first_run_environment(home: Path, saves: Path) -> dict[str, str]:
+def first_run_environment(
+    home: Path, saves: Path, *, platform: Platform | None = None,
+) -> dict[str, str]:
     """The environment of a player who has never run PSIV: an empty user
     data folder on every platform (`install.rs`), none of the variables that
     point the game elsewhere, and `saves` as its own save directory, as every
-    native run has (`save_dir.rs`)."""
-    environment = {key: value for key, value in os.environ.items()
+    native run has (`save_dir.rs`). On Linux, configures Nix/Mesa GLX/EGL
+    runtime variables when present (`tools/package/linux_runtime.py`)."""
+    source_env = dict(os.environ)
+    environment = {key: value for key, value in source_env.items()
                    if not key.startswith("PSIV_")}
     environment.update(XDG_DATA_HOME=str(home / "data"), APPDATA=str(home / "AppData"),
                        HOME=str(home), PSIV_SAVE_DIR=str(saves))
+    if platform is not None and platform.name == "linux":
+        environment = apply_linux_runtime_env(environment, source_env=source_env)
     return environment
 
 
@@ -690,8 +708,22 @@ def smoke(
     failure_dir: Path | None = None,
     keep_on_failure: bool = True,
     symbols_dir: Path | None = None,
+    display: str = "headless",
+    rendering_driver: str | None = None,
 ) -> list[str]:
     """Run the archive's game as a first run does; the lines it showed."""
+    if display not in SMOKE_DISPLAYS:
+        raise ReleaseError(f"unsupported smoke display {display!r}; choose from {SMOKE_DISPLAYS}")
+    if rendering_driver is not None:
+        if display != "xvfb":
+            raise ReleaseError("--rendering-driver requires --display xvfb")
+        if rendering_driver not in SMOKE_RENDERING_DRIVERS:
+            raise ReleaseError(f"unsupported rendering driver {rendering_driver!r}")
+    if display == "xvfb":
+        if platform.name != "linux" or not sys.platform.startswith("linux"):
+            raise ReleaseError("--display xvfb is supported on Linux only")
+        if shutil.which("xvfb-run") is None:
+            raise ReleaseError("--display xvfb requires `xvfb-run` on PATH")
     if keep_on_failure and failure_dir is not None:
         try:
             validate_failure_dir(failure_dir)
@@ -712,6 +744,7 @@ def smoke(
         stdout: str = "",
         stderr: str = "",
         log: Path | None = None,
+        env: dict[str, str] | None = None,
     ) -> None:
         stdout_log = scratch_path / f"{step}.stdout.log"
         stderr_log = scratch_path / f"{step}.stderr.log"
@@ -732,6 +765,8 @@ def smoke(
             "stage": "smoke",
             "archive": str(archive),
             "platform": platform.name,
+            "display": display,
+            "rendering_driver": rendering_driver,
             "step": step,
             "reason": reason,
             "command": command,
@@ -745,6 +780,8 @@ def smoke(
             "library_sha256": sha256(lib_path) if lib_path.is_file() else None,
             "library_build_id": (try_read_build_id(lib_path, run)
                                  if platform.name == "linux" and lib_path.is_file() else None),
+            "runtime_env": (diagnostic_runtime_env(env)
+                            if platform.name == "linux" and env is not None else None),
             "log_file": final_path(log),
             "stdout_file": final_path(stdout_log),
             "stderr_file": final_path(stderr_log),
@@ -778,19 +815,30 @@ def smoke(
                 ("refusal", [str(not_the_rom)], [SETUP_SHOWN, BUILD_STARTED,
                                                  f"{NOT_THE_ROM_NAME} {NOT_THE_ROM}"])):
             log = scratch_path / f"{step}.log"
-            command = [str(game), "--headless", "--max-fps", "60", "--quit-after",
-                       SMOKE_FRAMES[step], "--log-file", str(log), *extra]
+            env = first_run_environment(home, saves, platform=platform)
+            if display == "xvfb":
+                env.pop("XAUTHORITY", None)
+                env["LIBGL_ALWAYS_SOFTWARE"] = "1"
+                driver_args = ["--display-driver", "x11", "--audio-driver", "Dummy"]
+                if rendering_driver:
+                    driver_args.extend(["--rendering-driver", rendering_driver])
+                command = ["xvfb-run", "-a", "-s", XVFB_SERVER_ARGS, str(game), *driver_args,
+                           "--max-fps", "60", "--quit-after", SMOKE_FRAMES[step],
+                           "--log-file", str(log), *extra]
+            else:
+                command = [str(game), "--headless", "--max-fps", "60", "--quit-after",
+                           SMOKE_FRAMES[step], "--log-file", str(log), *extra]
             try:
                 result = subprocess.run(
-                    command, env=first_run_environment(home, saves), capture_output=True,
+                    command, env=env, capture_output=True,
                     text=True, encoding="utf-8", errors="replace", timeout=SMOKE_TIMEOUT,
                     check=False)
             except subprocess.TimeoutExpired as error:
                 fail(step, f"the {step} run did not end in {SMOKE_TIMEOUT} s", command,
-                     stdout=_as_text(error.stdout), stderr=_as_text(error.stderr), log=log)
+                     stdout=_as_text(error.stdout), stderr=_as_text(error.stderr), log=log, env=env)
             except OSError as error:
                 fail(step, f"could not launch {step} run: {error}", command,
-                     stderr=f"{error}\n", log=log)
+                     stderr=f"{error}\n", log=log, env=env)
             lines = log.read_text(encoding="utf-8", errors="replace").splitlines() \
                 if log.is_file() else []
             if result.returncode != 0:
@@ -798,19 +846,19 @@ def smoke(
                 fail(step, f"the {step} run exited {result.returncode}; it logged:\n"
                      + "\n".join(lines[-40:] + output[-40:]), command,
                      returncode=result.returncode, stdout=result.stdout, stderr=result.stderr,
-                     log=log)
+                     log=log, env=env)
             missing = [text for text in wanted if not any(text in line for line in lines)]
             if missing:
                 fail(step, f"the {step} run never showed {missing}; it logged:\n"
                      + "\n".join(lines[-40:]), command,
                      returncode=result.returncode, stdout=result.stdout, stderr=result.stderr,
-                     log=log)
+                     log=log, env=env)
             errors = [line for line in lines if line.startswith(LOGGED_ERROR)]
             if errors:
                 fail(step, f"the {step} run logged an error; it logged:\n"
                      + "\n".join(errors[:40]), command,
                      returncode=result.returncode, stdout=result.stdout, stderr=result.stderr,
-                     log=log)
+                     log=log, env=env)
             shown += [line for line in lines if line.startswith(("pack setup:", "pack builder:"))]
     except ReleaseError:
         raise
@@ -873,6 +921,8 @@ def main(argv: list[str] | None = None) -> int:
     step.add_argument("--symbols", type=Path, default=None)
     step.add_argument("--failure-dir", type=Path, default=None)
     step.add_argument("--no-keep-on-failure", action="store_false", dest="keep_on_failure")
+    step.add_argument("--display", choices=SMOKE_DISPLAYS, default="headless")
+    step.add_argument("--rendering-driver", choices=SMOKE_RENDERING_DRIVERS, default=None)
     args = parser.parse_args(argv)
     try:
         if args.command == "build":
@@ -910,7 +960,8 @@ def main(argv: list[str] | None = None) -> int:
             for line in smoke(
                 args.archive, PLATFORMS[args.platform],
                 failure_dir=args.failure_dir, keep_on_failure=args.keep_on_failure,
-                symbols_dir=args.symbols,
+                symbols_dir=args.symbols, display=args.display,
+                rendering_driver=args.rendering_driver,
             ):
                 print(f"release: {line}", file=sys.stderr)
             print(f"release: {args.archive.name} starts and runs its pack builder",
