@@ -769,3 +769,93 @@ fn malformed_data_scenes_fail_closed_at_load_time() {
     // None of the rejected loads registered event 32520.
     assert!(!rt.install_scene(EventIndex(32520)));
 }
+
+#[test]
+fn data_scene_validation_tracks_branch_dependent_map_contexts() {
+    let mut rt = runtime_at(Cell::new(1, 1));
+
+    // Negative control: starts on map 0x011 (0 NPCs), branches around LoadMap 0x010 (2 NPCs),
+    // and then references NPC 0 at op 2. Because the branch reaches op 2 still on map 0x011,
+    // load-time validation must reject op 2 instead of trusting the skipped LoadMap.
+    let branched_bad_npc = r#"{
+        "format_version": 1,
+        "name": "BranchedBadNpc",
+        "event_id": 32521,
+        "target_map": 17,
+        "ops": [
+            {
+                "op": "branch_flag",
+                "flag": { "bank": "event", "id": 1 },
+                "if_set": 2,
+                "if_clear": 1
+            },
+            {
+                "op": "load_map",
+                "map": 16,
+                "prev_map": 17,
+                "start_x": 2,
+                "start_y": 2,
+                "facing": "down",
+                "align": 4,
+                "clear_load_flags": 0
+            },
+            {
+                "op": "face",
+                "actor": { "kind": "npc", "index": 0 },
+                "facing": "down"
+            }
+        ]
+    }"#;
+    let err = rt
+        .register_data_scene_json(branched_bad_npc)
+        .expect_err("branch bypassing LoadMap must reject NPC ref invalid on target_map 0x011");
+    assert!(
+        matches!(
+            err,
+            DataSceneLoadError::PackCrossRef {
+                op_index: Some(2),
+                ref reason
+            } if reason.contains("0x011")
+        ),
+        "expected map 0x011 NPC rejection at op 2, got {err}"
+    );
+
+    // Positive control: guarding op 3 with SkipUnlessMap [16] ensures NPC 0 is only reachable
+    // when current_map is 0x010 (which has 2 NPCs).
+    let guarded_good_npc = r#"{
+        "format_version": 1,
+        "name": "GuardedGoodNpc",
+        "event_id": 32522,
+        "target_map": 17,
+        "ops": [
+            {
+                "op": "branch_flag",
+                "flag": { "bank": "event", "id": 1 },
+                "if_set": 2,
+                "if_clear": 1
+            },
+            {
+                "op": "load_map",
+                "map": 16,
+                "prev_map": 17,
+                "start_x": 2,
+                "start_y": 2,
+                "facing": "down",
+                "align": 4,
+                "clear_load_flags": 0
+            },
+            {
+                "op": "skip_unless_map",
+                "maps": [16],
+                "skip": 1
+            },
+            {
+                "op": "face",
+                "actor": { "kind": "npc", "index": 0 },
+                "facing": "down"
+            }
+        ]
+    }"#;
+    rt.register_data_scene_json(guarded_good_npc)
+        .expect("SkipUnlessMap-guarded NPC ref must pass branch-aware validation");
+}

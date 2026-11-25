@@ -9,6 +9,7 @@
 //! loaded [`GameData`] pack so malformed scene data fails closed at load time.
 
 use std::borrow::Cow;
+use std::collections::{BTreeSet, VecDeque};
 use std::fmt;
 use std::sync::Arc;
 
@@ -155,33 +156,30 @@ fn validate_pack_cross_refs(
     ops: &[SceneOp],
     data: &GameData,
 ) -> Result<(), DataSceneLoadError> {
-    let mut current_map: Option<u16> = None;
-    let mut active_tree: Option<u8> = None;
-
-    if let Some(map_id) = program.target_map {
+    let (init_map, init_tree) = if let Some(map_id) = program.target_map {
         let Some(record) = data.map(MapId(map_id)) else {
             return Err(DataSceneLoadError::pack_header(format!(
                 "target_map 0x{map_id:03X} is not packed in GameData"
             )));
         };
-        current_map = Some(map_id);
-        active_tree = Some(record.dialogue_tree);
-    }
+        (Some(map_id), Some(record.dialogue_tree))
+    } else {
+        (None, None)
+    };
 
     let dialogue = data.dialogue();
 
+    // First verify context-independent pack references across every op (including
+    // dead/unreachable code) so malformed map or tree addresses always fail closed.
     for (index, op) in ops.iter().enumerate() {
-        let map_record = current_map.and_then(|id| data.map(MapId(id)));
         match op {
             SceneOp::LoadMap { map, .. } => {
-                let Some(record) = data.map(MapId(*map)) else {
+                if data.map(MapId(*map)).is_none() {
                     return Err(DataSceneLoadError::pack_op(
                         index,
                         format!("LoadMap target 0x{map:03X} is not packed in GameData"),
                     ));
-                };
-                current_map = Some(*map);
-                active_tree = Some(record.dialogue_tree);
+                }
             }
             SceneOp::SkipUnlessMap { maps, .. } => {
                 for &map_id in maps.as_ref() {
@@ -194,169 +192,332 @@ fn validate_pack_cross_refs(
                 }
             }
             SceneOp::SetDialogueTree { rom_addr } => {
-                if let Some(pack) = dialogue.as_deref() {
-                    let Some(tree) = pack
+                if let Some(pack) = dialogue.as_deref()
+                    && !pack
                         .trees
                         .trees
                         .iter()
-                        .find(|tree| tree.rom_address() == Some(*rom_addr))
-                    else {
-                        return Err(DataSceneLoadError::pack_op(
-                            index,
-                            format!(
-                                "SetDialogueTree ROM address 0x{rom_addr:06X} matches no dialogue tree in pack"
-                            ),
-                        ));
-                    };
-                    active_tree = Some(tree.tree);
-                }
-            }
-            SceneOp::RunDialogue { source, .. } => match source {
-                DialogueSource::Entry(entry_id) => {
-                    if let (Some(pack), Some(tree_num)) = (dialogue.as_deref(), active_tree)
-                        && pack.entry(tree_num, entry_id.0).is_none()
-                    {
-                        return Err(DataSceneLoadError::pack_op(
-                            index,
-                            format!(
-                                "RunDialogue entry 0x{:02X} does not exist in dialogue tree {tree_num}",
-                                entry_id.0
-                            ),
-                        ));
-                    }
-                }
-                DialogueSource::NpcDialogueId(actor) => {
-                    check_npc_actor(index, *actor, map_record)?;
-                }
-                DialogueSource::System(_) => {}
-            },
-            SceneOp::DespawnNpc { npc_index, count } => {
-                if let Some(record) = map_record {
-                    let end = npc_index.checked_add(*count);
-                    if !end.is_some_and(|e| e <= record.npcs.len()) {
-                        return Err(DataSceneLoadError::pack_op(
-                            index,
-                            format!(
-                                "DespawnNpc range {}..+{} exceeds map 0x{:03X} NPC count {}",
-                                npc_index,
-                                count,
-                                record.id.0,
-                                record.npcs.len()
-                            ),
-                        ));
-                    }
-                }
-            }
-            SceneOp::SetNpcDialogue {
-                npc_index,
-                dialogue_id,
-            } => {
-                check_npc_index(index, *npc_index, map_record)?;
-                if let (Some(pack), Some(tree_num)) = (dialogue.as_deref(), active_tree)
-                    && pack.entry(tree_num, *dialogue_id).is_none()
+                        .any(|tree| tree.rom_address() == Some(*rom_addr))
                 {
                     return Err(DataSceneLoadError::pack_op(
                         index,
                         format!(
-                            "SetNpcDialogue entry 0x{dialogue_id:02X} does not exist in dialogue tree {tree_num}"
+                            "SetDialogueTree ROM address 0x{rom_addr:06X} matches no dialogue tree in pack"
                         ),
                     ));
                 }
-            }
-            SceneOp::PromoteNpcToChar { npc, .. } => {
-                check_npc_index(index, *npc, map_record)?;
-            }
-            SceneOp::DriftNpcs { drifts, .. } => {
-                for drift in drifts.as_ref() {
-                    check_npc_index(index, drift.npc, map_record)?;
-                }
-            }
-            SceneOp::WriteMapChunks { chunks } => {
-                if let Some(record) = map_record {
-                    for &(x, y, chunk_id) in chunks.as_ref() {
-                        if x >= record.dimensions.width_chunks
-                            || y >= record.dimensions.height_chunks
-                        {
-                            return Err(DataSceneLoadError::pack_op(
-                                index,
-                                format!(
-                                    "WriteMapChunks coordinate ({x},{y}) is outside map 0x{:03X} ({}x{} chunks)",
-                                    record.id.0,
-                                    record.dimensions.width_chunks,
-                                    record.dimensions.height_chunks
-                                ),
-                            ));
-                        }
-                        check_patch_chunk(index, record, Some((x, y)), chunk_id)?;
-                    }
-                }
-            }
-            SceneOp::WriteActorMapChunks { actor, chunks } => {
-                check_npc_actor(index, *actor, map_record)?;
-                if let Some(record) = map_record {
-                    for &(_, _, chunk_id) in chunks.as_ref() {
-                        check_patch_chunk(index, record, None, chunk_id)?;
-                    }
-                }
-            }
-            SceneOp::RestoreMapChunks { chunks } => {
-                if let Some(record) = map_record {
-                    for &(x, y, _) in chunks.as_ref() {
-                        if x >= record.dimensions.width_chunks
-                            || y >= record.dimensions.height_chunks
-                        {
-                            return Err(DataSceneLoadError::pack_op(
-                                index,
-                                format!(
-                                    "RestoreMapChunks coordinate ({x},{y}) is outside map 0x{:03X} ({}x{} chunks)",
-                                    record.id.0,
-                                    record.dimensions.width_chunks,
-                                    record.dimensions.height_chunks
-                                ),
-                            ));
-                        }
-                    }
-                }
-            }
-            SceneOp::PanCamera { subject, .. } => match *subject {
-                CameraSubject::At { .. } => {}
-                CameraSubject::Actor(actor)
-                | CameraSubject::ActorX { actor, .. }
-                | CameraSubject::ActorShifted { actor, .. } => {
-                    check_npc_actor(index, actor, map_record)?;
-                }
-            },
-            SceneOp::BranchIfAligned { a, b, .. } | SceneOp::BranchIfActorGreater { a, b, .. } => {
-                check_npc_actor(index, *a, map_record)?;
-                check_npc_actor(index, *b, map_record)?;
-            }
-            SceneOp::FaceOppositeOf { actor, of } => {
-                check_npc_actor(index, *actor, map_record)?;
-                check_npc_actor(index, *of, map_record)?;
-            }
-            SceneOp::MoveActorToActor { actor, target, .. }
-            | SceneOp::MoveActorToActorAxis { actor, target, .. } => {
-                check_npc_actor(index, *actor, map_record)?;
-                check_npc_actor(index, *target, map_record)?;
-            }
-            SceneOp::BranchIfActorCoord { actor, .. }
-            | SceneOp::MoveActor { actor, .. }
-            | SceneOp::MoveActorTo { actor, .. }
-            | SceneOp::MoveActorOffset { actor, .. }
-            | SceneOp::MoveActorCommand { actor, .. }
-            | SceneOp::PlaceActor { actor, .. }
-            | SceneOp::SetActorDest { actor, .. }
-            | SceneOp::Face { actor, .. }
-            | SceneOp::SetActorAnimation { actor, .. }
-            | SceneOp::WaitForActor { actor }
-            | SceneOp::SetArtTile { actor, .. } => {
-                check_npc_actor(index, *actor, map_record)?;
             }
             _ => {}
         }
     }
 
+    // Track reachable `(op_index, current_map, active_tree)` states across all
+    // control-flow edges so branch-dependent `LoadMap` / `SetDialogueTree` ops
+    // cannot mask an invalid NPC, chunk, or dialogue reference on another path.
+    let mut visited: BTreeSet<(usize, Option<u16>, Option<u8>)> = BTreeSet::new();
+    let mut queue: VecDeque<(usize, Option<u16>, Option<u8>)> = VecDeque::new();
+    let start = (0, init_map, init_tree);
+    visited.insert(start);
+    queue.push_back(start);
+
+    while let Some((index, current_map, active_tree)) = queue.pop_front() {
+        if index >= ops.len() {
+            continue;
+        }
+        let op = &ops[index];
+        let (next_map, next_tree) = validate_op_in_context(
+            index,
+            op,
+            current_map,
+            active_tree,
+            data,
+            dialogue.as_deref(),
+        )?;
+
+        let mut push = |target: usize, map: Option<u16>, tree: Option<u8>| {
+            if target < ops.len() && visited.insert((target, map, tree)) {
+                queue.push_back((target, map, tree));
+            }
+        };
+
+        match op {
+            SceneOp::Return { .. } | SceneOp::End => {}
+            SceneOp::Jump { to } => push(*to, next_map, next_tree),
+            SceneOp::SkipOps { count } => {
+                push(index + 1 + usize::from(*count), next_map, next_tree);
+            }
+            SceneOp::BranchDialogueEnd { if_ended } => {
+                push(index + 1, next_map, next_tree);
+                push(*if_ended, next_map, next_tree);
+            }
+            SceneOp::BranchFlag {
+                if_set, if_clear, ..
+            } => {
+                push(*if_set, next_map, next_tree);
+                push(*if_clear, next_map, next_tree);
+            }
+            SceneOp::BranchChoice { if_yes, if_no } => {
+                push(*if_yes, next_map, next_tree);
+                push(*if_no, next_map, next_tree);
+            }
+            SceneOp::BranchIfAligned {
+                if_aligned, if_not, ..
+            } => {
+                push(*if_aligned, next_map, next_tree);
+                push(*if_not, next_map, next_tree);
+            }
+            SceneOp::BranchIfActorGreater {
+                if_greater, if_not, ..
+            } => {
+                push(*if_greater, next_map, next_tree);
+                push(*if_not, next_map, next_tree);
+            }
+            SceneOp::BranchIfActorCoord {
+                if_true, if_false, ..
+            } => {
+                push(*if_true, next_map, next_tree);
+                push(*if_false, next_map, next_tree);
+            }
+            SceneOp::BranchIfSavedDialogueByte {
+                if_equal, if_not, ..
+            } => {
+                push(*if_equal, next_map, next_tree);
+                push(*if_not, next_map, next_tree);
+            }
+            SceneOp::BranchIfVehicle {
+                if_mounted,
+                if_on_foot,
+            } => {
+                push(*if_mounted, next_map, next_tree);
+                push(*if_on_foot, next_map, next_tree);
+            }
+            SceneOp::BranchIfMoneyBelow {
+                if_below, if_not, ..
+            } => {
+                push(*if_below, next_map, next_tree);
+                push(*if_not, next_map, next_tree);
+            }
+            SceneOp::BranchIfInventoryFull { if_full, if_not } => {
+                push(*if_full, next_map, next_tree);
+                push(*if_not, next_map, next_tree);
+            }
+            SceneOp::BranchIfPartyMember {
+                if_present,
+                if_absent,
+                ..
+            } => {
+                push(*if_present, next_map, next_tree);
+                push(*if_absent, next_map, next_tree);
+            }
+            SceneOp::BranchOnRngLow2 { targets } => {
+                for &target in targets {
+                    push(target, next_map, next_tree);
+                }
+            }
+            SceneOp::SkipUnlessMap { maps, skip } => {
+                let fallthrough_ok = current_map.is_none_or(|m| maps.as_ref().contains(&m));
+                let skip_ok = current_map.is_none_or(|m| !maps.as_ref().contains(&m));
+                if fallthrough_ok {
+                    let narrowed = match (current_map, maps.as_ref()) {
+                        (None, [only]) => data
+                            .map(MapId(*only))
+                            .map(|r| (Some(*only), Some(r.dialogue_tree))),
+                        _ => None,
+                    };
+                    let (ft_map, ft_tree) = narrowed.unwrap_or((next_map, next_tree));
+                    push(index + 1, ft_map, ft_tree);
+                }
+                if skip_ok {
+                    push(index + 1 + usize::from(*skip), next_map, next_tree);
+                }
+            }
+            SceneOp::DestinationMenu { cancel_skip, .. } => {
+                push(index + 1, next_map, next_tree);
+                push(index + 1 + usize::from(*cancel_skip), next_map, next_tree);
+            }
+            _ => push(index + 1, next_map, next_tree),
+        }
+    }
+
     Ok(())
+}
+
+fn validate_op_in_context(
+    index: usize,
+    op: &SceneOp,
+    current_map: Option<u16>,
+    active_tree: Option<u8>,
+    data: &GameData,
+    dialogue: Option<&psiv_data::DialogueSet>,
+) -> Result<(Option<u16>, Option<u8>), DataSceneLoadError> {
+    let mut next_map = current_map;
+    let mut next_tree = active_tree;
+    let map_record = current_map.and_then(|id| data.map(MapId(id)));
+
+    match op {
+        SceneOp::LoadMap { map, .. } => {
+            let record = data
+                .map(MapId(*map))
+                .expect("LoadMap target verified in pre-pass");
+            next_map = Some(*map);
+            next_tree = Some(record.dialogue_tree);
+        }
+        SceneOp::CommitDestination => {
+            next_map = None;
+            next_tree = None;
+        }
+        SceneOp::SetDialogueTree { rom_addr } => {
+            if let Some(pack) = dialogue {
+                let tree = pack
+                    .trees
+                    .trees
+                    .iter()
+                    .find(|tree| tree.rom_address() == Some(*rom_addr))
+                    .expect("SetDialogueTree address verified in pre-pass");
+                next_tree = Some(tree.tree);
+            }
+        }
+        SceneOp::RunDialogue { source, .. } => match source {
+            DialogueSource::Entry(entry_id) => {
+                if let (Some(pack), Some(tree_num)) = (dialogue, active_tree)
+                    && pack.entry(tree_num, entry_id.0).is_none()
+                {
+                    return Err(DataSceneLoadError::pack_op(
+                        index,
+                        format!(
+                            "RunDialogue entry 0x{:02X} does not exist in dialogue tree {tree_num}",
+                            entry_id.0
+                        ),
+                    ));
+                }
+            }
+            DialogueSource::NpcDialogueId(actor) => {
+                check_npc_actor(index, *actor, map_record)?;
+            }
+            DialogueSource::System(_) => {}
+        },
+        SceneOp::DespawnNpc { npc_index, count } => {
+            if let Some(record) = map_record {
+                let end = npc_index.checked_add(*count);
+                if !end.is_some_and(|e| e <= record.npcs.len()) {
+                    return Err(DataSceneLoadError::pack_op(
+                        index,
+                        format!(
+                            "DespawnNpc range {}..+{} exceeds map 0x{:03X} NPC count {}",
+                            npc_index,
+                            count,
+                            record.id.0,
+                            record.npcs.len()
+                        ),
+                    ));
+                }
+            }
+        }
+        SceneOp::SetNpcDialogue {
+            npc_index,
+            dialogue_id,
+        } => {
+            check_npc_index(index, *npc_index, map_record)?;
+            if let (Some(pack), Some(tree_num)) = (dialogue, active_tree)
+                && pack.entry(tree_num, *dialogue_id).is_none()
+            {
+                return Err(DataSceneLoadError::pack_op(
+                    index,
+                    format!(
+                        "SetNpcDialogue entry 0x{dialogue_id:02X} does not exist in dialogue tree {tree_num}"
+                    ),
+                ));
+            }
+        }
+        SceneOp::PromoteNpcToChar { npc, .. } => {
+            check_npc_index(index, *npc, map_record)?;
+        }
+        SceneOp::DriftNpcs { drifts, .. } => {
+            for drift in drifts.as_ref() {
+                check_npc_index(index, drift.npc, map_record)?;
+            }
+        }
+        SceneOp::WriteMapChunks { chunks } => {
+            if let Some(record) = map_record {
+                for &(x, y, chunk_id) in chunks.as_ref() {
+                    if x >= record.dimensions.width_chunks || y >= record.dimensions.height_chunks {
+                        return Err(DataSceneLoadError::pack_op(
+                            index,
+                            format!(
+                                "WriteMapChunks coordinate ({x},{y}) is outside map 0x{:03X} ({}x{} chunks)",
+                                record.id.0,
+                                record.dimensions.width_chunks,
+                                record.dimensions.height_chunks
+                            ),
+                        ));
+                    }
+                    check_patch_chunk(index, record, Some((x, y)), chunk_id)?;
+                }
+            }
+        }
+        SceneOp::WriteActorMapChunks { actor, chunks } => {
+            check_npc_actor(index, *actor, map_record)?;
+            if let Some(record) = map_record {
+                for &(_, _, chunk_id) in chunks.as_ref() {
+                    check_patch_chunk(index, record, None, chunk_id)?;
+                }
+            }
+        }
+        SceneOp::RestoreMapChunks { chunks } => {
+            if let Some(record) = map_record {
+                for &(x, y, _) in chunks.as_ref() {
+                    if x >= record.dimensions.width_chunks || y >= record.dimensions.height_chunks {
+                        return Err(DataSceneLoadError::pack_op(
+                            index,
+                            format!(
+                                "RestoreMapChunks coordinate ({x},{y}) is outside map 0x{:03X} ({}x{} chunks)",
+                                record.id.0,
+                                record.dimensions.width_chunks,
+                                record.dimensions.height_chunks
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+        SceneOp::PanCamera { subject, .. } => match *subject {
+            CameraSubject::At { .. } => {}
+            CameraSubject::Actor(actor)
+            | CameraSubject::ActorX { actor, .. }
+            | CameraSubject::ActorShifted { actor, .. } => {
+                check_npc_actor(index, actor, map_record)?;
+            }
+        },
+        SceneOp::BranchIfAligned { a, b, .. } | SceneOp::BranchIfActorGreater { a, b, .. } => {
+            check_npc_actor(index, *a, map_record)?;
+            check_npc_actor(index, *b, map_record)?;
+        }
+        SceneOp::FaceOppositeOf { actor, of } => {
+            check_npc_actor(index, *actor, map_record)?;
+            check_npc_actor(index, *of, map_record)?;
+        }
+        SceneOp::MoveActorToActor { actor, target, .. }
+        | SceneOp::MoveActorToActorAxis { actor, target, .. } => {
+            check_npc_actor(index, *actor, map_record)?;
+            check_npc_actor(index, *target, map_record)?;
+        }
+        SceneOp::BranchIfActorCoord { actor, .. }
+        | SceneOp::MoveActor { actor, .. }
+        | SceneOp::MoveActorTo { actor, .. }
+        | SceneOp::MoveActorOffset { actor, .. }
+        | SceneOp::MoveActorCommand { actor, .. }
+        | SceneOp::PlaceActor { actor, .. }
+        | SceneOp::SetActorDest { actor, .. }
+        | SceneOp::Face { actor, .. }
+        | SceneOp::SetActorAnimation { actor, .. }
+        | SceneOp::WaitForActor { actor }
+        | SceneOp::SetArtTile { actor, .. } => {
+            check_npc_actor(index, *actor, map_record)?;
+        }
+        _ => {}
+    }
+
+    Ok((next_map, next_tree))
 }
 
 fn check_npc_actor(
