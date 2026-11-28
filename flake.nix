@@ -8,7 +8,7 @@
 
   # Pinned by commit, so Renovate moves it with the workflows' pins on burrow
   # (burrow's templates/project/flake.nix).
-  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=18976c2adc38f19315d91b9f0113b35eecd9c075";
+  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=5fe4bb5868149b51bdb3cf2a555eb297ab41951a";
   # PSIV's Rust pin needs a newer manifest than burrow's own lock provides.
   # Own the revision here so lock maintenance cannot restore that older input.
   inputs.burrow.inputs.rust-overlay.url = "git+https://github.com/oxalica/rust-overlay?rev=67f1944c7c99d8dbb57fa3d83043bc0a92cbcc56&shallow=1";
