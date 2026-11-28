@@ -8,5 +8,5 @@ publish.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
-ra-ap-rustc_lexer = "0.185"
+ra-ap-rustc_lexer = "0.186"
 pulldown-cmark = { version = "0.13", default-features = false }
